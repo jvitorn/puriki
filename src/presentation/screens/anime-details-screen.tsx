@@ -112,34 +112,38 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           />
           <View style={styles.identityCopy}>
             <AppText variant="title">{anime.title}</AppText>
-            <AppText variant="caption" muted>
-              {anime.alternativeTitles.join(' • ')}
-            </AppText>
+            
+            <View style={styles.genres}>
+              {anime.genres.map((genre) => (
+                <Badge key={genre} label={genre} />
+              )).slice(0, 2)}
+            </View>
+            <View style={styles.scoreLine}>
+              <Star size={17} color={colors.warning} fill={colors.warning} />
+              <AppText variant="caption">{anime.score ?? 'Not scored'}</AppText>
+            </View>
             <View style={styles.badges}>
               <Badge label={anime.airingStatus} accent />
-              <Badge label={`${anime.totalEpisodes ?? '?'} episodes`} />
             </View>
           </View>
+        </View>
+        <View style={styles.section}>
+          {/* Synopsis */}
+          <AppText muted>{anime.synopsis}</AppText>
         </View>
         <View style={styles.metadata}>
           <AppText>
             {anime.season ?? 'Season TBD'} {anime.year ?? ''}
           </AppText>
+          <AppText>{' • '}</AppText>
           <AppText>{anime.studios.join(', ')}</AppText>
-          <View style={styles.scoreLine}>
-            <Star size={17} color={colors.warning} fill={colors.warning} />
-            <AppText>{anime.score ?? 'Not scored'}</AppText>
-          </View>
-        </View>
-        <View style={styles.genres}>
-          {anime.genres.map((genre) => (
-            <Badge key={genre} label={genre} />
-          ))}
+          
         </View>
         <View style={styles.section}>
-          <AppText variant="heading">Synopsis</AppText>
-          <AppText muted>{anime.synopsis}</AppText>
+          <AppText variant="heading">Titles Alternative</AppText>
+          <AppText muted>{anime.alternativeTitles.join(' • ')}</AppText>
         </View>
+        
         <View style={styles.panel}>
           <AppText variant="heading">Episode progress</AppText>
           <EpisodeProgressControl
@@ -195,7 +199,7 @@ const styles = StyleSheet.create({
   },
   identityCopy: { flex: 1, gap: spacing.sm, paddingBottom: spacing.sm },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  metadata: { gap: spacing.xs },
+  metadata: { gap: spacing.xs, flexDirection: 'row', flexWrap: 'wrap' },
   scoreLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   genres: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   section: { gap: spacing.sm },
