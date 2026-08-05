@@ -1,0 +1,128 @@
+import { useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+
+import {
+  useContinueWatching,
+  useFeaturedAnime,
+  usePopularAnime,
+  useRecentlyAddedAnime,
+  useSeasonalAnime,
+} from '@/application/queries/anime-queries';
+import type { AnimeCatalogItem, UnifiedAnime } from '@/domain/models/anime';
+import { AnimeRail } from '@/presentation/components/anime/anime-rail';
+import { FeaturedAnime } from '@/presentation/components/home/featured-anime';
+import { AppText } from '@/presentation/components/ui/app-text';
+import { ErrorState } from '@/presentation/components/ui/feedback';
+import { Screen } from '@/presentation/components/ui/screen';
+import { Skeleton } from '@/presentation/components/ui/skeleton';
+import { colors, spacing } from '@/presentation/theme/tokens';
+
+function asUnified(items: AnimeCatalogItem[] | undefined): UnifiedAnime[] {
+  return items?.map((anime) => ({ anime })) ?? [];
+}
+
+export function HomeScreen() {
+  const router = useRouter();
+  const featured = useFeaturedAnime();
+  const watching = useContinueWatching();
+  const popular = usePopularAnime();
+  const seasonal = useSeasonalAnime();
+  const recent = useRecentlyAddedAnime();
+  const queries = [featured, watching, popular, seasonal, recent];
+  const isLoading = queries.some((query) => query.isLoading);
+  const isError = queries.some((query) => query.isError);
+  const open = (id: number) =>
+    router.push({ pathname: '/anime/[id]', params: { id: String(id) } });
+
+  if (isLoading) {
+    return (
+      <Screen scroll>
+        <View style={styles.brand}>
+          <AppText variant="title">PURIKUKI</AppText>
+          <AppText variant="caption" muted>
+            Your anime, your pace.
+          </AppText>
+        </View>
+        <Skeleton height={390} />
+        <View style={styles.skeletons}>
+          <Skeleton height={24} width="45%" />
+          <Skeleton height={204} />
+          <Skeleton height={24} width="38%" />
+          <Skeleton height={204} />
+        </View>
+      </Screen>
+    );
+  }
+
+  if (isError || !featured.data) {
+    return (
+      <Screen>
+        <View style={styles.brand}>
+          <AppText variant="title">PURIKUKI</AppText>
+        </View>
+        <ErrorState
+          onRetry={() =>
+            void Promise.all(queries.map((query) => query.refetch()))
+          }
+        />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen scroll>
+      <View style={styles.brand}>
+        <View>
+          <AppText variant="title">PURIKUKI</AppText>
+          <AppText variant="caption" muted>
+            Your anime, your pace.
+          </AppText>
+        </View>
+        <View style={styles.phase}>
+          <AppText variant="caption">PHASE 1</AppText>
+        </View>
+      </View>
+      <FeaturedAnime
+        anime={featured.data}
+        onOpen={() => open(featured.data.id)}
+      />
+      <AnimeRail
+        title="Continue Watching"
+        items={watching.data ?? []}
+        onPressItem={(item) => open(item.anime.id)}
+        emptyMessage="Start an anime to see it here."
+      />
+      <AnimeRail
+        title="Popular Now"
+        items={asUnified(popular.data)}
+        onPressItem={(item) => open(item.anime.id)}
+      />
+      <AnimeRail
+        title="This Season"
+        items={asUnified(seasonal.data)}
+        onPressItem={(item) => open(item.anime.id)}
+      />
+      <AnimeRail
+        title="Recently Added"
+        items={asUnified(recent.data)}
+        onPressItem={(item) => open(item.anime.id)}
+      />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  brand: {
+    minHeight: 70,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  phase: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceElevated,
+  },
+  skeletons: { gap: spacing.md, marginTop: spacing.lg },
+});
