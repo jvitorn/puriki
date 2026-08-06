@@ -10,16 +10,23 @@ export interface JikanRequestSchedulerOptions {
   sleep?: SchedulerSleep;
 }
 
+interface SchedulerState {
+  gate: Promise<void>;
+  nextStartAt: number;
+}
+
 export class JikanRequestScheduler {
   private readonly inFlight = new Map<string, Promise<unknown>>();
-  private gate: Promise<void> = Promise.resolve();
-  private nextStartAt = 0;
+  private state: SchedulerState = {
+    gate: Promise.resolve(),
+    nextStartAt: 0,
+  };
   private readonly requestIntervalMs: number;
   private readonly now: SchedulerClock;
   private readonly sleep: SchedulerSleep;
 
   constructor(options: JikanRequestSchedulerOptions = {}) {
-    this.requestIntervalMs = options.requestIntervalMs ?? 1_000;
+    this.requestIntervalMs = options.requestIntervalMs ?? 500;
     this.now = options.now ?? Date.now;
     this.sleep = options.sleep ?? defaultSleep;
   }
@@ -28,11 +35,12 @@ export class JikanRequestScheduler {
     const existing = this.inFlight.get(key);
     if (existing) return existing as Promise<T>;
 
-    const request = this.gate.then(async () => {
-      const waitMs = Math.max(0, this.nextStartAt - this.now());
+    const state = this.state;
+    const request = state.gate.then(async () => {
+      const waitMs = Math.max(0, state.nextStartAt - this.now());
       if (waitMs > 0) await this.sleep(waitMs);
-      this.nextStartAt =
-        Math.max(this.nextStartAt, this.now()) + this.requestIntervalMs;
+      state.nextStartAt =
+        Math.max(state.nextStartAt, this.now()) + this.requestIntervalMs;
       if (process.env.NODE_ENV === 'development') {
         console.info('[Jikan] request started', {
           key,
@@ -41,7 +49,7 @@ export class JikanRequestScheduler {
       }
       return operation();
     });
-    this.gate = request.then(
+    state.gate = request.then(
       () => undefined,
       () => undefined,
     );
@@ -56,8 +64,10 @@ export class JikanRequestScheduler {
 
   clear(): void {
     this.inFlight.clear();
-    this.nextStartAt = 0;
-    this.gate = Promise.resolve();
+    this.state = {
+      gate: Promise.resolve(),
+      nextStartAt: 0,
+    };
   }
 
   private deleteIfCurrent(key: string, request: Promise<unknown>): void {

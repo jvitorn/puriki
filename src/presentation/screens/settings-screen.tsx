@@ -143,7 +143,9 @@ export function SettingsScreen() {
         ) : null}
         {reset.isError || refresh.isError ? (
           <AppText accessibilityRole="alert" style={styles.danger}>
-            Refresh failed. Check the active data source and try again.
+            {refresh.isError && mode === 'jikan'
+              ? 'The catalog could not be refreshed. Previously loaded data is still available.'
+              : 'Refresh failed. Check the active data source and try again.'}
           </AppText>
         ) : null}
       </View>

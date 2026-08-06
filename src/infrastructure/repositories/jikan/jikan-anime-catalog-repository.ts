@@ -12,7 +12,10 @@ import {
   type JikanAnimeDto,
   type JikanCollectionResponse,
 } from '@/infrastructure/api/jikan/jikan-dtos';
-import { JikanNotFoundError } from '@/infrastructure/api/jikan/jikan-errors';
+import {
+  JikanNotFoundError,
+  JikanResponseFormatError,
+} from '@/infrastructure/api/jikan/jikan-errors';
 import { mapJikanAnime } from '@/infrastructure/api/jikan/jikan-mapper';
 import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 import { normalizeSearchText } from '@/shared/utils/search';
@@ -24,9 +27,11 @@ export interface JikanAnimeCatalogRepositoryOptions {
   cache?: JikanCatalogCache;
   random?: RandomGenerator;
   scheduler?: JikanRequestScheduler;
+  sleep?: (milliseconds: number) => Promise<void>;
 }
 
 type AnimeCollectionRequest = () => Promise<unknown>;
+type DiscoveryCollectionName = 'popular' | 'seasonal' | 'upcoming';
 
 function shuffled<T>(items: readonly T[], random: RandomGenerator): T[] {
   const result = [...items];
@@ -55,9 +60,12 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
   private readonly cache: JikanCatalogCache;
   private readonly random: RandomGenerator;
   private readonly scheduler: JikanRequestScheduler;
+  private readonly sleep?: (milliseconds: number) => Promise<void>;
   private readonly sessionCollections = new Map<string, AnimeCatalogItem[]>();
   private sessionPool: AnimeCatalogItem[] | null = null;
   private featured: AnimeCatalogItem | null = null;
+  private refreshInFlight: Promise<void> | null = null;
+  private generation = 0;
 
   constructor(options: JikanAnimeCatalogRepositoryOptions = {}) {
     this.client = options.client ?? createJikanClient();
@@ -65,10 +73,12 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     this.cache = options.cache ?? new JikanCatalogCache();
     this.random = options.random ?? Math.random;
     this.scheduler = options.scheduler ?? new JikanRequestScheduler();
+    this.sleep = options.sleep;
   }
 
   async getFeatured(): Promise<AnimeCatalogItem> {
     if (this.featured) return this.featured;
+    const generation = this.generation;
     const pool = await this.getSessionPool();
     const preferred = pool.find(
       (anime) =>
@@ -79,7 +89,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     const featured = preferred ?? pool[0];
     if (!featured)
       throw new Error('Jikan returned an empty discovery catalog.');
-    this.featured = featured;
+    if (generation === this.generation) this.featured = featured;
     return featured;
   }
 
@@ -141,6 +151,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     if (this.cache.hasDetail(id)) {
       return Promise.resolve(this.cache.getDetail(id) ?? null);
     }
+    const generation = this.generation;
     return this.cache.getOrCreate(`detail:${id}`, async () => {
       try {
         const response = await this.executeRequest(
@@ -149,11 +160,11 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
           isJikanSingleAnimeResponse,
         );
         const item = mapJikanAnime(response.data);
-        this.cache.setDetail(id, item);
+        if (generation === this.generation) this.cache.setDetail(id, item);
         return item;
       } catch (error: unknown) {
         if (error instanceof JikanNotFoundError) {
-          this.cache.setDetail(id, null);
+          if (generation === this.generation) this.cache.setDetail(id, null);
           return null;
         }
         throw error;
@@ -161,7 +172,20 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     });
   }
 
+  refresh(): Promise<void> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+    const generation = this.generation;
+    const refresh = this.refreshDiscoveryCollections(generation);
+    this.refreshInFlight = refresh;
+    void refresh.then(
+      () => this.clearRefreshIfCurrent(refresh),
+      () => this.clearRefreshIfCurrent(refresh),
+    );
+    return refresh;
+  }
+
   clearCache(): void {
+    this.generation += 1;
     this.cache.clear();
     this.scheduler.clear();
     if (this.ownsClient) this.client = createJikanClient();
@@ -176,7 +200,12 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
   ): Promise<AnimeCatalogItem[]> {
     const existing = this.sessionCollections.get(name);
     if (existing) return existing;
+    const generation = this.generation;
     const collection = await this.fetchCollection(name, request);
+    if (generation !== this.generation)
+      return shuffled(collection, this.random);
+    const concurrent = this.sessionCollections.get(name);
+    if (concurrent) return concurrent;
     const randomized = shuffled(collection, this.random);
     this.sessionCollections.set(name, randomized);
     return randomized;
@@ -184,6 +213,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
 
   private async getSessionPool(): Promise<AnimeCatalogItem[]> {
     if (this.sessionPool) return this.sessionPool;
+    const generation = this.generation;
     const results = await Promise.allSettled([
       this.getPopular(),
       this.getSeasonal(),
@@ -196,8 +226,14 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
       const failure = results.find((result) => result.status === 'rejected');
       throw failure?.reason ?? new Error('Jikan returned no collections.');
     }
-    this.sessionPool = shuffled(deduplicate(collections.flat()), this.random);
-    return this.sessionPool;
+    if (generation !== this.generation) {
+      return shuffled(deduplicate(collections.flat()), this.random);
+    }
+    const concurrent = this.sessionPool;
+    if (concurrent) return concurrent;
+    const pool = shuffled(deduplicate(collections.flat()), this.random);
+    this.sessionPool = pool;
+    return pool;
   }
 
   private fetchCollection(
@@ -207,14 +243,75 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     const key = `collection:${name}`;
     const cached = this.cache.getCollection(key);
     if (cached) return Promise.resolve(cached);
+    const generation = this.generation;
     return this.cache.getOrCreate(key, async () => {
       const response = await this.executeRequest<
         JikanCollectionResponse<JikanAnimeDto>
       >(name, request, isJikanAnimeCollectionResponse);
       const items = deduplicate(response.data.map(mapJikanAnime));
-      this.cache.setCollection(key, items);
+      if (generation === this.generation) this.cache.setCollection(key, items);
       return items;
     });
+  }
+
+  private async fetchFreshCollection(
+    name: DiscoveryCollectionName,
+    request: AnimeCollectionRequest,
+  ): Promise<AnimeCatalogItem[]> {
+    const response = await this.executeRequest<
+      JikanCollectionResponse<JikanAnimeDto>
+    >(name, request, isJikanAnimeCollectionResponse);
+    return deduplicate(response.data.map(mapJikanAnime));
+  }
+
+  private async refreshDiscoveryCollections(generation: number): Promise<void> {
+    const [popular, seasonal, upcoming] = await Promise.allSettled([
+      this.fetchFreshCollection('popular', () => this.client.top.getTopAnime()),
+      this.fetchFreshCollection('seasonal', () =>
+        this.client.seasons.getSeasonNow(),
+      ),
+      this.fetchFreshCollection('upcoming', () =>
+        this.client.seasons.getSeasonUpcoming(),
+      ),
+    ]);
+    const failed = [popular, seasonal, upcoming].find(
+      (result) => result.status === 'rejected',
+    );
+    if (failed?.status === 'rejected') throw failed.reason;
+    if (
+      popular.status !== 'fulfilled' ||
+      seasonal.status !== 'fulfilled' ||
+      upcoming.status !== 'fulfilled'
+    ) {
+      throw new Error('Jikan refresh did not finish.');
+    }
+    const freshCollections: (readonly [
+      DiscoveryCollectionName,
+      AnimeCatalogItem[],
+    ])[] = [
+      ['popular', popular.value],
+      ['seasonal', seasonal.value],
+      ['upcoming', upcoming.value],
+    ];
+    if (freshCollections.every(([, items]) => items.length === 0)) {
+      throw new JikanResponseFormatError(
+        'Jikan returned an empty discovery catalog during refresh.',
+      );
+    }
+    if (generation !== this.generation) {
+      throw new Error('The catalog cache changed while refresh was running.');
+    }
+    this.cache.replaceCollections(
+      freshCollections.map(([name, items]) => [`collection:${name}`, items]),
+    );
+    freshCollections.forEach(([name, items]) => {
+      this.sessionCollections.set(name, shuffled(items, this.random));
+    });
+    this.sessionPool = shuffled(
+      deduplicate(freshCollections.flatMap(([, items]) => items)),
+      this.random,
+    );
+    this.featured = null;
   }
 
   private executeRequest<T>(
@@ -223,8 +320,15 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     validator: (value: unknown) => value is T,
   ): Promise<T> {
     return executeJikanRequest(request, validator, {
-      runAttempt: (attempt, operation) =>
-        this.scheduler.schedule(`${key}:attempt:${attempt}`, operation),
+      key,
+      random: this.random,
+      sleep: this.sleep,
+      runAttempt: (_attempt, operation) =>
+        this.scheduler.schedule(key, operation),
     });
+  }
+
+  private clearRefreshIfCurrent(refresh: Promise<void>): void {
+    if (this.refreshInFlight === refresh) this.refreshInFlight = null;
   }
 }

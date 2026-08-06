@@ -78,7 +78,7 @@ export function createJikanDependencies(): RepositoryDependencies {
     selectDataSourceMode: () => undefined,
     clearCatalogCache: () => catalogRepository.clearCache(),
     refreshCurrentSample: async () => {
-      catalogRepository.clearCache();
+      await catalogRepository.refresh();
       await userListRepository.generateNewSample();
     },
   };

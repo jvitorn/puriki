@@ -113,10 +113,10 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
   }
 
   async generateNewSample(): Promise<void> {
-    this.entries = null;
-    this.initialEntries = [];
-    this.initialization = null;
     await this.ensureInitialized();
+    const nextEntries = await this.buildSample();
+    this.entries = nextEntries;
+    this.initialEntries = cloneEntries(nextEntries);
   }
 
   private ensureInitialized(): Promise<void> {
@@ -129,6 +129,12 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
   }
 
   private async initialize(): Promise<void> {
+    const entries = await this.buildSample();
+    this.entries = entries;
+    this.initialEntries = cloneEntries(entries);
+  }
+
+  private async buildSample(): Promise<UserAnimeEntry[]> {
     const results = await Promise.allSettled([
       this.catalogRepository.getPopular(),
       this.catalogRepository.getSeasonal(),
@@ -160,10 +166,7 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
     const catalog = await this.catalogRepository.getManyByIds(
       selected.map((anime) => anime.id),
     );
-    this.entries = catalog.map((anime, index) =>
-      this.createEntry(anime, index),
-    );
-    this.initialEntries = cloneEntries(this.entries);
+    return catalog.map((anime, index) => this.createEntry(anime, index));
   }
 
   private createEntry(anime: AnimeCatalogItem, index: number): UserAnimeEntry {

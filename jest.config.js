@@ -4,12 +4,9 @@ module.exports = {
   testPathIgnorePatterns: ['/node_modules/', '/.expo/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^@tutkli/jikan-ts$':
-      '<rootDir>/node_modules/@tutkli/jikan-ts/dist/index.js',
-    '^ky$': '<rootDir>/node_modules/ky/distribution/index.js',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|expo-.*|@expo/.*|@react-navigation/.*|react-native-svg|nativewind|react-native-css-interop|@faker-js/faker|@tutkli/jikan-ts|ky)/)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|expo-.*|@expo/.*|@react-navigation/.*|react-native-svg|nativewind|react-native-css-interop|@faker-js/faker)/)',
   ],
   collectCoverageFrom: [
     'src/domain/rules/**/*.ts',

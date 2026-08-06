@@ -20,6 +20,7 @@ export type DataSourceErrorCode =
   | 'rate_limit'
   | 'unavailable'
   | 'not_found'
+  | 'http'
   | 'invalid_response';
 
 export class DataSourceError extends Error {
@@ -33,13 +34,13 @@ export class DataSourceError extends Error {
 }
 
 const SAFE_ERROR_MESSAGES: Record<DataSourceErrorCode, string> = {
-  network: 'No internet connection. Check your connection and try again.',
-  timeout: 'The request timed out. Please try again.',
+  network: 'Unable to reach Jikan. Check your connection and try again.',
+  timeout: 'Jikan took too long to respond. Please try again.',
   rate_limit:
-    'Jikan is receiving too many requests. Please wait and try again.',
-  unavailable:
-    'The Jikan service is temporarily unavailable. Please try again later.',
+    'Jikan is receiving too many requests. Please wait a moment and try again.',
+  unavailable: 'Jikan is temporarily unavailable. Please try again shortly.',
   not_found: 'Anime not found.',
+  http: 'Jikan could not complete the request. Please try again.',
   invalid_response:
     'Jikan returned an unknown response format. Please try again.',
 };

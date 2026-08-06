@@ -42,6 +42,33 @@ export function ErrorState({
   );
 }
 
+export function SectionErrorState({
+  message,
+  onRetry,
+  retryLabel,
+}: {
+  message: string;
+  onRetry(): void;
+  retryLabel: string;
+}) {
+  return (
+    <View accessible style={styles.section} accessibilityRole="alert">
+      <View style={styles.sectionCopy}>
+        <AlertCircle size={22} color={colors.danger} />
+        <AppText muted style={styles.sectionMessage}>
+          {message}
+        </AppText>
+      </View>
+      <Button
+        label="Try again"
+        accessibilityLabel={retryLabel}
+        variant="secondary"
+        onPress={onRetry}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     minHeight: 190,
@@ -51,4 +78,15 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   center: { textAlign: 'center' },
+  section: {
+    gap: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  sectionCopy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sectionMessage: { flex: 1 },
 });

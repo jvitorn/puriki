@@ -15,6 +15,19 @@ export class JikanCatalogCache {
     items.forEach((item) => this.summaries.set(item.id, item));
   }
 
+  replaceCollections(
+    collections: readonly (readonly [string, AnimeCatalogItem[]])[],
+  ): void {
+    collections.forEach(([key, items]) => this.collections.set(key, items));
+    this.summaries.clear();
+    this.collections.forEach((items) =>
+      items.forEach((item) => this.summaries.set(item.id, item)),
+    );
+    this.details.forEach((item) => {
+      if (item) this.summaries.set(item.id, item);
+    });
+  }
+
   getSummary(id: number): AnimeCatalogItem | undefined {
     return this.summaries.get(id);
   }

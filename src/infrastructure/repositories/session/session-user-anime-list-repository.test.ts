@@ -155,4 +155,14 @@ describe('SessionUserAnimeListRepository', () => {
     expect(repository.getUpcoming).toHaveBeenCalledTimes(2);
     expect(repository.getManyByIds).toHaveBeenCalledTimes(2);
   });
+
+  it('retains the current sample when generating a replacement fails', async () => {
+    const { repository, session } = createSession();
+    const original = await session.getAll();
+    repository.getPopular.mockRejectedValueOnce(new Error('Unavailable'));
+    repository.getSeasonal.mockRejectedValueOnce(new Error('Unavailable'));
+    repository.getUpcoming.mockRejectedValueOnce(new Error('Unavailable'));
+    await expect(session.generateNewSample()).rejects.toThrow('Unavailable');
+    await expect(session.getAll()).resolves.toEqual(original);
+  });
 });

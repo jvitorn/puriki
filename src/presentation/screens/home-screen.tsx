@@ -10,8 +10,8 @@ import {
 } from '@/application/queries/anime-queries';
 import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import type { AnimeCatalogItem, UnifiedAnime } from '@/domain/models/anime';
-import { AnimeRail } from '@/presentation/components/anime/anime-rail';
 import { FeaturedAnime } from '@/presentation/components/home/featured-anime';
+import { HomeAnimeRail } from '@/presentation/components/home/home-anime-rail';
 import { AppText } from '@/presentation/components/ui/app-text';
 import { ErrorState } from '@/presentation/components/ui/feedback';
 import { Screen } from '@/presentation/components/ui/screen';
@@ -30,7 +30,15 @@ export function HomeScreen() {
   const seasonal = useSeasonalAnime();
   const upcoming = useUpcomingAnime();
   const queries = [featured, watching, popular, seasonal, upcoming];
-  const isLoading = queries.some((query) => query.isLoading);
+  const displayedFeatured =
+    featured.data ??
+    popular.data?.[0] ??
+    seasonal.data?.[0] ??
+    upcoming.data?.[0] ??
+    watching.data?.[0]?.anime;
+  const catalogQueries = [featured, popular, seasonal, upcoming];
+  const isLoading =
+    !displayedFeatured && catalogQueries.some((query) => query.isLoading);
   const open = (id: number) =>
     router.push({ pathname: '/anime/[id]', params: { id: String(id) } });
 
@@ -54,7 +62,7 @@ export function HomeScreen() {
     );
   }
 
-  if (featured.isError || !featured.data) {
+  if (!displayedFeatured) {
     return (
       <Screen>
         <View style={styles.brand}>
@@ -86,48 +94,45 @@ export function HomeScreen() {
         </View>
       </View>
       <FeaturedAnime
-        anime={featured.data}
-        onOpen={() => open(featured.data.id)}
+        anime={displayedFeatured}
+        onOpen={() => open(displayedFeatured.id)}
       />
-      <AnimeRail
+      <HomeAnimeRail
         title="Continue Watching"
-        items={watching.data ?? []}
+        items={watching.data}
+        isLoading={watching.isLoading}
+        isError={watching.isError}
+        error={watching.error}
         onPressItem={(item) => open(item.anime.id)}
-        emptyMessage={
-          watching.isError
-            ? 'This collection is temporarily unavailable.'
-            : 'Start an anime to see it here.'
-        }
+        onRetry={() => void watching.refetch()}
+        emptyMessage="Start an anime to see it here."
       />
-      <AnimeRail
+      <HomeAnimeRail
         title="Popular Now"
         items={asUnified(popular.data)}
+        isLoading={popular.isLoading}
+        isError={popular.isError}
+        error={popular.error}
         onPressItem={(item) => open(item.anime.id)}
-        emptyMessage={
-          popular.isError
-            ? 'This collection is temporarily unavailable.'
-            : undefined
-        }
+        onRetry={() => void popular.refetch()}
       />
-      <AnimeRail
+      <HomeAnimeRail
         title="This Season"
         items={asUnified(seasonal.data)}
+        isLoading={seasonal.isLoading}
+        isError={seasonal.isError}
+        error={seasonal.error}
         onPressItem={(item) => open(item.anime.id)}
-        emptyMessage={
-          seasonal.isError
-            ? 'This collection is temporarily unavailable.'
-            : undefined
-        }
+        onRetry={() => void seasonal.refetch()}
       />
-      <AnimeRail
+      <HomeAnimeRail
         title="Upcoming"
         items={asUnified(upcoming.data)}
+        isLoading={upcoming.isLoading}
+        isError={upcoming.isError}
+        error={upcoming.error}
         onPressItem={(item) => open(item.anime.id)}
-        emptyMessage={
-          upcoming.isError
-            ? 'This collection is temporarily unavailable.'
-            : undefined
-        }
+        onRetry={() => void upcoming.refetch()}
       />
     </Screen>
   );
