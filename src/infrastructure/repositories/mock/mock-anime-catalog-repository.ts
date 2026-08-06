@@ -22,7 +22,7 @@ export class MockAnimeCatalogRepository implements AnimeCatalogRepository {
     return this.runtime.run(() => this.cloneRange(13, 25));
   }
 
-  getRecentlyAdded(): Promise<AnimeCatalogItem[]> {
+  getUpcoming(): Promise<AnimeCatalogItem[]> {
     return this.runtime.run(() => this.cloneRange(25, 37));
   }
 
@@ -43,7 +43,17 @@ export class MockAnimeCatalogRepository implements AnimeCatalogRepository {
     });
   }
 
-  getById(id: number): Promise<AnimeCatalogItem | null> {
+  getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {
+    return this.runtime.run(() => {
+      const uniqueIds = new Set(ids);
+      return this.runtime
+        .getDataset()
+        .catalog.filter((anime) => uniqueIds.has(anime.id))
+        .map((anime) => ({ ...anime }));
+    });
+  }
+
+  getDetailsById(id: number): Promise<AnimeCatalogItem | null> {
     return this.runtime.run(() => {
       const anime = this.runtime
         .getDataset()
@@ -51,6 +61,8 @@ export class MockAnimeCatalogRepository implements AnimeCatalogRepository {
       return anime ? { ...anime } : null;
     });
   }
+
+  clearCache(): void {}
 
   private cloneRange(start: number, end: number): AnimeCatalogItem[] {
     return this.runtime

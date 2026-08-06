@@ -2,7 +2,11 @@ import { QueryClient } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { useUpdateProgress } from '@/application/mutations/anime-mutations';
-import { usePopularAnime } from '@/application/queries/anime-queries';
+import {
+  useAnimeSearch,
+  usePopularAnime,
+  useUnifiedUserList,
+} from '@/application/queries/anime-queries';
 import { queryKeys } from '@/application/queries/query-keys';
 import type {
   AnimeCatalogItem,
@@ -41,6 +45,41 @@ describe('React Query integration', () => {
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toContain('could not complete');
+  });
+
+  it('uses popular discovery data until search has two normalized characters', async () => {
+    const dependencies = createTestDependencies();
+    const popular = jest.spyOn(dependencies.catalogRepository, 'getPopular');
+    const search = jest.spyOn(dependencies.catalogRepository, 'search');
+    const { result } = await renderHook(() => useAnimeSearch(' N '), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(popular).toHaveBeenCalledTimes(1);
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it('normalizes remote search text before creating a request', async () => {
+    const dependencies = createTestDependencies();
+    const search = jest.spyOn(dependencies.catalogRepository, 'search');
+    const { result } = await renderHook(
+      () => useAnimeSearch('  Néon   RONIN '),
+      { wrapper: createTestWrapper(dependencies) },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(search).toHaveBeenCalledWith('neon ronin');
+  });
+
+  it('unifies the personal list with one bulk catalog lookup', async () => {
+    const dependencies = createTestDependencies();
+    const getMany = jest.spyOn(dependencies.catalogRepository, 'getManyByIds');
+    const { result } = await renderHook(() => useUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toHaveLength(25);
+    expect(getMany).toHaveBeenCalledTimes(1);
+    expect(getMany.mock.calls[0]?.[0]).toHaveLength(25);
   });
 
   it('optimistically updates progress and rolls back a failed mutation', async () => {

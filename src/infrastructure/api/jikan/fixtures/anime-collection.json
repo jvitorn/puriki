@@ -1,0 +1,66 @@
+{
+  "data": [
+    {
+      "mal_id": 1,
+      "title": "Cowboy Bebop",
+      "title_english": "Cowboy Bebop",
+      "title_japanese": "カウボーイビバップ",
+      "title_synonyms": ["Space Cowboy"],
+      "synopsis": "Bounty hunters travel the solar system.",
+      "episodes": 26,
+      "score": 8.75,
+      "status": "Finished Airing",
+      "season": "spring",
+      "year": 1998,
+      "genres": [{ "mal_id": 1, "name": "Action" }],
+      "studios": [{ "mal_id": 14, "name": "Sunrise" }],
+      "images": {
+        "jpg": { "image_url": "https://example.test/cowboy.jpg" },
+        "webp": { "image_url": "https://example.test/cowboy.webp" }
+      },
+      "trailer": { "images": {} }
+    },
+    {
+      "mal_id": 21,
+      "title": "One Piece",
+      "title_english": "One Piece",
+      "title_japanese": "ONE PIECE",
+      "title_synonyms": [],
+      "synopsis": "Pirates search for the legendary treasure.",
+      "episodes": null,
+      "score": 8.73,
+      "status": "Currently Airing",
+      "season": "fall",
+      "year": 1999,
+      "genres": [{ "mal_id": 2, "name": "Adventure" }],
+      "studios": [],
+      "images": {
+        "jpg": { "image_url": "https://example.test/one-piece.jpg" },
+        "webp": {
+          "large_image_url": "https://example.test/one-piece-large.webp"
+        }
+      },
+      "trailer": null
+    },
+    {
+      "mal_id": 1,
+      "title": "Cowboy Bebop",
+      "synopsis": "Duplicate collection row",
+      "episodes": 26,
+      "score": 8.75,
+      "status": "Finished Airing",
+      "season": "spring",
+      "year": 1998,
+      "genres": [],
+      "studios": [],
+      "images": {},
+      "trailer": null
+    }
+  ],
+  "pagination": {
+    "last_visible_page": 1,
+    "has_next_page": false,
+    "current_page": 1,
+    "items": { "count": 3, "total": 3, "per_page": 25 }
+  }
+}

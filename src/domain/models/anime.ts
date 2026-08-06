@@ -13,6 +13,9 @@ export interface AnimeCatalogItem {
   season: string | null;
   year: number | null;
   airingStatus: string;
+  posterImageUrl: string | null;
+  largePosterImageUrl: string | null;
+  heroImageUrl: string | null;
   coverSeed: number;
   bannerSeed: number;
 }
@@ -35,5 +38,5 @@ export interface HomeSections {
   continueWatching: UnifiedAnime[];
   popular: AnimeCatalogItem[];
   seasonal: AnimeCatalogItem[];
-  recentlyAdded: AnimeCatalogItem[];
+  upcoming: AnimeCatalogItem[];
 }

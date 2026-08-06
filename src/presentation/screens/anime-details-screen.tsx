@@ -8,6 +8,7 @@ import {
   useUpdateStatus,
 } from '@/application/mutations/anime-mutations';
 import { useAnimeDetails } from '@/application/queries/anime-queries';
+import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import { AnimeScoreSelector } from '@/presentation/components/anime/anime-score-selector';
 import { AnimeStatusSelector } from '@/presentation/components/anime/anime-status-selector';
 import { BannerPlaceholder } from '@/presentation/components/anime/banner-placeholder';
@@ -57,7 +58,10 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             onPress={() => router.back()}
           />
         </View>
-        <ErrorState onRetry={() => void details.refetch()} />
+        <ErrorState
+          message={getUserSafeErrorMessage(details.error)}
+          onRetry={() => void details.refetch()}
+        />
       </Screen>
     );
   if (!details.data)
@@ -72,7 +76,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
         </View>
         <EmptyState
           title="Anime not found"
-          message="This title is not available in the local catalog."
+          message="This title is not available from the active catalog."
         />
       </Screen>
     );
@@ -92,6 +96,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
         <BannerPlaceholder
           title={anime.title}
           seed={anime.bannerSeed}
+          imageUrl={anime.heroImageUrl}
           height={300}
         />
         <View style={styles.backFloating}>
@@ -107,16 +112,16 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <PosterPlaceholder
             title={anime.title}
             seed={anime.coverSeed}
+            imageUrl={anime.largePosterImageUrl}
             width={104}
             height={150}
           />
           <View style={styles.identityCopy}>
             <AppText variant="title">{anime.title}</AppText>
-            
             <View style={styles.genres}>
-              {anime.genres.map((genre) => (
-                <Badge key={genre} label={genre} />
-              )).slice(0, 2)}
+              {anime.genres
+                .map((genre) => <Badge key={genre} label={genre} />)
+                .slice(0, 2)}
             </View>
             <View style={styles.scoreLine}>
               <Star size={17} color={colors.warning} fill={colors.warning} />
@@ -128,7 +133,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           </View>
         </View>
         <View style={styles.section}>
-          {/* Synopsis */}
+          <AppText variant="heading">Synopsis</AppText>
           <AppText muted>{anime.synopsis}</AppText>
         </View>
         <View style={styles.metadata}>
@@ -136,14 +141,15 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             {anime.season ?? 'Season TBD'} {anime.year ?? ''}
           </AppText>
           <AppText>{' • '}</AppText>
-          <AppText>{anime.studios.join(', ')}</AppText>
-          
+          <AppText>{anime.studios.join(', ') || 'Studio unknown'}</AppText>
         </View>
         <View style={styles.section}>
-          <AppText variant="heading">Titles Alternative</AppText>
-          <AppText muted>{anime.alternativeTitles.join(' • ')}</AppText>
+          <AppText variant="heading">Alternative titles</AppText>
+          <AppText muted>
+            {anime.alternativeTitles.join(' • ') ||
+              'No alternative titles available.'}
+          </AppText>
         </View>
-        
         <View style={styles.panel}>
           <AppText variant="heading">Episode progress</AppText>
           <EpisodeProgressControl

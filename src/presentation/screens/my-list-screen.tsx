@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 
 import { useUnifiedUserList } from '@/application/queries/anime-queries';
+import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import type { AnimeListStatus } from '@/domain/models/anime';
 import { AnimeListItem } from '@/presentation/components/anime/anime-list-item';
 import { AppText } from '@/presentation/components/ui/app-text';
@@ -65,7 +66,10 @@ export function MyListScreen() {
           <Skeleton height={128} />
         </View>
       ) : list.isError ? (
-        <ErrorState onRetry={() => void list.refetch()} />
+        <ErrorState
+          message={getUserSafeErrorMessage(list.error)}
+          onRetry={() => void list.refetch()}
+        />
       ) : (
         <FlatList
           testID="my-list"

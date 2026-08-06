@@ -23,7 +23,11 @@ export function AnimeCard({ item, onPress }: AnimeCardProps) {
       onPress={onPress}
       style={({ pressed }) => [styles.container, pressed && styles.pressed]}
     >
-      <PosterPlaceholder title={anime.title} seed={anime.coverSeed} />
+      <PosterPlaceholder
+        title={anime.title}
+        seed={anime.coverSeed}
+        imageUrl={anime.posterImageUrl}
+      />
       <View style={styles.copy}>
         <AppText numberOfLines={2} style={styles.title}>
           {anime.title}

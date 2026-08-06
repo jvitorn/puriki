@@ -20,6 +20,7 @@ export function FeaturedAnime({
       <BannerPlaceholder
         title={anime.title}
         seed={anime.bannerSeed}
+        imageUrl={anime.heroImageUrl}
         height={390}
       />
       <View style={styles.overlay}>

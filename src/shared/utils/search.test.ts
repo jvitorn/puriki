@@ -2,7 +2,7 @@ import { includesNormalized, normalizeSearchText } from '@/shared/utils/search';
 
 describe('search normalization', () => {
   it('normalizes case, spaces, and accents', () => {
-    expect(normalizeSearchText('  Café NÉBULA ')).toBe('cafe nebula');
+    expect(normalizeSearchText('  Café   NÉBULA ')).toBe('cafe nebula');
   });
 
   it('matches normalized fragments', () => {

@@ -4,7 +4,9 @@ export interface AnimeCatalogRepository {
   getFeatured(): Promise<AnimeCatalogItem>;
   getPopular(): Promise<AnimeCatalogItem[]>;
   getSeasonal(): Promise<AnimeCatalogItem[]>;
-  getRecentlyAdded(): Promise<AnimeCatalogItem[]>;
+  getUpcoming(): Promise<AnimeCatalogItem[]>;
   search(query: string): Promise<AnimeCatalogItem[]>;
-  getById(id: number): Promise<AnimeCatalogItem | null>;
+  getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]>;
+  getDetailsById(id: number): Promise<AnimeCatalogItem | null>;
+  clearCache(): void;
 }

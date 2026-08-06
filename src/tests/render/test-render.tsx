@@ -25,11 +25,11 @@ export function createTestWrapper(
           insets: { top: 44, left: 0, right: 0, bottom: 34 },
         }}
       >
-        <RepositoryProvider dependencies={dependencies}>
-          <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <RepositoryProvider dependencies={dependencies}>
             {children}
-          </QueryClientProvider>
-        </RepositoryProvider>
+          </RepositoryProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     );
   };

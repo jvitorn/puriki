@@ -1,8 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { RotateCcw } from 'lucide-react-native';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { RefreshCcw, RotateCcw, Trash2 } from 'lucide-react-native';
 import { StyleSheet, Switch, View } from 'react-native';
 
-import { useResetMockData } from '@/application/mutations/anime-mutations';
+import { useResetSessionData } from '@/application/mutations/anime-mutations';
 import { AppText } from '@/presentation/components/ui/app-text';
 import { Badge } from '@/presentation/components/ui/badge';
 import { Button } from '@/presentation/components/ui/button';
@@ -12,8 +12,17 @@ import { colors, radii, spacing } from '@/presentation/theme/tokens';
 
 export function SettingsScreen() {
   const queryClient = useQueryClient();
-  const { behavior, setDelayMode, setForceErrors } = useRepositories();
-  const reset = useResetMockData();
+  const {
+    behavior,
+    clearCatalogCache,
+    mode,
+    refreshCurrentSample,
+    selectDataSourceMode,
+    setDelayMode,
+    setForceErrors,
+  } = useRepositories();
+  const reset = useResetSessionData();
+  const refresh = useMutation({ mutationFn: refreshCurrentSample });
   const toggleDelay = (enabled: boolean) => {
     setDelayMode(enabled ? 'normal' : 'none');
     void queryClient.invalidateQueries();
@@ -26,73 +35,115 @@ export function SettingsScreen() {
     <Screen scroll>
       <View style={styles.header}>
         <AppText variant="title">Settings</AppText>
-        <Badge label="PHASE 1" accent />
+        <Badge label="PHASE 2A" accent />
       </View>
       <View style={styles.card}>
         <AppText variant="heading">About Purikuki</AppText>
         <AppText muted>
-          Purikuki is a focused anime list manager with a streaming-inspired
-          browsing experience.
+          Purikuki combines a read-only real anime catalog with a session-only
+          simulated personal list.
         </AppText>
         <AppText variant="caption" muted>
-          Version 1.0.0 • Local prototype
+          Version 1.0.0 • Jikan integration
         </AppText>
       </View>
       <View style={styles.section}>
-        <AppText variant="heading">Mock environment</AppText>
+        <AppText variant="heading">Data source</AppText>
         <AppText muted>
-          These controls affect the current app session only.
+          Jikan is active by default. Switching sources clears cached screen
+          data so catalog IDs are never mixed.
         </AppText>
         <View style={styles.setting}>
           <View style={styles.copy}>
-            <AppText>Simulated request delay</AppText>
+            <AppText>Use Jikan data source</AppText>
             <AppText variant="caption" muted>
-              Add a short delay to repository operations.
+              {mode === 'jikan'
+                ? 'Real read-only anime metadata'
+                : 'Deterministic local development catalog'}
             </AppText>
           </View>
           <Switch
-            accessibilityLabel="Simulated request delay"
-            value={behavior.delayMode !== 'none'}
-            onValueChange={toggleDelay}
+            accessibilityLabel="Use Jikan data source"
+            value={mode === 'jikan'}
+            onValueChange={(enabled) =>
+              selectDataSourceMode(enabled ? 'jikan' : 'mock')
+            }
             trackColor={{ false: colors.border, true: colors.primary }}
           />
         </View>
-        <View style={styles.setting}>
-          <View style={styles.copy}>
-            <AppText>Force repository errors</AppText>
-            <AppText variant="caption" muted>
-              Exercise loading recovery and error states.
-            </AppText>
-          </View>
-          <Switch
-            accessibilityLabel="Force repository errors"
-            value={behavior.forceErrors}
-            onValueChange={toggleErrors}
-            trackColor={{ false: colors.border, true: colors.danger }}
-          />
-        </View>
       </View>
+      {mode === 'mock' ? (
+        <View style={styles.section}>
+          <AppText variant="heading">Mock environment</AppText>
+          <AppText muted>
+            These controls affect the current mock session only.
+          </AppText>
+          <View style={styles.setting}>
+            <View style={styles.copy}>
+              <AppText>Simulated request delay</AppText>
+              <AppText variant="caption" muted>
+                Add a short delay to repository operations.
+              </AppText>
+            </View>
+            <Switch
+              accessibilityLabel="Simulated request delay"
+              value={behavior.delayMode !== 'none'}
+              onValueChange={toggleDelay}
+              trackColor={{ false: colors.border, true: colors.primary }}
+            />
+          </View>
+          <View style={styles.setting}>
+            <View style={styles.copy}>
+              <AppText>Force repository errors</AppText>
+              <AppText variant="caption" muted>
+                Exercise loading recovery and error states.
+              </AppText>
+            </View>
+            <Switch
+              accessibilityLabel="Force repository errors"
+              value={behavior.forceErrors}
+              onValueChange={toggleErrors}
+              trackColor={{ false: colors.border, true: colors.danger }}
+            />
+          </View>
+        </View>
+      ) : null}
       <View style={styles.section}>
-        <AppText variant="heading">Local data</AppText>
+        <AppText variant="heading">Session data</AppText>
         <AppText muted>
-          This phase uses reproducible mock data. It never sends anime data or
-          user credentials to a server.
+          Personal-list changes and Jikan catalog caches remain in memory and
+          reset when the application process restarts.
         </AppText>
         <Button
-          label="Reset mock data"
+          label="Reset current list"
           variant="secondary"
           loading={reset.isPending}
           onPress={() => reset.mutate()}
           icon={<RotateCcw size={18} color={colors.text} />}
         />
-        {reset.isSuccess ? (
+        <Button
+          label="Clear catalog cache"
+          variant="secondary"
+          onPress={clearCatalogCache}
+          icon={<Trash2 size={18} color={colors.text} />}
+        />
+        {mode === 'jikan' ? (
+          <Button
+            label="Refresh Jikan sample"
+            variant="secondary"
+            loading={refresh.isPending}
+            onPress={() => refresh.mutate()}
+            icon={<RefreshCcw size={18} color={colors.text} />}
+          />
+        ) : null}
+        {reset.isSuccess || refresh.isSuccess ? (
           <AppText accessibilityRole="alert" style={styles.success}>
-            Mock data restored.
+            Session data refreshed.
           </AppText>
         ) : null}
-        {reset.isError ? (
+        {reset.isError || refresh.isError ? (
           <AppText accessibilityRole="alert" style={styles.danger}>
-            Reset failed. Turn off forced errors and try again.
+            Refresh failed. Check the active data source and try again.
           </AppText>
         ) : null}
       </View>

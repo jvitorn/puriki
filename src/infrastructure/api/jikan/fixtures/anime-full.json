@@ -1,0 +1,36 @@
+{
+  "data": {
+    "mal_id": 1,
+    "title": "Cowboy Bebop",
+    "title_english": "Cowboy Bebop",
+    "title_japanese": "カウボーイビバップ",
+    "title_synonyms": ["Cowboy Bebop", "Space Cowboy", "  Space Cowboy  "],
+    "synopsis": "In the year 2071, bounty hunters travel the solar system in the spaceship Bebop.",
+    "episodes": 26,
+    "score": 8.75,
+    "status": "Finished Airing",
+    "season": "spring",
+    "year": 1998,
+    "genres": [
+      { "mal_id": 1, "name": "Action" },
+      { "mal_id": 24, "name": "Sci-Fi" }
+    ],
+    "studios": [{ "mal_id": 14, "name": "Sunrise" }],
+    "images": {
+      "jpg": {
+        "image_url": "https://example.test/cowboy.jpg",
+        "large_image_url": "https://example.test/cowboy-large.jpg"
+      },
+      "webp": {
+        "image_url": "https://example.test/cowboy.webp",
+        "large_image_url": "https://example.test/cowboy-large.webp"
+      }
+    },
+    "trailer": {
+      "images": {
+        "large_image_url": "https://example.test/trailer-large.jpg",
+        "maximum_image_url": "https://example.test/trailer-maximum.jpg"
+      }
+    }
+  }
+}

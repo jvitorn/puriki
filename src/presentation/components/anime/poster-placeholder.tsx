@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/presentation/components/ui/app-text';
 import { colors, posterPalettes, radii } from '@/presentation/theme/tokens';
@@ -8,6 +9,7 @@ import { getTitleInitials } from '@/presentation/utils/title-initials';
 interface PosterPlaceholderProps {
   title: string;
   seed: number;
+  imageUrl?: string | null;
   width?: number;
   height?: number;
 }
@@ -15,13 +17,17 @@ interface PosterPlaceholderProps {
 export function PosterPlaceholder({
   title,
   seed,
+  imageUrl = null,
   width = 142,
   height = 204,
 }: PosterPlaceholderProps) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const showRemoteImage = Boolean(imageUrl && failedImageUrl !== imageUrl);
   const palette =
     posterPalettes[Math.abs(seed) % posterPalettes.length] ?? posterPalettes[0];
   return (
     <LinearGradient
+      accessible={!showRemoteImage}
       accessibilityRole="image"
       accessibilityLabel={`Poster placeholder for ${title}`}
       testID={`poster-${seed}`}
@@ -33,6 +39,16 @@ export function PosterPlaceholder({
       <View style={styles.circleLarge} />
       <View style={styles.circleSmall} />
       <AppText style={styles.initials}>{getTitleInitials(title)}</AppText>
+      {showRemoteImage && imageUrl ? (
+        <Image
+          accessibilityLabel={`Poster for ${title}`}
+          accessibilityRole="image"
+          source={{ uri: imageUrl }}
+          resizeMode="cover"
+          style={styles.remoteImage}
+          onError={() => setFailedImageUrl(imageUrl)}
+        />
+      ) : null}
     </LinearGradient>
   );
 }
@@ -69,4 +85,5 @@ const styles = StyleSheet.create({
     fontSize: 30,
     letterSpacing: 2,
   },
+  remoteImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
 });

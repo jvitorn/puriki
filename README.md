@@ -1,65 +1,74 @@
 # Purikuki
 
-Purikuki is a dark-first React Native anime list manager built with Expo. Phase 1 is a polished mobile prototype for browsing a reproducible local catalog, organizing a personal list, and managing episode progress, status, and scores.
+Purikuki is a dark-first React Native anime list manager built with Expo. Phase 2A adds a professional, read-only Jikan catalog while keeping the personal anime list simulated and session-local.
 
-This version uses mock data only. It does not call Jikan, MyAnimeList, or any other anime API, and it never handles real user credentials.
+Jikan is an unofficial MyAnimeList data source. It supplies public anime metadata and artwork, but it does not support authenticated list updates. Purikuki has no MyAnimeList authentication or synchronization in this phase.
 
-## Phase 1 features
+## Phase 2A features
 
-- Streaming-inspired home with a featured hero, Continue Watching, Popular Now, This Season, and Recently Added rails
-- Debounced local search across primary and alternative titles
-- Personal-list filtering across Watching, Completed, On Hold, Dropped, and Plan to Watch
-- Details outside the tab navigator, with poster/banner placeholders and complete catalog metadata
-- Local episode, status, and score mutations with optimistic progress and status updates
-- Accessible loading skeletons, empty states, recoverable error states, and disabled invalid controls
-- Session-only settings for request delay, forced repository errors, and mock-data reset
-- Deterministic Faker factories and reusable edge-case scenarios
-- Unit, component, screen, repository, and React Query tests
+- Home discovery backed by real Jikan titles, metadata, MAL IDs, and remote artwork
+- Featured, Continue Watching, Popular Now, This Season, and Upcoming rails
+- Remote title search across primary and alternative titles after two normalized characters
+- Full anime details from Jikan's full-detail endpoint
+- Session-only personal list containing approximately 20–25 real anime IDs across every list status
+- Local episode, status, and score mutations using the existing domain rules
+- Explicit Jikan and deterministic mock data-source modes
+- Direct `jikan-ts` requests and duplicate-request coalescing
+- In-memory collection, summary, full-detail, and in-flight request caches
+- Deterministic gradient artwork whenever remote images are missing or fail to load
+- Static Jikan fixtures for all automated integration tests; tests never call the live API
 
-## Technology stack
+## Screens and data sources
 
-- Expo and React Native
-- Expo Router and TypeScript in strict mode
-- NativeWind v4 and Tailwind CSS
-- TanStack React Query
-- Lucide React Native and Expo Linear Gradient
-- Faker (`@faker-js/faker`)
-- Jest, `jest-expo`, and React Native Testing Library
-- ESLint and Prettier
+In Jikan mode, Home, Search, and Anime Details use the public Jikan v4 catalog. My List displays a locally generated sample of real catalog entries and saves changes only for the current process. Settings can switch between Jikan and mock modes, clear the catalog cache, refresh the Jikan sample, or reset current list changes.
+
+Mock mode preserves the Phase 1 Faker-backed repositories, delay controls, forced-error controls, and deterministic scenarios. A mode change clears React Query data before the new repository pair is used, so Jikan IDs and mock IDs are never silently mixed.
+
+Jikan mode is the development default. Tests default to mock mode and can continue injecting explicit repositories.
+
+## Jikan endpoints
+
+The integration uses `@tutkli/jikan-ts` over the current Jikan v4 API at `https://api.jikan.moe/v4`:
+
+- `GET /top/anime`
+- `GET /seasons/now`
+- `GET /seasons/upcoming`
+- `GET /anime?q=...&order_by=popularity&sort=asc&sfw=true&limit=25`
+- `GET /anime/{id}/full`
+
+“Upcoming” is used instead of the misleading “Recently Added” label because Jikan does not expose a reliable MAL catalog-addition timestamp.
+
+The `jikan-ts` `JikanClient` executes every HTTP request. Its supported `kyInstance` extension is configured with the package's own `BASE_URL` and an `Accept` header, avoiding the unnecessary `Content-Type` header that otherwise triggers failing CORS preflight requests for browser GETs. The infrastructure boundary spaces collection starts by 500 ms, validates responses, retries only transient failures at most twice, maps transport errors into safe application errors, and coalesces identical in-flight repository operations. React Query does not add another retry layer. A single failed collection does not discard other successful Jikan data.
+
+Collection responses populate a mapped summary cache by MAL ID. Full details have a separate cache and enrich the summary cache. `getManyByIds` resolves the personal list from cached summaries in one bulk repository operation during normal initialization, avoiding one request per list card. Clearing the cache also clears session catalog shuffles; no cache is written to disk.
+
+The catalog collections are deduplicated and shuffled once per application session. A suitable item with a synopsis, score, and image is selected as featured. The session user-list repository merges the same popular, seasonal, and upcoming collections, deduplicates MAL IDs, selects roughly 20–25 items with an injectable random generator, represents every status, includes known and unknown episode totals when available, and creates scored and unscored entries. Reset restores that session's sample; refresh clears the catalog and generates a new sample.
 
 ## Architecture
 
-The app uses layered, feature-oriented boundaries:
+The app preserves strict layered boundaries:
 
 - `domain` owns models, repository contracts, errors, and pure business rules.
 - `application` owns query keys, React Query hooks, mutations, and use cases.
-- `infrastructure` implements the contracts with session-local mock repositories.
-- `mocks` owns deterministic factories, fixtures, scenario builders, and timing configuration.
-- `presentation` owns providers, tokens, hooks, reusable components, and composed screens.
+- `infrastructure` owns the isolated `jikan-ts` boundary, response validation, mapping, caches, and repository implementations.
+- `mocks` owns deterministic factories, fixtures, scenarios, and timing configuration.
+- `presentation` consumes domain models only and receives repositories through `RepositoryProvider`.
 - `app` contains thin Expo Router route modules only.
 
-Repositories are injected through `RepositoryProvider`; screens never construct mock implementations. Presentation code consumes domain models rather than Faker values or repository internals. React Query sits between repositories and every screen so a future API-backed implementation can replace the mock repositories without rewriting the UI.
-
 ```text
-app/
-├── (tabs)/
-│   ├── _layout.tsx
-│   ├── index.tsx
-│   ├── search.tsx
-│   ├── my-list.tsx
-│   └── settings.tsx
-├── anime/[id].tsx
-├── +not-found.tsx
-└── _layout.tsx
 src/
 ├── application/{mutations,queries,use-cases}/
 ├── domain/{errors,models,repositories,rules}/
-├── infrastructure/repositories/mock/
+├── infrastructure/
+│   ├── api/jikan/{fixtures,...}
+│   └── repositories/{jikan,mock,session}/
 ├── mocks/{config,factories,fixtures,scenarios}/
 ├── presentation/{components,hooks,providers,screens,theme,utils}/
 ├── shared/{constants,types,utils}/
 └── tests/{builders,mocks,render,setup}/
 ```
+
+No screen calls `fetch`, consumes Jikan DTOs, or constructs repositories.
 
 ## Getting started
 
@@ -70,7 +79,9 @@ npm install
 npm start
 ```
 
-From the Expo terminal, open Android, iOS, or web. Platform-specific commands are also available:
+Use Settings → Data source to switch between Jikan and mock modes during development. The selection lasts for the current mounted app session only.
+
+Platform-specific commands are also available:
 
 ```bash
 npm run android
@@ -78,49 +89,29 @@ npm run ios
 npm run web
 ```
 
-## Development and quality commands
+## Quality commands
 
 ```bash
+npx expo install --fix
+npx expo-doctor
 npm run typecheck
 npm run lint
-npm run format
 npm run format:check
-npm test
-npm run test:watch
-npm run test:coverage
 npm run test:ci
 ```
 
-## Mock data and scenarios
-
-The initial fixture is generated once with a fixed seed and then cloned into the session runtime. It contains 50 catalog titles and 25 personal-list entries spanning all statuses, known and unknown episode totals, and scored and unscored entries. Reset restores the exact starting state.
-
-Scenario builders are available for focused development and tests:
-
-- `default`: the complete seeded fixture
-- `empty`: no catalog or list entries
-- `loading`: the default fixture for delayed repository behavior
-- `error`: the default fixture for forced failures
-- `long-titles`: layout stress data
-- `unknown-episodes`: an airing title without a known total
-- `watching-only`: only watching entries
-- `completed-only`: only completed entries
-- `large-list`: a 50-entry list for performance checks
-
-Settings exposes a normal simulated delay and forced-error toggle. The mock runtime also supports `none`, `normal`, and `slow` delay modes for development and tests. None of these settings persist after the app session ends.
+Use `npm test` or `npm run test:watch` for local test iteration. `npm run format` writes Prettier formatting.
 
 ## Business rules
 
 Progress is always a non-negative whole number and is capped when the catalog has a known total. Unknown totals remain incrementable. Reaching the final known episode marks an entry completed; moving to Plan to Watch resets progress; returning to Watching preserves valid progress. Scores are either empty or whole numbers from 1 through 10.
 
-## Phase 1 limitations
+## Current limitations
 
-- Data and settings are in memory and reset when the application process restarts.
-- Catalog titles and metadata are fictional, seeded development content.
-- Artwork is represented by deterministic gradients and initials.
-- There is no authentication, user profile, synchronization, notification system, social layer, backend, or offline mutation queue.
-- End-to-end testing and production EAS/store configuration are intentionally out of scope.
+- Jikan is read-only and unofficial; Purikuki is not affiliated with Jikan or MyAnimeList.
+- Personal-list entries, catalog caches, data-source selection, and settings are not persisted.
+- There is no MAL OAuth, authentication, list synchronization, offline mutation queue, backend, or user profile.
+- Remote artwork depends on the URLs supplied by Jikan; deterministic local gradients remain the fallback.
+- End-to-end tests and store publication remain out of scope.
 
-## Future integrations
-
-A later phase can add a Jikan-backed catalog repository and an authenticated MyAnimeList user-list repository behind the existing contracts. Authentication, secure credential storage, persistence, offline mutation handling, and synchronization should be introduced as separate infrastructure concerns rather than embedded in screens.
+API structure and attribution: [Jikan REST API v4 documentation](https://docs.api.jikan.moe/).

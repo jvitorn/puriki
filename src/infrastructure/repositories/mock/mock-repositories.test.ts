@@ -21,8 +21,8 @@ describe('mock repositories', () => {
     });
     await expect(catalog.getPopular()).resolves.toHaveLength(12);
     await expect(catalog.getSeasonal()).resolves.toHaveLength(12);
-    await expect(catalog.getRecentlyAdded()).resolves.toHaveLength(12);
-    await expect(catalog.getById(999)).resolves.toBeNull();
+    await expect(catalog.getUpcoming()).resolves.toHaveLength(12);
+    await expect(catalog.getDetailsById(999)).resolves.toBeNull();
   });
 
   it('searches titles and alternative titles case-insensitively', async () => {

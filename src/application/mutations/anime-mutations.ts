@@ -154,7 +154,7 @@ export function useUpdateScore() {
   });
 }
 
-export function useResetMockData() {
+export function useResetSessionData() {
   const queryClient = useQueryClient();
   const { userListRepository } = useRepositories();
   return useMutation({
@@ -162,3 +162,5 @@ export function useResetMockData() {
     onSuccess: () => queryClient.invalidateQueries(),
   });
 }
+
+export const useResetMockData = useResetSessionData;

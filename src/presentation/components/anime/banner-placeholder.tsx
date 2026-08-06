@@ -1,5 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/presentation/components/ui/app-text';
 import { colors, posterPalettes, radii } from '@/presentation/theme/tokens';
@@ -8,16 +9,21 @@ import { getTitleInitials } from '@/presentation/utils/title-initials';
 export function BannerPlaceholder({
   title,
   seed,
+  imageUrl = null,
   height = 280,
 }: {
   title: string;
   seed: number;
+  imageUrl?: string | null;
   height?: number;
 }) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const showRemoteImage = Boolean(imageUrl && failedImageUrl !== imageUrl);
   const palette =
     posterPalettes[Math.abs(seed) % posterPalettes.length] ?? posterPalettes[0];
   return (
     <LinearGradient
+      accessible={!showRemoteImage}
       accessibilityRole="image"
       accessibilityLabel={`Banner placeholder for ${title}`}
       colors={[palette[1], palette[0], colors.background]}
@@ -26,6 +32,16 @@ export function BannerPlaceholder({
     >
       <View style={styles.orbit} />
       <AppText style={styles.initials}>{getTitleInitials(title, 2)}</AppText>
+      {showRemoteImage && imageUrl ? (
+        <Image
+          accessibilityLabel={`Hero artwork for ${title}`}
+          accessibilityRole="image"
+          source={{ uri: imageUrl }}
+          resizeMode="cover"
+          style={styles.remoteImage}
+          onError={() => setFailedImageUrl(imageUrl)}
+        />
+      ) : null}
     </LinearGradient>
   );
 }
@@ -56,4 +72,5 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.24)',
     letterSpacing: 8,
   },
+  remoteImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
 });

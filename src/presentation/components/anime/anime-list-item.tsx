@@ -30,6 +30,7 @@ export function AnimeListItem({
       <PosterPlaceholder
         title={item.anime.title}
         seed={item.anime.coverSeed}
+        imageUrl={item.anime.posterImageUrl}
         width={78}
         height={112}
       />

@@ -58,6 +58,9 @@ export function createAnimeCatalogItem(
       'Finished Airing',
       'Not Yet Aired',
     ]),
+    posterImageUrl: null,
+    largePosterImageUrl: null,
+    heroImageUrl: null,
     coverSeed: faker.number.int({ min: 1, max: 9999 }),
     bannerSeed: faker.number.int({ min: 1, max: 9999 }),
     ...overrides,
@@ -109,7 +112,7 @@ export function createHomeSections(
     continueWatching,
     popular: catalog.slice(1, 13),
     seasonal: catalog.slice(13, 25),
-    recentlyAdded: catalog.slice(25, 37),
+    upcoming: catalog.slice(25, 37),
   };
 }
 

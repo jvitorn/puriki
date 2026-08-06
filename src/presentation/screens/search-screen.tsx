@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { useAnimeSearch } from '@/application/queries/anime-queries';
+import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import { AnimeCard } from '@/presentation/components/anime/anime-card';
 import { SearchInput } from '@/presentation/components/anime/search-input';
 import { AppText } from '@/presentation/components/ui/app-text';
@@ -11,15 +12,20 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { useDebouncedValue } from '@/presentation/hooks/use-debounced-value';
 import { spacing } from '@/presentation/theme/tokens';
+import { normalizeSearchText } from '@/shared/utils/search';
 
 export function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 250);
+  const normalizedQuery = normalizeSearchText(debouncedQuery);
   const results = useAnimeSearch(debouncedQuery);
-  const label = debouncedQuery
-    ? `${results.data?.length ?? 0} results`
-    : 'Discover something new';
+  const label =
+    normalizedQuery.length >= 2
+      ? `${results.data?.length ?? 0} results`
+      : normalizedQuery.length === 1
+        ? 'Type at least 2 characters to search'
+        : 'Discover popular anime';
 
   return (
     <Screen padded={false}>
@@ -36,7 +42,10 @@ export function SearchScreen() {
           <Skeleton height={204} />
         </View>
       ) : results.isError ? (
-        <ErrorState onRetry={() => void results.refetch()} />
+        <ErrorState
+          message={getUserSafeErrorMessage(results.error)}
+          onRetry={() => void results.refetch()}
+        />
       ) : (
         <FlatList
           testID="search-results"
@@ -59,7 +68,7 @@ export function SearchScreen() {
           ListEmptyComponent={
             <EmptyState
               title="No matches"
-              message={`No anime matched “${debouncedQuery}”. Try another title.`}
+              message={`No anime matched “${normalizedQuery}”. Try another title.`}
             />
           }
           showsVerticalScrollIndicator={false}
