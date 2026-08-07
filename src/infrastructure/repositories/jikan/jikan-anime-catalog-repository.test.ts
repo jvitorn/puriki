@@ -177,6 +177,20 @@ describe('JikanAnimeCatalogRepository', () => {
     expect(getTopAnime).toHaveBeenCalledTimes(4);
   });
 
+  it('accepts a shorter injected retry policy for automatic fallback mode', async () => {
+    const { client } = createRepository();
+    const failure = new JikanServiceUnavailableError(504, null);
+    jest.mocked(client.top.getTopAnime).mockRejectedValue(failure);
+    const repository = new JikanAnimeCatalogRepository({
+      client,
+      maximumAttempts: 2,
+      scheduler: new JikanRequestScheduler({ requestIntervalMs: 0 }),
+      sleep: async () => undefined,
+    });
+    await expect(repository.getPopular()).rejects.toBe(failure);
+    expect(client.top.getTopAnime).toHaveBeenCalledTimes(2);
+  });
+
   it('coalesces concurrent refresh operations', async () => {
     const { getSeasonNow, getSeasonUpcoming, getTopAnime, repository } =
       createRepository();

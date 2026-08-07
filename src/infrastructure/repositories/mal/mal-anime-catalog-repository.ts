@@ -1,40 +1,44 @@
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
-import { JikanCatalogCache } from '@/infrastructure/api/jikan/jikan-cache';
+import { MalCatalogCache } from '@/infrastructure/api/mal/mal-cache';
 import {
-  createJikanClient,
-  executeJikanRequest,
-  type JikanClientPort,
-} from '@/infrastructure/api/jikan/jikan-client';
+  createMalClient,
+  type MalAnimeSeason,
+  type MalClientPort,
+} from '@/infrastructure/api/mal/mal-client';
 import {
-  isJikanAnimeCollectionResponse,
-  isJikanSingleAnimeResponse,
-  type JikanAnimeDto,
-  type JikanCollectionResponse,
-} from '@/infrastructure/api/jikan/jikan-dtos';
+  isMalCollectionResponse,
+  isMalDetailResponse,
+} from '@/infrastructure/api/mal/mal-dtos';
 import {
-  JikanNotFoundError,
-  JikanResponseFormatError,
-} from '@/infrastructure/api/jikan/jikan-errors';
-import { mapJikanAnime } from '@/infrastructure/api/jikan/jikan-mapper';
-import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
+  MalNotFoundError,
+  MalResponseFormatError,
+} from '@/infrastructure/api/mal/mal-errors';
+import { MAL_ANIME_FIELDS } from '@/infrastructure/api/mal/mal-fields';
+import { mapMalAnime } from '@/infrastructure/api/mal/mal-mapper';
 import { normalizeSearchText } from '@/shared/utils/search';
 
-export type RandomGenerator = () => number;
+export type MalRandomGenerator = () => number;
 
-export interface JikanAnimeCatalogRepositoryOptions {
-  client?: JikanClientPort;
-  cache?: JikanCatalogCache;
-  random?: RandomGenerator;
-  scheduler?: JikanRequestScheduler;
-  sleep?: (milliseconds: number) => Promise<void>;
-  maximumAttempts?: number;
+export interface MalAnimeCatalogRepositoryOptions {
+  client?: MalClientPort;
+  cache?: MalCatalogCache;
+  random?: MalRandomGenerator;
+  now?: () => Date;
 }
 
-type AnimeCollectionRequest = () => Promise<unknown>;
-type DiscoveryCollectionName = 'popular' | 'seasonal' | 'upcoming';
+type CollectionName = 'popular' | 'seasonal' | 'upcoming';
+type CollectionRequest = () => Promise<unknown>;
 
-function shuffled<T>(items: readonly T[], random: RandomGenerator): T[] {
+function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
+  const byId = new Map<number, AnimeCatalogItem>();
+  items.forEach((item) => {
+    if (!byId.has(item.id)) byId.set(item.id, item);
+  });
+  return [...byId.values()];
+}
+
+function shuffled<T>(items: readonly T[], random: MalRandomGenerator): T[] {
   const result = [...items];
   for (let index = result.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1));
@@ -47,36 +51,32 @@ function shuffled<T>(items: readonly T[], random: RandomGenerator): T[] {
   return result;
 }
 
-function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
-  const byId = new Map<number, AnimeCatalogItem>();
-  items.forEach((item) => {
-    if (!byId.has(item.id)) byId.set(item.id, item);
-  });
-  return [...byId.values()];
+export function currentMalSeason(date: Date): {
+  year: number;
+  season: MalAnimeSeason;
+} {
+  const month = date.getMonth();
+  const season: MalAnimeSeason =
+    month < 3 ? 'winter' : month < 6 ? 'spring' : month < 9 ? 'summer' : 'fall';
+  return { year: date.getFullYear(), season };
 }
 
-export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
-  private client: JikanClientPort;
-  private readonly ownsClient: boolean;
-  private readonly cache: JikanCatalogCache;
-  private readonly random: RandomGenerator;
-  private readonly scheduler: JikanRequestScheduler;
-  private readonly sleep?: (milliseconds: number) => Promise<void>;
-  private readonly maximumAttempts?: number;
+export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
+  private readonly client: MalClientPort;
+  private readonly cache: MalCatalogCache;
+  private readonly random: MalRandomGenerator;
+  private readonly now: () => Date;
   private readonly sessionCollections = new Map<string, AnimeCatalogItem[]>();
   private sessionPool: AnimeCatalogItem[] | null = null;
   private featured: AnimeCatalogItem | null = null;
   private refreshInFlight: Promise<void> | null = null;
   private generation = 0;
 
-  constructor(options: JikanAnimeCatalogRepositoryOptions = {}) {
-    this.client = options.client ?? createJikanClient();
-    this.ownsClient = options.client === undefined;
-    this.cache = options.cache ?? new JikanCatalogCache();
+  constructor(options: MalAnimeCatalogRepositoryOptions = {}) {
+    this.client = options.client ?? createMalClient();
+    this.cache = options.cache ?? new MalCatalogCache();
     this.random = options.random ?? Math.random;
-    this.scheduler = options.scheduler ?? new JikanRequestScheduler();
-    this.sleep = options.sleep;
-    this.maximumAttempts = options.maximumAttempts;
+    this.now = options.now ?? (() => new Date());
   }
 
   async getFeatured(): Promise<AnimeCatalogItem> {
@@ -87,12 +87,12 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
       (anime) =>
         anime.synopsis.length > 0 &&
         anime.score !== null &&
-        (anime.heroImageUrl !== null || anime.largePosterImageUrl !== null),
+        anime.largePosterImageUrl !== null,
     );
     const featured = preferred ?? pool[0];
     if (!featured) {
-      throw new JikanResponseFormatError(
-        'Jikan returned an empty discovery catalog.',
+      throw new MalResponseFormatError(
+        'MyAnimeList returned an empty discovery catalog.',
       );
     }
     if (generation === this.generation) this.featured = featured;
@@ -101,31 +101,43 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
 
   getPopular(): Promise<AnimeCatalogItem[]> {
     return this.getSessionCollection('popular', () =>
-      this.client.top.getTopAnime(),
+      this.client.anime.getRanking({
+        ranking_type: 'bypopularity',
+        limit: 25,
+        fields: MAL_ANIME_FIELDS,
+      }),
     );
   }
 
   getSeasonal(): Promise<AnimeCatalogItem[]> {
-    return this.getSessionCollection('seasonal', () =>
-      this.client.seasons.getSeasonNow(),
-    );
+    return this.getSessionCollection('seasonal', () => {
+      const { year, season } = currentMalSeason(this.now());
+      return this.client.anime.getSeason(year, season, {
+        limit: 25,
+        sort: 'anime_num_list_users',
+        fields: MAL_ANIME_FIELDS,
+      });
+    });
   }
 
   getUpcoming(): Promise<AnimeCatalogItem[]> {
     return this.getSessionCollection('upcoming', () =>
-      this.client.seasons.getSeasonUpcoming(),
+      this.client.anime.getRanking({
+        ranking_type: 'upcoming',
+        limit: 25,
+        fields: MAL_ANIME_FIELDS,
+      }),
     );
   }
 
   search(query: string): Promise<AnimeCatalogItem[]> {
     const normalizedQuery = normalizeSearchText(query);
+    if (normalizedQuery.length < 2) return this.getPopular();
     return this.fetchCollection(`search:${normalizedQuery}`, () =>
-      this.client.anime.getAnimeSearch({
-        limit: 25,
-        order_by: 'popularity',
+      this.client.anime.search({
         q: normalizedQuery,
-        sfw: true,
-        sort: 'asc',
+        limit: 25,
+        fields: MAL_ANIME_FIELDS,
       }),
     );
   }
@@ -160,16 +172,16 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     const generation = this.generation;
     return this.cache.getOrCreate(`detail:${id}`, async () => {
       try {
-        const response = await this.executeRequest(
-          `detail:${id}`,
-          () => this.client.anime.getAnimeFullById(id),
-          isJikanSingleAnimeResponse,
+        const response = await this.client.anime.getDetails(
+          id,
+          MAL_ANIME_FIELDS,
         );
-        const item = mapJikanAnime(response.data);
+        if (!isMalDetailResponse(response)) throw new MalResponseFormatError();
+        const item = mapMalAnime(response);
         if (generation === this.generation) this.cache.setDetail(id, item);
         return item;
       } catch (error: unknown) {
-        if (error instanceof JikanNotFoundError) {
+        if (error instanceof MalNotFoundError) {
           if (generation === this.generation) this.cache.setDetail(id, null);
           return null;
         }
@@ -180,8 +192,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
 
   refresh(): Promise<void> {
     if (this.refreshInFlight) return this.refreshInFlight;
-    const generation = this.generation;
-    const refresh = this.refreshDiscoveryCollections(generation);
+    const refresh = this.refreshCollections(this.generation);
     this.refreshInFlight = refresh;
     void refresh.then(
       () => this.clearRefreshIfCurrent(refresh),
@@ -193,16 +204,14 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
   clearCache(): void {
     this.generation += 1;
     this.cache.clear();
-    this.scheduler.clear();
-    if (this.ownsClient) this.client = createJikanClient();
     this.sessionCollections.clear();
     this.sessionPool = null;
     this.featured = null;
   }
 
   private async getSessionCollection(
-    name: string,
-    request: AnimeCollectionRequest,
+    name: CollectionName,
+    request: CollectionRequest,
   ): Promise<AnimeCatalogItem[]> {
     const existing = this.sessionCollections.get(name);
     if (existing) return existing;
@@ -230,54 +239,68 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     );
     if (collections.length === 0) {
       const failure = results.find((result) => result.status === 'rejected');
-      throw failure?.reason ?? new Error('Jikan returned no collections.');
+      throw (
+        failure?.reason ?? new Error('MyAnimeList returned no collections.')
+      );
     }
-    if (generation !== this.generation) {
-      return shuffled(deduplicate(collections.flat()), this.random);
-    }
+    const combined = deduplicate(collections.flat());
+    if (generation !== this.generation) return shuffled(combined, this.random);
     const concurrent = this.sessionPool;
     if (concurrent) return concurrent;
-    const pool = shuffled(deduplicate(collections.flat()), this.random);
-    this.sessionPool = pool;
-    return pool;
+    this.sessionPool = shuffled(combined, this.random);
+    return this.sessionPool;
   }
 
   private fetchCollection(
     name: string,
-    request: AnimeCollectionRequest,
+    request: CollectionRequest,
   ): Promise<AnimeCatalogItem[]> {
     const key = `collection:${name}`;
     const cached = this.cache.getCollection(key);
     if (cached) return Promise.resolve(cached);
     const generation = this.generation;
     return this.cache.getOrCreate(key, async () => {
-      const response = await this.executeRequest<
-        JikanCollectionResponse<JikanAnimeDto>
-      >(name, request, isJikanAnimeCollectionResponse);
-      const items = deduplicate(response.data.map(mapJikanAnime));
+      const response = await request();
+      const items = this.mapCollection(response);
       if (generation === this.generation) this.cache.setCollection(key, items);
       return items;
     });
   }
 
   private async fetchFreshCollection(
-    name: DiscoveryCollectionName,
-    request: AnimeCollectionRequest,
+    request: CollectionRequest,
   ): Promise<AnimeCatalogItem[]> {
-    const response = await this.executeRequest<
-      JikanCollectionResponse<JikanAnimeDto>
-    >(name, request, isJikanAnimeCollectionResponse);
-    return deduplicate(response.data.map(mapJikanAnime));
+    return this.mapCollection(await request());
   }
 
-  private async refreshDiscoveryCollections(generation: number): Promise<void> {
+  private mapCollection(response: unknown): AnimeCatalogItem[] {
+    if (!isMalCollectionResponse(response)) throw new MalResponseFormatError();
+    return deduplicate(response.data.map((edge) => mapMalAnime(edge.node)));
+  }
+
+  private async refreshCollections(generation: number): Promise<void> {
+    const { year, season } = currentMalSeason(this.now());
     const [popular, seasonal, upcoming] = await Promise.allSettled([
-      this.fetchFreshCollection('popular', () => this.client.top.getTopAnime()),
-      this.fetchFreshCollection('seasonal', () =>
-        this.client.seasons.getSeasonNow(),
+      this.fetchFreshCollection(() =>
+        this.client.anime.getRanking({
+          ranking_type: 'bypopularity',
+          limit: 25,
+          fields: MAL_ANIME_FIELDS,
+        }),
       ),
-      this.fetchFreshCollection('upcoming', () =>
-        this.client.seasons.getSeasonUpcoming(),
+      this.fetchFreshCollection(() =>
+        this.client.anime.getSeason(year, season, {
+          limit: 25,
+          sort: 'anime_num_list_users',
+          fields: MAL_ANIME_FIELDS,
+        }),
+      ),
+      this.fetchFreshCollection(() =>
+        this.client.anime.getRanking({
+          ranking_type: 'upcoming',
+          limit: 25,
+          fields: MAL_ANIME_FIELDS,
+        }),
       ),
     ]);
     const failed = [popular, seasonal, upcoming].find(
@@ -289,50 +312,35 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
       seasonal.status !== 'fulfilled' ||
       upcoming.status !== 'fulfilled'
     ) {
-      throw new Error('Jikan refresh did not finish.');
+      throw new Error('MyAnimeList refresh did not finish.');
     }
-    const freshCollections: (readonly [
-      DiscoveryCollectionName,
-      AnimeCatalogItem[],
-    ])[] = [
-      ['popular', popular.value],
-      ['seasonal', seasonal.value],
-      ['upcoming', upcoming.value],
-    ];
+    const freshCollections: (readonly [CollectionName, AnimeCatalogItem[]])[] =
+      [
+        ['popular', popular.value],
+        ['seasonal', seasonal.value],
+        ['upcoming', upcoming.value],
+      ];
     if (freshCollections.every(([, items]) => items.length === 0)) {
-      throw new JikanResponseFormatError(
-        'Jikan returned an empty discovery catalog during refresh.',
+      throw new MalResponseFormatError(
+        'MyAnimeList returned an empty discovery catalog during refresh.',
       );
     }
     if (generation !== this.generation) {
-      throw new Error('The catalog cache changed while refresh was running.');
+      throw new Error(
+        'The MAL catalog cache changed while refresh was running.',
+      );
     }
     this.cache.replaceCollections(
       freshCollections.map(([name, items]) => [`collection:${name}`, items]),
     );
-    freshCollections.forEach(([name, items]) => {
-      this.sessionCollections.set(name, shuffled(items, this.random));
-    });
+    freshCollections.forEach(([name, items]) =>
+      this.sessionCollections.set(name, shuffled(items, this.random)),
+    );
     this.sessionPool = shuffled(
       deduplicate(freshCollections.flatMap(([, items]) => items)),
       this.random,
     );
     this.featured = null;
-  }
-
-  private executeRequest<T>(
-    key: string,
-    request: AnimeCollectionRequest,
-    validator: (value: unknown) => value is T,
-  ): Promise<T> {
-    return executeJikanRequest(request, validator, {
-      key,
-      maximumAttempts: this.maximumAttempts,
-      random: this.random,
-      sleep: this.sleep,
-      runAttempt: (_attempt, operation) =>
-        this.scheduler.schedule(key, operation),
-    });
   }
 
   private clearRefreshIfCurrent(refresh: Promise<void>): void {

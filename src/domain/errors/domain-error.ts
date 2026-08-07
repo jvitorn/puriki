@@ -20,6 +20,8 @@ export type DataSourceErrorCode =
   | 'rate_limit'
   | 'unavailable'
   | 'not_found'
+  | 'configuration'
+  | 'unauthorized'
   | 'http'
   | 'invalid_response';
 
@@ -34,15 +36,18 @@ export class DataSourceError extends Error {
 }
 
 const SAFE_ERROR_MESSAGES: Record<DataSourceErrorCode, string> = {
-  network: 'Unable to reach Jikan. Check your connection and try again.',
-  timeout: 'Jikan took too long to respond. Please try again.',
+  network:
+    'Unable to reach the anime catalog. Check your connection and try again.',
+  timeout: 'The anime catalog took too long to respond. Please try again.',
   rate_limit:
-    'Jikan is receiving too many requests. Please wait a moment and try again.',
-  unavailable: 'Jikan is temporarily unavailable. Please try again shortly.',
+    'The anime catalog is receiving too many requests. Please wait a moment and try again.',
+  unavailable: 'The anime catalog is temporarily unavailable.',
   not_found: 'Anime not found.',
-  http: 'Jikan could not complete the request. Please try again.',
+  configuration: 'The MyAnimeList fallback is not configured.',
+  unauthorized: 'MyAnimeList rejected the application Client ID.',
+  http: 'The anime catalog could not complete the request. Please try again.',
   invalid_response:
-    'Jikan returned an unknown response format. Please try again.',
+    'The anime catalog returned an unknown response format. Please try again.',
 };
 
 export function getUserSafeErrorMessage(error: unknown): string {

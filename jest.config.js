@@ -11,8 +11,11 @@ module.exports = {
   collectCoverageFrom: [
     'src/domain/rules/**/*.ts',
     'src/infrastructure/api/jikan/**/*.ts',
+    'src/infrastructure/api/mal/**/*.ts',
     'src/infrastructure/repositories/mock/**/*.ts',
     'src/infrastructure/repositories/jikan/**/*.ts',
+    'src/infrastructure/repositories/mal/**/*.ts',
+    'src/infrastructure/repositories/resilient/**/*.ts',
     'src/infrastructure/repositories/session/**/*.ts',
     'src/mocks/factories/**/*.ts',
     'src/shared/utils/**/*.ts',

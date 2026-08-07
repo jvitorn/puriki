@@ -15,6 +15,14 @@ export function createTestDependencies(
     userListRepository: new MockUserAnimeListRepository(runtime),
     mode: 'mock',
     behavior: runtime.getBehavior(),
+    malConfigured: false,
+    catalogRuntimeStatus: {
+      mode: 'mock',
+      lastSuccessfulSource: 'mock',
+      jikanCircuitState: null,
+      lastFallbackAt: null,
+    },
+    subscribeCatalogRuntimeStatus: () => () => undefined,
     setDelayMode: (mode: MockDelayMode) => {
       runtime.setDelayMode(mode);
       dependencies.behavior = runtime.getBehavior();
@@ -25,6 +33,7 @@ export function createTestDependencies(
     },
     selectDataSourceMode: () => undefined,
     clearCatalogCache: () => dependencies.catalogRepository.clearCache(),
+    clearAllCatalogCaches: () => dependencies.catalogRepository.clearCache(),
     refreshCurrentSample: () => dependencies.userListRepository.reset(),
   };
   return dependencies;

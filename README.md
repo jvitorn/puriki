@@ -1,34 +1,80 @@
 # Purikuki
 
-Purikuki is a dark-first React Native anime list manager built with Expo. Phase 2A adds a professional, read-only Jikan catalog while keeping the personal anime list simulated and session-local.
+Purikuki is a dark-first React Native anime list manager built with Expo. It combines a read-only public anime catalog with a simulated personal list that exists only for the current application process.
 
-Jikan is an unofficial MyAnimeList data source. It supplies public anime metadata and artwork, but it does not support authenticated list updates. Purikuki has no MyAnimeList authentication or synchronization in this phase.
+Jikan remains the primary catalog provider. The official public MyAnimeList API v2 is available as an automatic fallback and as a standalone catalog source. Purikuki uses only an application Client ID for MAL catalog requests. It does not implement OAuth, access tokens, user-profile requests, or MAL list synchronization.
 
-## Phase 2A features
+## Catalog modes
 
-- Home discovery backed by real Jikan titles, metadata, MAL IDs, and remote artwork
-- Featured, Continue Watching, Popular Now, This Season, and Upcoming rails
-- Remote title search across primary and alternative titles after two normalized characters
-- Full anime details from Jikan's full-detail endpoint
-- Session-only personal list containing approximately 20–25 real anime IDs across every list status
-- Local episode, status, and score mutations using the existing domain rules
-- Explicit Jikan and deterministic mock data-source modes
-- Native React Native `fetch` requests and duplicate-request coalescing
-- In-memory collection, summary, full-detail, and in-flight request caches
-- Deterministic gradient artwork whenever remote images are missing or fail to load
-- Static Jikan fixtures for all automated integration tests; tests never call the live API
+Settings exposes four session-only data-source modes:
 
-## Screens and data sources
+- **Automatic** is the non-test default. It uses Jikan first, then public MAL for eligible failures, then a previously normalized valid cache.
+- **Jikan only** uses the public Jikan v4 catalog without MAL fallback and retains Jikan's full retry policy.
+- **MyAnimeList only** uses the official public MAL v2 catalog directly. This option is disabled until a Client ID is configured.
+- **Mock** uses the existing deterministic local development catalog and remains the automated-test default.
 
-In Jikan mode, Home, Search, and Anime Details use the public Jikan v4 catalog. My List displays a locally generated sample of real catalog entries and saves changes only for the current process. Settings can switch between Jikan and mock modes, clear the catalog cache, refresh the Jikan sample, or reset current list changes.
+Changing modes clears React Query state and constructs a new compatible catalog and session-list repository pair. This prevents mock, Jikan, and MAL IDs from being mixed.
 
-Mock mode preserves the Phase 1 Faker-backed repositories, delay controls, forced-error controls, and deterministic scenarios. A mode change clears React Query data before the new repository pair is used, so Jikan IDs and mock IDs are never silently mixed.
+Home loads Featured, Continue Watching, Popular Now, This Season, and Upcoming independently. Search starts after two normalized characters. Anime Details and the session-only progress, status, and score controls use the same provider-neutral domain model in every mode.
 
-Jikan mode is the development default. Tests default to mock mode and can continue injecting explicit repositories.
+## MyAnimeList public catalog
 
-## Jikan endpoints
+Configure the application Client ID in a local `.env` file:
 
-The integration uses React Native's global `fetch` directly with the Jikan v4 API at `https://api.jikan.moe/v4`. It does not use Axios, Ky, or a Jikan wrapper. Set `EXPO_PUBLIC_JIKAN_BASE_URL` only when development or automated tests need a different endpoint; the standard development setup requires no environment variable.
+```env
+EXPO_PUBLIC_MAL_CLIENT_ID=
+```
+
+Restart Metro after changing `.env` so Expo reloads the public environment value:
+
+```bash
+npx expo start --clear
+```
+
+MAL requests use React Native's global `fetch`, a 12-second `AbortController` timeout, and only these GET headers:
+
+```text
+Accept: application/json
+X-MAL-CLIENT-ID: <application-client-id>
+```
+
+The Client ID is never rendered or logged. Do not put a MAL Client Secret in React Native; application bundles cannot keep a secret. This project sends no authorization header and does not call authenticated user or list endpoints.
+
+The integration implements these official catalog endpoints at `https://api.myanimelist.net/v2`:
+
+- `GET /anime?q=...` for search
+- `GET /anime/{id}` for details
+- `GET /anime/ranking?ranking_type=bypopularity` for Popular Now
+- `GET /anime/ranking?ranking_type=upcoming` for Upcoming
+- `GET /anime/season/{year}/{season}` for the current season
+
+The requested fields are:
+
+```text
+id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,
+rank,popularity,num_list_users,num_scoring_users,nsfw,genres,media_type,status,
+num_episodes,start_season,broadcast,source,average_episode_duration,rating,studios
+```
+
+Responses are validated at the infrastructure boundary before they are mapped. MAL titles, alternative titles, synopsis, named genres and studios, episode count, score, season, year, readable airing status, and picture fallbacks map into `AnimeCatalogItem`; MAL DTO names do not enter the domain or UI. Artwork falls back from the requested size to the available `main_picture` size, and missing artwork uses deterministic ID-based gradient seeds.
+
+See the [official MyAnimeList API v2 reference](https://myanimelist.net/apiconfig/references/api/v2) for the upstream contract.
+
+## Automatic fallback and recovery
+
+Automatic mode gives Jikan at most two total attempts so a failing primary does not delay MAL for the full Jikan-only retry sequence. MAL also uses at most two total attempts. Both clients retry only temporary network failures, timeouts, rate limits, and HTTP 500/502/503/504. `Retry-After` seconds or HTTP dates take priority; otherwise a short bounded, jittered delay is used. React Query does not add another retry layer.
+
+MAL fallback is eligible after a Jikan network failure, timeout, rate limit, supported 5xx response, malformed response, or unexpectedly empty required discovery collection. Invalid arguments, programming errors, and legitimate detail 404 results do not trigger fallback. Mock data is never substituted when live providers fail.
+
+The Jikan circuit breaker opens after two consecutive eligible failures and remains open for five minutes. While open, automatic mode skips Jikan and goes directly to MAL. After cooldown it permits one half-open Jikan probe: success closes the circuit, while an eligible failure reopens it. Application errors and legitimate 404 results do not count as provider-health failures.
+
+Successful normalized results are cached by logical operation. If Jikan and MAL both fail, automatic mode returns the previous valid result when one exists and records `cache` as the source. Failed manual refreshes do not erase valid catalog data. **Clear all catalog caches** intentionally removes provider and resilient caches and resets the circuit breaker.
+
+Provider caches remain in memory only. Collection responses populate the ID summary cache, details enrich it, and identical in-flight requests are coalesced. `getManyByIds` resolves known collection IDs without one detail request per list entry. Discovery order and Featured selection remain stable for the application session.
+
+## Jikan catalog
+
+The native Jikan v4 integration uses:
 
 - `GET /top/anime`
 - `GET /seasons/now`
@@ -36,60 +82,61 @@ The integration uses React Native's global `fetch` directly with the Jikan v4 AP
 - `GET /anime?q=...&order_by=popularity&sort=asc&sfw=true&limit=25`
 - `GET /anime/{id}/full`
 
-“Upcoming” is used instead of the misleading “Recently Added” label because Jikan does not expose a reliable MAL catalog-addition timestamp.
+Jikan-only mode preserves its scheduler, duplicate-request coalescing, explicit error mapping, 12-second timeout, and maximum three-attempt policy. Automatic mode injects the shorter two-attempt policy into the same client and repository; it does not duplicate the transport.
 
-The typed infrastructure client builds endpoint URLs, sends only `Accept: application/json` for GET requests, reads each response body once, and validates DTOs before mapping. A 12-second `AbortController` timeout and optional external cancellation signal apply to native and web requests. HTTP failures are mapped explicitly: 404 is not found, 429 is rate limiting, 500/502/503/504 are temporary service failures, malformed successful bodies are format errors, and fetch `TypeError` failures are network errors. Production UI receives concise application messages rather than upstream exception text.
+API structure and attribution: [Jikan REST API v4 documentation](https://docs.api.jikan.moe/).
 
-Each logical request has at most three total attempts. Only rate limits, 500–504 responses, timeouts, and temporary network failures are retried. `Retry-After` seconds or HTTP dates take priority; otherwise, bounded backoff with jitter uses longer delays for rate limiting and shorter delays for network failures. React Query retries are disabled so it does not multiply the infrastructure policy.
+## Service diagnostics
 
-The request scheduler spaces starts by at least 500 ms, allowing no more than two starts per second. Identical in-flight logical requests are coalesced under a stable key, including while retry handling is active. Every retry passes through the scheduler, different requests remain queued, and clearing the scheduler creates an isolated state generation so older running work cannot mutate the new queue.
+Settings → **Service diagnostics** compares providers independently:
 
-Collection responses populate an in-memory mapped summary cache by MAL ID. Full details have a separate cache and enrich the summary cache. `getManyByIds` resolves the personal list from cached summaries in one bulk repository operation during normal initialization, avoiding one request per list card. Clearing the cache explicitly erases catalog and session shuffle state; no cache is written to disk. Refresh is different: it keeps the valid cache and current session data, loads all replacement discovery collections, and commits them only after the replacement succeeds. A failed refresh reports an error while previously loaded data remains available.
+- **Test MyAnimeList API** directly requests one `bypopularity` ranking result with `id,title,main_picture`. It bypasses Jikan, the resilient repository, React Query, and catalog caches. A successful result shows HTTP status, elapsed time, and one sample title.
+- **Test Jikan API** directly checks the Jikan native transport in a separate request.
 
-The catalog collections are deduplicated and shuffled once per application session. A suitable item with a synopsis, score, and image is selected as featured. The session user-list repository merges the same popular, seasonal, and upcoming collections, deduplicates MAL IDs, selects roughly 20–25 items with an injectable random generator, represents every status, includes known and unknown episode totals when available, and creates scored and unscored entries. Reset restores that session's sample; refresh transactionally replaces the catalog and then generates a new sample.
+Only one diagnostic can run at a time. Results are accessible alerts and are not persisted. The MAL diagnostic reports missing configuration, rejected Client IDs, rate limiting, service failures, network failures, timeouts, and invalid payloads without exposing credentials or upstream response bodies.
 
-Home loads sections independently. Featured anime is preferred, but usable catalog content can provide a fallback. Continue Watching, Popular Now, This Season, and Upcoming retain their successful content when another section fails and expose section-specific retry actions. A full-page error appears only when no usable featured or catalog content is available.
+## Session-only personal list
+
+The personal list remains simulated in every mode. Live catalog modes build a sample from already loaded popular, seasonal, and upcoming collections, deduplicate real provider IDs, and avoid N+1 details when summaries are available. Episode progress, list status, and user score changes use local domain rules and are discarded when the process restarts. No MAL account or authenticated list endpoint is used.
+
+Progress is a non-negative whole number and is capped when the catalog has a known total. Unknown totals remain incrementable. Reaching the final known episode marks an entry completed; Plan to Watch resets progress; returning to Watching preserves valid progress. Scores are empty or whole numbers from 1 through 10.
 
 ## Architecture
 
-The app preserves strict layered boundaries:
+The app preserves layered boundaries:
 
-- `domain` owns models, repository contracts, errors, and pure business rules.
+- `domain` owns provider-neutral models, repository contracts, errors, and rules.
 - `application` owns query keys, React Query hooks, mutations, and use cases.
-- `infrastructure` owns the isolated native-fetch boundary, response validation, mapping, caches, and repository implementations.
-- `mocks` owns deterministic factories, fixtures, scenarios, and timing configuration.
-- `presentation` consumes domain models only and receives repositories through `RepositoryProvider`.
-- `app` contains thin Expo Router route modules only.
+- `infrastructure` owns native transports, DTO validation, mapping, caches, circuit breaking, and repositories.
+- `mocks` owns deterministic factories, fixtures, scenarios, and timing.
+- `presentation` receives repositories through `RepositoryProvider` and consumes domain models only.
+- `app` contains thin Expo Router route modules.
 
 ```text
-src/
-├── application/{mutations,queries,use-cases}/
-├── domain/{errors,models,repositories,rules}/
-├── infrastructure/
-│   ├── api/jikan/{fixtures,...}
-│   └── repositories/{jikan,mock,session}/
-├── mocks/{config,factories,fixtures,scenarios}/
-├── presentation/{components,hooks,providers,screens,theme,utils}/
-├── shared/{constants,types,utils}/
-└── tests/{builders,mocks,render,setup}/
+src/infrastructure/
+├── api/
+│   ├── jikan/
+│   └── mal/
+└── repositories/
+    ├── jikan/
+    ├── mal/
+    ├── resilient/
+    ├── session/
+    └── mock/
 ```
 
-No screen calls `fetch`, consumes Jikan DTOs, or constructs repositories.
+No screen calls `fetch`, consumes provider DTOs, or constructs repositories. Settings receives only direct diagnostic functions and session-only runtime source/circuit status.
 
 ## Getting started
 
-Requirements: a current Node.js LTS release, npm, and an Expo-compatible Android/iOS emulator or physical device.
+Requirements: a current Node.js LTS release, npm, and an Expo-compatible emulator or physical device.
 
 ```bash
 npm install
-npm start
+npx expo start --clear
 ```
 
-Use Settings → Data source to switch between Jikan and mock modes during development. The selection lasts for the current mounted app session only.
-
-For a development-only connectivity check, call `runJikanConnectivityDiagnostic` from `src/infrastructure/api/jikan/jikan-diagnostics.ts` in a debugger or temporary development tool. It sends `GET /top/anime?limit=1&sfw=true` through the same native transport and returns platform, status, elapsed time, and a classified error kind. Purikuki does not expose a diagnostic screen in production.
-
-Platform-specific commands are also available:
+Platform-specific commands:
 
 ```bash
 npm run android
@@ -99,35 +146,36 @@ npm run web
 
 ## Quality commands
 
+Automated tests use injected fetch implementations and static fixtures; they never call live Jikan or MAL services.
+
 ```bash
+npm install
 npx expo install --fix
 npx expo-doctor
 npm run typecheck
 npm run lint
+npm run format
 npm run format:check
 npm run test:ci
 ```
 
-Use `npm test` or `npm run test:watch` for local test iteration. `npm run format` writes Prettier formatting.
-
-## Business rules
-
-Progress is always a non-negative whole number and is capped when the catalog has a known total. Unknown totals remain incrementable. Reaching the final known episode marks an entry completed; moving to Plan to Watch resets progress; returning to Watching preserves valid progress. Scores are either empty or whole numbers from 1 through 10.
-
 ## Current limitations
 
-- Jikan is read-only and unofficial; Purikuki is not affiliated with Jikan or MyAnimeList.
-- Personal-list entries, catalog caches, data-source selection, and settings are not persisted.
-- There is no MAL OAuth, authentication, list synchronization, offline mutation queue, backend, or user profile.
-- Remote artwork depends on the URLs supplied by Jikan; deterministic local gradients remain the fallback.
-- End-to-end tests and store publication remain out of scope.
+- Personal-list data, catalog caches, settings, diagnostic results, and source selection are not persisted.
+- Public catalog availability and remote artwork depend on Jikan or MAL.
+- MAL OAuth, login, profile access, list synchronization, offline mutation storage, a backend, and E2E tests are out of scope.
+- Purikuki is not affiliated with Jikan or MyAnimeList.
 
 ## Troubleshooting
 
-### Jikan works in the browser but not in the app
+### Jikan is unavailable
 
-Expo Web and the native application use independent networking and in-memory caches, so a browser result does not prove that the same native request was served successfully. A real HTTP 504 response means the native HTTPS request reached Jikan; it is not an Android cleartext, CORS, proxy, or network-permission problem. Jikan can return intermittent errors while connecting to its own upstream MyAnimeList data source.
+Use Settings → **Test Jikan API** to test Jikan directly. In Automatic mode, eligible failures use MAL when configured; after two consecutive failures the circuit skips Jikan for five minutes. Runtime catalog status shows the latest source and circuit state. A real Jikan 5xx response can reflect an upstream failure and does not imply Android cleartext or CORS configuration trouble.
 
-Development request logs include the platform, logical request key, real URL, status, elapsed time, cache header, retry attempt, and a bounded sanitized diagnostic. They do not include full successful anime payloads. Use the connectivity diagnostic to compare native and web transport results without repository mapping. Jikan remains read-only, and Purikuki has no MyAnimeList authentication yet.
+### Test MyAnimeList API fails
 
-API structure and attribution: [Jikan REST API v4 documentation](https://docs.api.jikan.moe/).
+The diagnostic bypasses Jikan and all catalog caches. Check its classified message and HTTP status. Network and temporary service failures may receive one bounded retry. HTTP 401 or 403 means MAL rejected the application Client ID. Restart Metro after changing `.env`.
+
+### MyAnimeList Client ID is not configured
+
+Add `EXPO_PUBLIC_MAL_CLIENT_ID` to the local `.env`, then restart Metro with `npx expo start --clear`. Automatic mode continues as Jikan-only until configured, and **MyAnimeList only** remains disabled. Do not add a Client Secret.

@@ -1,0 +1,51 @@
+{
+  "data": [
+    {
+      "node": {
+        "id": 52991,
+        "title": "Sousou no Frieren",
+        "main_picture": {
+          "medium": "https://example.test/frieren-medium.jpg",
+          "large": "https://example.test/frieren-large.jpg"
+        },
+        "alternative_titles": {
+          "synonyms": ["Frieren at the Funeral"],
+          "en": "Frieren: Beyond Journey's End",
+          "ja": "葬送のフリーレン"
+        },
+        "synopsis": "An elf retraces the journey she once shared with her companions.",
+        "mean": 9.28,
+        "genres": [
+          { "id": 2, "name": "Adventure" },
+          { "id": 10, "name": "Fantasy" }
+        ],
+        "studios": [{ "id": 11, "name": "Madhouse" }],
+        "num_episodes": 28,
+        "status": "finished_airing",
+        "start_season": { "year": 2023, "season": "fall" }
+      },
+      "ranking": { "rank": 1 }
+    },
+    {
+      "node": {
+        "id": 1,
+        "title": "Cowboy Bebop",
+        "main_picture": {
+          "medium": "https://example.test/bebop-medium.jpg",
+          "large": "https://example.test/bebop-large.jpg"
+        },
+        "synopsis": "Bounty hunters cross the solar system.",
+        "mean": 8.75,
+        "genres": [{ "id": 1, "name": "Action" }],
+        "studios": [{ "id": 14, "name": "Sunrise" }],
+        "num_episodes": 26,
+        "status": "finished_airing",
+        "start_season": { "year": 1998, "season": "spring" }
+      },
+      "ranking": { "rank": 2 }
+    }
+  ],
+  "paging": {
+    "next": "https://api.myanimelist.net/v2/anime/ranking?offset=2"
+  }
+}

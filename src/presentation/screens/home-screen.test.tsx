@@ -22,7 +22,7 @@ describe('HomeScreen partial failures', () => {
       expect(screen.getByText('Popular Now')).toBeVisible();
       expect(
         screen.getByText(
-          'Unable to reach Jikan. Check your connection and try again.',
+          'Unable to reach the anime catalog. Check your connection and try again.',
         ),
       ).toBeVisible();
     });
@@ -102,9 +102,7 @@ describe('HomeScreen partial failures', () => {
       expect(screen.getByText('Unable to load')).toBeVisible(),
     );
     expect(
-      screen.getByText(
-        'Jikan is temporarily unavailable. Please try again shortly.',
-      ),
+      screen.getByText('The anime catalog is temporarily unavailable.'),
     ).toBeVisible();
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
   });
