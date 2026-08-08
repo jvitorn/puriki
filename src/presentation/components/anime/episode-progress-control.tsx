@@ -1,63 +1,48 @@
 import { Minus, Plus } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import {
-  canDecrementProgress,
-  canIncrementProgress,
-} from '@/domain/rules/anime-progress';
-import { AppText } from '@/presentation/components/ui/app-text';
 import { IconButton } from '@/presentation/components/ui/icon-button';
-import { spacing } from '@/presentation/theme/tokens';
-
-interface EpisodeProgressControlProps {
-  current: number;
-  total: number | null;
-  onChange(next: number): void;
-  disabled?: boolean;
-}
+import { Text } from '@/presentation/components/ui/text';
 
 export function EpisodeProgressControl({
   current,
   total,
   onChange,
   disabled = false,
-}: EpisodeProgressControlProps) {
-  const canDecrement = !disabled && canDecrementProgress(current);
-  const canIncrement = !disabled && canIncrementProgress(current, total);
+}: {
+  current: number;
+  total: number | null;
+  onChange(value: number): void;
+  disabled?: boolean;
+}) {
+  const canDecrease = !disabled && current > 0;
+  const canIncrease = !disabled && (total === null || current < total);
+
   return (
-    <View style={styles.container}>
+    <View className="flex-row items-center gap-3">
       <IconButton
+        disabled={!canDecrease}
         icon={Minus}
         label="Decrease watched episodes"
-        disabled={!canDecrement}
         onPress={() => onChange(current - 1)}
+      />
+      <View className="min-w-20 flex-1 items-center">
+        <Text className="text-xl font-black">{current}</Text>
+        <Text variant="caption" muted>
+          of {total ?? '?'} episodes
+        </Text>
+      </View>
+      <IconButton
+        disabled={!canIncrease}
+        icon={Plus}
+        label="Increase watched episodes"
+        onPress={() => onChange(current + 1)}
       />
       <View
         accessible
         accessibilityLabel={`Episode progress: ${current} of ${total ?? 'unknown'}`}
-        style={styles.value}
-      >
-        <AppText variant="title">{current}</AppText>
-        <AppText variant="caption" muted>
-          of {total ?? '?'} episodes
-        </AppText>
-      </View>
-      <IconButton
-        icon={Plus}
-        label="Increase watched episodes"
-        disabled={!canIncrement}
-        onPress={() => onChange(current + 1)}
+        className="absolute"
       />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.md,
-  },
-  value: { minWidth: 105, alignItems: 'center' },
-});

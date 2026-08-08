@@ -1,89 +1,63 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 
-import { AppText } from '@/presentation/components/ui/app-text';
-import { colors, posterPalettes, radii } from '@/presentation/theme/tokens';
+import { Text } from '@/presentation/components/ui/text';
+import { posterPalettes } from '@/presentation/theme/tokens';
 import { getTitleInitials } from '@/presentation/utils/title-initials';
+import { cn } from '@/shared/rnr/utils';
 
-interface PosterPlaceholderProps {
+export function PosterPlaceholder({
+  title,
+  seed,
+  imageUrl,
+  width,
+  height,
+  className,
+}: {
   title: string;
   seed: number;
   imageUrl?: string | null;
   width?: number;
   height?: number;
-}
-
-export function PosterPlaceholder({
-  title,
-  seed,
-  imageUrl = null,
-  width = 142,
-  height = 204,
-}: PosterPlaceholderProps) {
-  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const showRemoteImage = Boolean(imageUrl && failedImageUrl !== imageUrl);
+  className?: string;
+}) {
   const palette =
     posterPalettes[Math.abs(seed) % posterPalettes.length] ?? posterPalettes[0];
+  const source = imageUrl ? { uri: imageUrl } : undefined;
+  const dynamicSize =
+    width !== undefined || height !== undefined ? { width, height } : undefined;
+
   return (
-    <LinearGradient
-      accessible={!showRemoteImage}
+    <View
       accessibilityRole="image"
       accessibilityLabel={`Poster placeholder for ${title}`}
+      className={cn(
+        'relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-muted',
+        className,
+      )}
+      style={dynamicSize}
       testID={`poster-${seed}`}
-      colors={[palette[0], palette[1]]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={[styles.container, { width, height }]}
     >
-      <View style={styles.circleLarge} />
-      <View style={styles.circleSmall} />
-      <AppText style={styles.initials}>{getTitleInitials(title)}</AppText>
-      {showRemoteImage && imageUrl ? (
+      <LinearGradient
+        colors={palette}
+        start={{ x: 0.05, y: 0.05 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <View className="absolute -right-8 -top-8 size-24 rounded-full bg-white/10" />
+      <View className="absolute -bottom-5 -left-5 size-16 rounded-full bg-black/10" />
+      <Text className="m-auto text-2xl font-black tracking-widest text-white/90">
+        {getTitleInitials(title)}
+      </Text>
+      {source ? (
         <Image
+          accessibilityIgnoresInvertColors
           accessibilityLabel={`Poster for ${title}`}
-          accessibilityRole="image"
-          source={{ uri: imageUrl }}
+          className="absolute inset-0 h-full w-full"
           resizeMode="cover"
-          style={styles.remoteImage}
-          onError={() => setFailedImageUrl(imageUrl)}
+          source={source}
         />
       ) : null}
-    </LinearGradient>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: radii.md,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleLarge: {
-    position: 'absolute',
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    borderWidth: 24,
-    borderColor: 'rgba(255,255,255,0.10)',
-    top: -40,
-    right: -50,
-  },
-  circleSmall: {
-    position: 'absolute',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(8,10,15,0.16)',
-    bottom: -22,
-    left: -18,
-  },
-  initials: {
-    color: colors.text,
-    fontWeight: '900',
-    fontSize: 30,
-    letterSpacing: 2,
-  },
-  remoteImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-});

@@ -1,71 +1,124 @@
-import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { Platform, Pressable } from 'react-native';
 
-import { AppText } from '@/presentation/components/ui/app-text';
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { TextClassContext } from '@/presentation/components/ui/text';
+import { cn } from '@/shared/rnr/utils';
 
-interface ButtonProps {
-  label: string;
-  onPress(): void;
-  disabled?: boolean;
-  loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger';
-  icon?: ReactNode;
-  accessibilityLabel?: string;
-}
+const buttonVariants = cva(
+  cn(
+    'group shrink-0 flex-row items-center justify-center gap-2 rounded-md shadow-none',
+    Platform.select({
+      web: "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive whitespace-nowrap outline-none transition-all focus-visible:ring-[3px] disabled:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    }),
+  ),
+  {
+    variants: {
+      variant: {
+        default: cn(
+          'bg-primary active:bg-primary/90 shadow-sm shadow-black/5',
+          Platform.select({ web: 'hover:bg-primary/90' }),
+        ),
+        destructive: cn(
+          'bg-destructive active:bg-destructive/90 dark:bg-destructive/60 shadow-sm shadow-black/5',
+          Platform.select({
+            web: 'hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
+          }),
+        ),
+        outline: cn(
+          'border-border bg-background active:bg-accent dark:bg-input/30 dark:border-input dark:active:bg-input/50 border shadow-sm shadow-black/5',
+          Platform.select({
+            web: 'hover:bg-accent dark:hover:bg-input/50',
+          }),
+        ),
+        secondary: cn(
+          'bg-secondary active:bg-secondary/80 shadow-sm shadow-black/5',
+          Platform.select({ web: 'hover:bg-secondary/80' }),
+        ),
+        ghost: cn(
+          'active:bg-accent dark:active:bg-accent/50',
+          Platform.select({ web: 'hover:bg-accent dark:hover:bg-accent/50' }),
+        ),
+        link: '',
+      },
+      size: {
+        default: cn(
+          'h-11 px-4 py-2',
+          Platform.select({ web: 'has-[>svg]:px-3' }),
+        ),
+        sm: cn(
+          'h-10 gap-1.5 rounded-md px-3',
+          Platform.select({ web: 'has-[>svg]:px-2.5' }),
+        ),
+        lg: cn(
+          'h-12 rounded-md px-6',
+          Platform.select({ web: 'has-[>svg]:px-4' }),
+        ),
+        icon: 'h-11 w-11',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  },
+);
 
-export function Button({
-  label,
-  onPress,
-  disabled = false,
-  loading = false,
-  variant = 'primary',
-  icon,
-  accessibilityLabel,
-}: ButtonProps) {
+const buttonTextVariants = cva(
+  cn(
+    'text-foreground text-sm font-medium',
+    Platform.select({ web: 'pointer-events-none transition-colors' }),
+  ),
+  {
+    variants: {
+      variant: {
+        default: 'text-primary-foreground',
+        destructive: 'text-white',
+        outline: cn(
+          'group-active:text-accent-foreground',
+          Platform.select({ web: 'group-hover:text-accent-foreground' }),
+        ),
+        secondary: 'text-secondary-foreground',
+        ghost: 'group-active:text-accent-foreground',
+        link: cn(
+          'text-primary group-active:underline',
+          Platform.select({
+            web: 'underline-offset-4 hover:underline group-hover:underline',
+          }),
+        ),
+      },
+      size: {
+        default: '',
+        sm: '',
+        lg: '',
+        icon: '',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  },
+);
+
+type ButtonProps = React.ComponentProps<typeof Pressable> &
+  React.RefAttributes<typeof Pressable> &
+  VariantProps<typeof buttonVariants>;
+
+function Button({ className, variant, size, ...props }: ButtonProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: disabled || loading }}
-      disabled={disabled || loading}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.base,
-        styles[variant],
-        pressed && styles.pressed,
-        (disabled || loading) && styles.disabled,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color={colors.text} />
-      ) : (
-        <View style={styles.row}>
-          {icon}
-          <AppText style={styles.label}>{label}</AppText>
-        </View>
-      )}
-    </Pressable>
+    <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
+      <Pressable
+        className={cn(
+          props.disabled && 'opacity-50',
+          buttonVariants({ variant, size }),
+          className,
+        )}
+        role="button"
+        {...props}
+      />
+    </TextClassContext.Provider>
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 46,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primary: { backgroundColor: colors.primary },
-  secondary: {
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  danger: { backgroundColor: colors.danger },
-  pressed: { opacity: 0.78, transform: [{ scale: 0.98 }] },
-  disabled: { opacity: 0.4 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  label: { fontWeight: '800' },
-});
+export { Button, buttonTextVariants, buttonVariants };
+export type { ButtonProps };

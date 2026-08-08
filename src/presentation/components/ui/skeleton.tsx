@@ -1,26 +1,19 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { colors, radii } from '@/presentation/theme/tokens';
+import { cn } from '@/shared/rnr/utils';
 
-export function Skeleton({
-  height = 20,
-  width = '100%',
-}: {
-  height?: number;
-  width?: number | `${number}%`;
-}) {
+function Skeleton({
+  className,
+  accessibilityLabel = 'Loading content',
+  ...props
+}: React.ComponentProps<typeof View> & React.RefAttributes<View>) {
   return (
     <View
-      accessibilityLabel="Loading content"
-      style={[styles.base, { height, width }]}
+      accessibilityLabel={accessibilityLabel}
+      className={cn('animate-pulse rounded-md bg-muted/80', className)}
+      {...props}
     />
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.md,
-    opacity: 0.72,
-  },
-});
+export { Skeleton };

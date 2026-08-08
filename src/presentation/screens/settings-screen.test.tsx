@@ -34,6 +34,9 @@ const jikanSuccess = {
 };
 
 describe('SettingsScreen', () => {
+  const expandDeveloperTools = async () =>
+    fireEvent.press(screen.getByLabelText('Developer tools'));
+
   beforeEach(() => {
     jest.mocked(runMalConnectivityDiagnostic).mockResolvedValue(malSuccess);
     jest.mocked(runJikanConnectivityDiagnostic).mockResolvedValue(jikanSuccess);
@@ -80,6 +83,8 @@ describe('SettingsScreen', () => {
       lastFallbackAt: '2026-08-06T12:00:00.000Z',
     };
     await renderWithProviders(<SettingsScreen />, { dependencies });
+    expect(screen.queryByText('Mode: Automatic')).not.toBeOnTheScreen();
+    await expandDeveloperTools();
     expect(screen.getByText('Mode: Automatic')).toBeVisible();
     expect(
       screen.getByText('Last successful source: MyAnimeList'),
@@ -91,6 +96,7 @@ describe('SettingsScreen', () => {
     const dependencies = createTestDependencies();
     dependencies.malConfigured = true;
     await renderWithProviders(<SettingsScreen />, { dependencies });
+    await expandDeveloperTools();
     fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
     await waitFor(() =>
       expect(screen.getByText('MyAnimeList API is operational.')).toBeVisible(),
@@ -112,6 +118,7 @@ describe('SettingsScreen', () => {
         }),
     );
     await renderWithProviders(<SettingsScreen />);
+    await expandDeveloperTools();
     fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
     await waitFor(() =>
       expect(screen.getByLabelText('Testing MyAnimeList API…')).toBeDisabled(),
@@ -144,6 +151,7 @@ describe('SettingsScreen', () => {
         sampleAnimeTitle: null,
       });
       await renderWithProviders(<SettingsScreen />);
+      await expandDeveloperTools();
       fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
       await waitFor(() => expect(screen.getByText(message)).toBeVisible());
       expect(screen.getByRole('alert')).toBeVisible();
@@ -152,6 +160,7 @@ describe('SettingsScreen', () => {
 
   it('keeps the Jikan direct diagnostic as an independent action', async () => {
     await renderWithProviders(<SettingsScreen />);
+    await expandDeveloperTools();
     fireEvent.press(screen.getByLabelText('Test Jikan API'));
     await waitFor(() =>
       expect(
@@ -163,5 +172,34 @@ describe('SettingsScreen', () => {
     expect(runJikanConnectivityDiagnostic).toHaveBeenCalledTimes(1);
     expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
     expect(screen.getByText('HTTP 200 • 210 ms')).toBeVisible();
+  });
+
+  it('keeps developer diagnostics collapsed until requested', async () => {
+    await renderWithProviders(<SettingsScreen />);
+    expect(screen.queryByText('Runtime catalog status')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('Test Jikan API')).not.toBeOnTheScreen();
+    expect(
+      screen.getByLabelText('Developer tools').props.accessibilityState,
+    ).toMatchObject({ expanded: false });
+
+    await expandDeveloperTools();
+    expect(screen.getByText('Runtime catalog status')).toBeVisible();
+    expect(screen.getByLabelText('Test Jikan API')).toBeVisible();
+  });
+
+  it('changes the selected data source through the radio control', async () => {
+    const dependencies = createTestDependencies();
+    dependencies.mode = 'automatic';
+    dependencies.malConfigured = true;
+    await renderWithProviders(<SettingsScreen />, { dependencies });
+
+    fireEvent.press(screen.getByLabelText('Mock'));
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText('Mock').props.accessibilityState,
+      ).toMatchObject({
+        checked: true,
+      }),
+    );
   });
 });

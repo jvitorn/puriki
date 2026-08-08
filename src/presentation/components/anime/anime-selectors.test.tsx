@@ -10,10 +10,9 @@ describe('AnimeStatusSelector', () => {
     await renderWithProviders(
       <AnimeStatusSelector value="watching" onChange={onChange} />,
     );
-    expect(screen.getByRole('button', { name: 'Watching' })).toHaveProp(
-      'accessibilityState',
-      { selected: true, disabled: false },
-    );
+    expect(
+      screen.getByRole('radio', { name: 'Watching' }).props.accessibilityState,
+    ).toMatchObject({ selected: true, disabled: false });
     await fireEvent.press(screen.getByText('Completed'));
     expect(onChange).toHaveBeenCalledWith('completed');
   });
@@ -25,10 +24,9 @@ describe('AnimeScoreSelector', () => {
     await renderWithProviders(
       <AnimeScoreSelector value={7} onChange={onChange} />,
     );
-    expect(screen.getByLabelText('Score 7')).toHaveProp('accessibilityState', {
-      selected: true,
-      disabled: false,
-    });
+    expect(
+      screen.getByLabelText('Score 7').props.accessibilityState,
+    ).toMatchObject({ selected: true, disabled: false });
     await fireEvent.press(screen.getByLabelText('Score 9'));
     await fireEvent.press(screen.getByLabelText('Clear score'));
     expect(onChange).toHaveBeenNthCalledWith(1, 9);

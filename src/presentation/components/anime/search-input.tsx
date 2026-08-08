@@ -1,12 +1,9 @@
 import { Search, X } from 'lucide-react-native';
-import { StyleSheet, TextInput, View, Pressable } from 'react-native';
+import { View } from 'react-native';
 
-import {
-  colors,
-  radii,
-  spacing,
-  typography,
-} from '@/presentation/theme/tokens';
+import { Icon } from '@/presentation/components/ui/icon';
+import { IconButton } from '@/presentation/components/ui/icon-button';
+import { Input } from '@/presentation/components/ui/input';
 
 export function SearchInput({
   value,
@@ -16,49 +13,36 @@ export function SearchInput({
   onChangeText(value: string): void;
 }) {
   return (
-    <View style={styles.container}>
-      <Search size={20} color={colors.textMuted} />
-      <TextInput
+    <View className="relative justify-center">
+      <View
+        accessibilityElementsHidden
+        className="pointer-events-none absolute left-3 z-10"
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Icon as={Search} className="size-5 text-muted-foreground" />
+      </View>
+      <Input
         accessibilityLabel="Search anime"
-        placeholder="Search titles or alternative titles"
-        placeholderTextColor={colors.textMuted}
-        value={value}
-        onChangeText={onChangeText}
         autoCapitalize="none"
         autoCorrect={false}
+        className="h-12 rounded-xl pl-11 pr-12 text-base"
+        clearButtonMode="never"
+        enterKeyHint="search"
+        placeholder="Search titles…"
         returnKeyType="search"
-        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
       />
-      {value ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Clear search"
-          hitSlop={8}
-          onPress={() => onChangeText('')}
-        >
-          <X size={20} color={colors.text} />
-        </Pressable>
+      {value.length > 0 ? (
+        <View className="absolute right-0 z-10">
+          <IconButton
+            className="border-transparent bg-transparent shadow-none"
+            icon={X}
+            label="Clear search"
+            onPress={() => onChangeText('')}
+          />
+        </View>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 50,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  input: {
-    flex: 1,
-    color: colors.text,
-    fontSize: typography.body,
-    paddingVertical: spacing.sm,
-  },
-});

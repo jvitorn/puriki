@@ -25,7 +25,7 @@ export function createAppQueryClient(): QueryClient {
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(createAppQueryClient);
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <RepositoryProvider>{children}</RepositoryProvider>

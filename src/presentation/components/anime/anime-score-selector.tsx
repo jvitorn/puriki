@@ -1,9 +1,12 @@
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ScrollView } from 'react-native';
 
-import { AppText } from '@/presentation/components/ui/app-text';
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { Text } from '@/presentation/components/ui/text';
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@/presentation/components/ui/toggle-group';
 
-const scores = Array.from({ length: 10 }, (_, index) => index + 1);
+const SCORES = Array.from({ length: 10 }, (_, index) => index + 1);
 
 export function AnimeScoreSelector({
   value,
@@ -11,58 +14,45 @@ export function AnimeScoreSelector({
   disabled = false,
 }: {
   value: number | null;
-  onChange(score: number | null): void;
+  onChange(value: number | null): void;
   disabled?: boolean;
 }) {
+  const selectedValue = value === null ? 'clear' : String(value);
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      accessibilityLabel="Your score"
-    >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Clear score"
-        accessibilityState={{ selected: value === null, disabled }}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ToggleGroup
+        accessibilityLabel="Your anime score"
+        className="gap-2 pr-4"
         disabled={disabled}
-        onPress={() => onChange(null)}
-        style={[styles.option, value === null && styles.selected]}
+        type="single"
+        value={selectedValue}
+        variant="outline"
+        onValueChange={(next) => {
+          if (!next) return;
+          onChange(next === 'clear' ? null : Number(next));
+        }}
       >
-        <AppText variant="caption">None</AppText>
-      </Pressable>
-      {scores.map((score) => (
-        <Pressable
-          key={score}
-          accessibilityRole="button"
-          accessibilityLabel={`Score ${score}`}
-          accessibilityState={{ selected: value === score, disabled }}
-          disabled={disabled}
-          onPress={() => onChange(score)}
-          style={[styles.option, value === score && styles.selected]}
+        <ToggleGroupItem
+          accessibilityLabel="Clear score"
+          accessibilityState={{ selected: value === null, disabled }}
+          className="min-h-11 rounded-lg border px-3"
+          value="clear"
         >
-          <AppText variant="caption">{score}</AppText>
-        </Pressable>
-      ))}
+          <Text>—</Text>
+        </ToggleGroupItem>
+        {SCORES.map((score) => (
+          <ToggleGroupItem
+            key={score}
+            accessibilityLabel={`Score ${score}`}
+            accessibilityState={{ selected: value === score, disabled }}
+            className="min-h-11 min-w-11 rounded-lg border px-3"
+            value={String(score)}
+          >
+            <Text>{score}</Text>
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  row: { gap: spacing.sm },
-  option: {
-    minWidth: 42,
-    minHeight: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  selected: {
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
-  },
-});

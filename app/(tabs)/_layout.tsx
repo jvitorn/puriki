@@ -8,47 +8,49 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        sceneStyle: { backgroundColor: colors.background },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          backgroundColor: colors.surface,
+          backgroundColor: colors.background,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: 68,
-          paddingTop: 8,
-          paddingBottom: 8,
+          height: 72,
+          paddingTop: 7,
+          paddingBottom: 7,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
+        tabBarItemStyle: { minHeight: 56 },
+        tabBarIconStyle: { marginBottom: 2 },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+          tabBarIcon: ({ color }) => <Home color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
           title: 'Search',
-          tabBarIcon: ({ color, size }) => <Search color={color} size={size} />,
+          tabBarIcon: ({ color }) => <Search color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="my-list"
         options={{
           title: 'My List',
-          tabBarIcon: ({ color, size }) => <List color={color} size={size} />,
+          tabBarIcon: ({ color }) => <List color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ color, size }) => (
-            <Settings color={color} size={size} />
-          ),
+          tabBarIcon: ({ color }) => <Settings color={color} size={22} />,
         }}
       />
     </Tabs>

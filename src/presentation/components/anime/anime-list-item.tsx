@@ -1,12 +1,12 @@
 import { ChevronRight, Star } from 'lucide-react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
-import { AppText } from '@/presentation/components/ui/app-text';
 import { Badge } from '@/presentation/components/ui/badge';
+import { Icon } from '@/presentation/components/ui/icon';
 import { ProgressBar } from '@/presentation/components/ui/progress-bar';
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { Text } from '@/presentation/components/ui/text';
 import { STATUS_LABELS } from '@/shared/constants/anime-status';
 
 export function AnimeListItem({
@@ -20,74 +20,57 @@ export function AnimeListItem({
   const progress = item.anime.totalEpisodes
     ? (entry?.watchedEpisodes ?? 0) / item.anime.totalEpisodes
     : 0;
+
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${item.anime.title}`}
+      className="flex-row items-center gap-3 rounded-xl bg-card p-2 active:opacity-75 web:hover:bg-muted/60"
       onPress={onPress}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
     >
       <PosterPlaceholder
+        className="shrink-0"
         title={item.anime.title}
         seed={item.anime.coverSeed}
         imageUrl={item.anime.posterImageUrl}
-        width={78}
-        height={112}
+        width={72}
+        height={104}
       />
-      <View style={styles.content}>
-        <AppText variant="heading" numberOfLines={2}>
+      <View className="flex-1 gap-2">
+        <Text variant="heading" numberOfLines={2}>
           {item.anime.title}
-        </AppText>
+        </Text>
         {entry ? (
           <Badge
-            label={STATUS_LABELS[entry.status]}
-            accent={entry.status === 'watching'}
-          />
+            className="self-start"
+            variant={entry.status === 'watching' ? 'default' : 'outline'}
+          >
+            <Text>{STATUS_LABELS[entry.status]}</Text>
+          </Badge>
         ) : null}
         {entry ? (
           <>
             <ProgressBar value={progress} />
-            <View style={styles.meta}>
-              <AppText variant="caption" muted>
+            <View className="flex-row items-center justify-between gap-2">
+              <Text variant="caption" muted>
                 {entry.watchedEpisodes} / {item.anime.totalEpisodes ?? '?'}{' '}
                 episodes
-              </AppText>
+              </Text>
               {entry.userScore ? (
-                <View style={styles.score}>
-                  <Star
-                    size={13}
-                    color={colors.warning}
-                    fill={colors.warning}
+                <View className="flex-row items-center gap-1">
+                  <Icon
+                    as={Star}
+                    className="size-3.5 text-warning"
+                    fill="currentColor"
                   />
-                  <AppText variant="caption">{entry.userScore}</AppText>
+                  <Text variant="caption">{entry.userScore}</Text>
                 </View>
               ) : null}
             </View>
           </>
         ) : null}
       </View>
-      <ChevronRight color={colors.textMuted} size={20} />
+      <Icon as={ChevronRight} className="size-5 text-muted-foreground" />
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pressed: { opacity: 0.75 },
-  content: { flex: 1, gap: spacing.sm },
-  meta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  score: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center' },
-});

@@ -1,6 +1,4 @@
-import { StyleSheet, View } from 'react-native';
-
-import { colors, radii } from '@/presentation/theme/tokens';
+import { View } from 'react-native';
 
 export function ProgressBar({
   value,
@@ -19,23 +17,12 @@ export function ProgressBar({
         max: 100,
         now: Math.round(normalized * 100),
       }}
-      style={styles.track}
+      className="h-1 overflow-hidden rounded-full bg-border"
     >
-      <View style={[styles.fill, { width: `${normalized * 100}%` }]} />
+      <View
+        className="h-full rounded-full bg-primary"
+        style={{ width: `${normalized * 100}%` }}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  track: {
-    height: 4,
-    borderRadius: radii.pill,
-    backgroundColor: colors.border,
-    overflow: 'hidden',
-  },
-  fill: {
-    height: '100%',
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-  },
-});

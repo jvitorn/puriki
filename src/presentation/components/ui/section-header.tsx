@@ -1,7 +1,6 @@
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { AppText } from '@/presentation/components/ui/app-text';
-import { spacing } from '@/presentation/theme/tokens';
+import { Text } from '@/presentation/components/ui/text';
 
 export function SectionHeader({
   title,
@@ -11,17 +10,13 @@ export function SectionHeader({
   subtitle?: string;
 }) {
   return (
-    <View style={styles.container}>
-      <AppText variant="heading">{title}</AppText>
+    <View className="mb-4 gap-1">
+      <Text variant="heading">{title}</Text>
       {subtitle ? (
-        <AppText variant="caption" muted>
+        <Text variant="caption" muted>
           {subtitle}
-        </AppText>
+        </Text>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { gap: spacing.xs, marginBottom: spacing.md },
-});

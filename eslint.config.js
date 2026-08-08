@@ -2,9 +2,9 @@ const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 
 module.exports = defineConfig([
+  { ignores: ['coverage/**', '.expo/**'] },
   expoConfig,
   {
-    ignores: ['coverage/**', '.expo/**'],
     rules: {
       'import/order': [
         'error',

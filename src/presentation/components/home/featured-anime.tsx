@@ -1,12 +1,13 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Play } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 import { BannerPlaceholder } from '@/presentation/components/anime/banner-placeholder';
-import { AppText } from '@/presentation/components/ui/app-text';
 import { Badge } from '@/presentation/components/ui/badge';
 import { Button } from '@/presentation/components/ui/button';
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { Icon } from '@/presentation/components/ui/icon';
+import { Text } from '@/presentation/components/ui/text';
 
 export function FeaturedAnime({
   anime,
@@ -15,56 +16,50 @@ export function FeaturedAnime({
   anime: AnimeCatalogItem;
   onOpen(): void;
 }) {
+  const { width } = useWindowDimensions();
+  const heroHeight = Math.max(360, Math.min(width * 0.82, 480));
+
   return (
-    <View style={styles.container}>
+    <View className="relative overflow-hidden rounded-2xl bg-card">
       <BannerPlaceholder
         title={anime.title}
         seed={anime.bannerSeed}
         imageUrl={anime.heroImageUrl}
-        height={390}
+        height={heroHeight}
       />
-      <View style={styles.overlay}>
-        <Badge label="FEATURED" accent />
-        <AppText variant="display" numberOfLines={2}>
+      <LinearGradient
+        colors={['transparent', 'rgba(8,10,15,0.28)', 'rgba(8,10,15,0.96)']}
+        locations={[0.22, 0.52, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View className="absolute inset-x-0 bottom-0 gap-2 p-5 md:p-7">
+        <Badge className="self-start">
+          <Text>Featured</Text>
+        </Badge>
+        <Text variant="display" className="max-w-3xl" numberOfLines={2}>
           {anime.title}
-        </AppText>
-        <AppText muted numberOfLines={3}>
-          {anime.synopsis}
-        </AppText>
-        <View style={styles.metadata}>
-          <AppText variant="caption">{anime.year ?? 'TBD'}</AppText>
-          <AppText variant="caption">
-            {anime.totalEpisodes ?? '?'} episodes
-          </AppText>
-          <AppText variant="caption">★ {anime.score ?? '—'}</AppText>
+        </Text>
+        {anime.synopsis ? (
+          <Text className="max-w-3xl text-white/75" numberOfLines={3}>
+            {anime.synopsis}
+          </Text>
+        ) : null}
+        <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
+          <Text variant="caption">{anime.year ?? 'Year TBD'}</Text>
+          <Text variant="caption">
+            {anime.totalEpisodes
+              ? `${anime.totalEpisodes} episodes`
+              : 'Episodes TBD'}
+          </Text>
+          {anime.score !== null ? (
+            <Text variant="caption">★ {anime.score.toFixed(1)}</Text>
+          ) : null}
         </View>
-        <View style={styles.action}>
-          <Button
-            label="View details"
-            onPress={onOpen}
-            icon={<Play color={colors.text} size={18} fill={colors.text} />}
-          />
-        </View>
+        <Button className="mt-2 min-h-11 self-start" onPress={onOpen}>
+          <Icon as={Play} className="size-4" />
+          <Text>View details</Text>
+        </Button>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: radii.lg,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  overlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: spacing.lg,
-    gap: spacing.sm,
-    backgroundColor: colors.overlay,
-  },
-  metadata: { flexDirection: 'row', gap: spacing.md },
-  action: { alignSelf: 'flex-start', marginTop: spacing.sm },
-});

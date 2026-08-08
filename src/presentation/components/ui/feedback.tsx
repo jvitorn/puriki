@@ -1,9 +1,9 @@
 import { AlertCircle, Inbox } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
-import { AppText } from '@/presentation/components/ui/app-text';
 import { Button } from '@/presentation/components/ui/button';
-import { colors, spacing } from '@/presentation/theme/tokens';
+import { Icon } from '@/presentation/components/ui/icon';
+import { Text } from '@/presentation/components/ui/text';
 
 export function EmptyState({
   title,
@@ -13,31 +13,53 @@ export function EmptyState({
   message: string;
 }) {
   return (
-    <View accessible style={styles.container} accessibilityRole="summary">
-      <Inbox size={36} color={colors.textMuted} />
-      <AppText variant="heading">{title}</AppText>
-      <AppText muted style={styles.center}>
+    <View
+      accessible
+      className="min-h-48 items-center justify-center gap-2 px-6 py-8"
+      accessibilityRole="summary"
+    >
+      <View className="mb-1 size-12 items-center justify-center rounded-full bg-muted">
+        <Icon as={Inbox} className="size-6 text-muted-foreground" />
+      </View>
+      <Text variant="heading" className="text-center">
+        {title}
+      </Text>
+      <Text muted className="max-w-md text-center">
         {message}
-      </AppText>
+      </Text>
     </View>
   );
 }
 
 export function ErrorState({
+  title = 'Unable to load',
   message = 'Something went wrong. Please try again.',
   onRetry,
 }: {
+  title?: string;
   message?: string;
   onRetry?: () => void;
 }) {
   return (
-    <View accessible style={styles.container} accessibilityRole="alert">
-      <AlertCircle size={36} color={colors.danger} />
-      <AppText variant="heading">Unable to load</AppText>
-      <AppText muted style={styles.center}>
+    <View
+      accessible
+      className="min-h-48 items-center justify-center gap-2 px-6 py-8"
+      accessibilityRole="alert"
+    >
+      <View className="mb-1 size-12 items-center justify-center rounded-full bg-destructive/15">
+        <Icon as={AlertCircle} className="size-6 text-destructive" />
+      </View>
+      <Text variant="heading" className="text-center">
+        {title}
+      </Text>
+      <Text muted className="max-w-md text-center">
         {message}
-      </AppText>
-      {onRetry ? <Button label="Try again" onPress={onRetry} /> : null}
+      </Text>
+      {onRetry ? (
+        <Button className="mt-2 min-h-11" onPress={onRetry}>
+          <Text>Try again</Text>
+        </Button>
+      ) : null}
     </View>
   );
 }
@@ -52,41 +74,25 @@ export function SectionErrorState({
   retryLabel: string;
 }) {
   return (
-    <View accessible style={styles.section} accessibilityRole="alert">
-      <View style={styles.sectionCopy}>
-        <AlertCircle size={22} color={colors.danger} />
-        <AppText muted style={styles.sectionMessage}>
+    <View
+      accessible
+      className="gap-4 rounded-xl bg-card p-4"
+      accessibilityRole="alert"
+    >
+      <View className="flex-row items-center gap-2">
+        <Icon as={AlertCircle} className="size-5 text-destructive" />
+        <Text muted className="flex-1">
           {message}
-        </AppText>
+        </Text>
       </View>
       <Button
-        label="Try again"
         accessibilityLabel={retryLabel}
-        variant="secondary"
+        className="min-h-11 self-start"
+        variant="outline"
         onPress={onRetry}
-      />
+      >
+        <Text>Try again</Text>
+      </Button>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    minHeight: 190,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  center: { textAlign: 'center' },
-  section: {
-    gap: spacing.md,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-  },
-  sectionCopy: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  sectionMessage: { flex: 1 },
-});

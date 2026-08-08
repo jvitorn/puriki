@@ -1,28 +1,43 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
+  ChevronDown,
+  ChevronUp,
   RefreshCcw,
   RotateCcw,
   ServerCog,
   Trash2,
 } from 'lucide-react-native';
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useResetSessionData } from '@/application/mutations/anime-mutations';
 import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import type { JikanConnectivityResult } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
 import type { MalConnectivityResult } from '@/infrastructure/api/mal/mal-diagnostics';
-import { AppText } from '@/presentation/components/ui/app-text';
 import { Badge } from '@/presentation/components/ui/badge';
 import { Button } from '@/presentation/components/ui/button';
+import { Card } from '@/presentation/components/ui/card';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/presentation/components/ui/collapsible';
+import { Icon } from '@/presentation/components/ui/icon';
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from '@/presentation/components/ui/radio-group';
 import { Screen } from '@/presentation/components/ui/screen';
+import { Separator } from '@/presentation/components/ui/separator';
+import { Switch } from '@/presentation/components/ui/switch';
+import { Text } from '@/presentation/components/ui/text';
 import {
   type DataSourceMode,
   useRepositories,
 } from '@/presentation/providers/repository-provider';
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { cn } from '@/shared/rnr/utils';
 
 const DATA_SOURCE_OPTIONS: readonly {
   mode: DataSourceMode;
@@ -65,6 +80,26 @@ function readableMode(mode: DataSourceMode): string {
   );
 }
 
+function SettingsSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View className="gap-3">
+      <View className="gap-1">
+        <Text variant="heading">{title}</Text>
+        {description ? <Text muted>{description}</Text> : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
 export function SettingsScreen() {
   const queryClient = useQueryClient();
   const {
@@ -82,6 +117,7 @@ export function SettingsScreen() {
   const reset = useResetSessionData();
   const refresh = useMutation({ mutationFn: refreshCurrentSample });
   const diagnosticLock = useRef(false);
+  const [developerToolsOpen, setDeveloperToolsOpen] = useState(false);
   const [pendingDiagnostic, setPendingDiagnostic] = useState<
     'mal' | 'jikan' | null
   >(null);
@@ -90,6 +126,7 @@ export function SettingsScreen() {
   const [jikanDiagnostic, setJikanDiagnostic] =
     useState<JikanConnectivityResult | null>(null);
   const diagnosticPending = pendingDiagnostic !== null;
+
   const testMal = async () => {
     if (diagnosticLock.current) return;
     diagnosticLock.current = true;
@@ -112,6 +149,7 @@ export function SettingsScreen() {
       setPendingDiagnostic(null);
     }
   };
+
   const testJikan = async () => {
     if (diagnosticLock.current) return;
     diagnosticLock.current = true;
@@ -133,6 +171,7 @@ export function SettingsScreen() {
       setPendingDiagnostic(null);
     }
   };
+
   const toggleDelay = (enabled: boolean) => {
     setDelayMode(enabled ? 'normal' : 'none');
     void queryClient.invalidateQueries();
@@ -141,346 +180,350 @@ export function SettingsScreen() {
     setForceErrors(enabled);
     void queryClient.invalidateQueries();
   };
+
   return (
-    <Screen scroll>
-      <View style={styles.header}>
-        <AppText variant="title">Settings</AppText>
-        <Badge label="PUBLIC CATALOG" accent />
+    <Screen scroll contentClassName="gap-8 pt-2">
+      <View className="min-h-16 justify-center">
+        <Text variant="title">Settings</Text>
       </View>
-      <View style={styles.card}>
-        <AppText variant="heading">About Purikuki</AppText>
-        <AppText muted>
-          Purikuki combines a read-only public anime catalog with a session-only
-          simulated personal list.
-        </AppText>
-        <AppText variant="caption" muted>
-          Version 1.0.0 • Jikan primary • MyAnimeList fallback
-        </AppText>
-      </View>
-      <View style={styles.section}>
-        <AppText variant="heading">Data source</AppText>
-        <AppText muted>
-          Changing the source clears screen data and creates a compatible
-          catalog session so provider IDs are never mixed.
-        </AppText>
-        {DATA_SOURCE_OPTIONS.map((option) => {
-          const selected = mode === option.mode;
-          const disabled = option.mode === 'mal' && !malConfigured;
-          return (
-            <Pressable
-              key={option.mode}
-              accessibilityRole="radio"
-              accessibilityLabel={option.label}
-              accessibilityHint={option.description}
-              accessibilityState={{ checked: selected, disabled }}
-              disabled={disabled}
-              onPress={() => selectDataSourceMode(option.mode)}
-              style={({ pressed }) => [
-                styles.sourceOption,
-                selected && styles.sourceOptionSelected,
-                disabled && styles.disabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.copy}>
-                <AppText style={selected ? styles.selectedLabel : undefined}>
-                  {option.label}
-                </AppText>
-                <AppText variant="caption" muted>
-                  {option.description}
-                </AppText>
-                {option.mode === 'mal' && !malConfigured ? (
-                  <AppText variant="caption" style={styles.danger}>
-                    MyAnimeList Client ID is not configured.
-                  </AppText>
-                ) : null}
-              </View>
-              <View
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                style={[styles.radio, selected && styles.radioSelected]}
-              />
-            </Pressable>
-          );
-        })}
+
+      <SettingsSection title="General">
+        <Card className="gap-2 border-0 p-4 py-4">
+          <Text className="font-bold">Purikuki experience</Text>
+          <Text muted>
+            A dark, artwork-first interface designed for quick daily anime
+            tracking.
+          </Text>
+        </Card>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Data source"
+        description="Choose where Purikuki reads public catalog information."
+      >
+        <RadioGroup
+          value={mode}
+          onValueChange={(value) =>
+            selectDataSourceMode(value as DataSourceMode)
+          }
+        >
+          {DATA_SOURCE_OPTIONS.map((option) => {
+            const selected = mode === option.mode;
+            const disabled = option.mode === 'mal' && !malConfigured;
+            return (
+              <Pressable
+                key={option.mode}
+                accessibilityRole="radio"
+                accessibilityLabel={option.label}
+                accessibilityHint={option.description}
+                accessibilityState={{ checked: selected, disabled }}
+                className={cn(
+                  'min-h-20 flex-row items-center gap-3 rounded-xl border border-border bg-card p-4 active:opacity-80',
+                  selected && 'border-primary bg-primary/10',
+                  disabled && 'opacity-40',
+                )}
+                disabled={disabled}
+                onPress={() => selectDataSourceMode(option.mode)}
+              >
+                <View className="flex-1 gap-1">
+                  <Text className={cn('font-bold', selected && 'text-primary')}>
+                    {option.label}
+                  </Text>
+                  <Text variant="caption" muted>
+                    {option.description}
+                  </Text>
+                  {option.mode === 'mal' && !malConfigured ? (
+                    <Text variant="caption" className="text-destructive">
+                      MyAnimeList Client ID is not configured.
+                    </Text>
+                  ) : null}
+                </View>
+                <RadioGroupItem
+                  accessible={false}
+                  importantForAccessibility="no-hide-descendants"
+                  pointerEvents="none"
+                  value={option.mode}
+                />
+              </Pressable>
+            );
+          })}
+        </RadioGroup>
         {!malConfigured ? (
-          <AppText variant="caption" style={styles.warning}>
+          <Text variant="caption" className="text-warning">
             Automatic mode remains available, but its MyAnimeList fallback is
             unavailable until the application Client ID is configured.
-          </AppText>
+          </Text>
         ) : null}
-      </View>
-      <View style={styles.section}>
-        <AppText variant="heading">Runtime catalog status</AppText>
-        <View style={styles.card}>
-          <AppText>Mode: {readableMode(catalogRuntimeStatus.mode)}</AppText>
-          <AppText>
-            Last successful source:{' '}
-            {readableSource(catalogRuntimeStatus.lastSuccessfulSource)}
-          </AppText>
-          {catalogRuntimeStatus.jikanCircuitState ? (
-            <AppText>
-              Jikan circuit:{' '}
-              {catalogRuntimeStatus.jikanCircuitState.replace('_', ' ')}
-            </AppText>
-          ) : null}
-          {catalogRuntimeStatus.lastFallbackAt ? (
-            <AppText variant="caption" muted>
-              Last fallback: {catalogRuntimeStatus.lastFallbackAt}
-            </AppText>
-          ) : null}
-          {catalogRuntimeStatus.mode === 'automatic' &&
-          catalogRuntimeStatus.lastSuccessfulSource === 'mal' ? (
-            <AppText variant="caption" style={styles.warning}>
-              Jikan failed, so MyAnimeList data is being used.
-            </AppText>
-          ) : null}
-          {catalogRuntimeStatus.mode === 'automatic' &&
-          catalogRuntimeStatus.lastSuccessfulSource === 'cache' ? (
-            <AppText variant="caption" style={styles.warning}>
-              Both catalog providers are currently unavailable. Previously
-              loaded data is still available.
-            </AppText>
-          ) : null}
+      </SettingsSection>
+
+      <SettingsSection
+        title="Session / Storage"
+        description="Personal-list changes and catalog caches remain in memory until the app process restarts."
+      >
+        <View className="gap-3">
+          <Button
+            accessibilityLabel={
+              reset.isPending ? 'Resetting current list…' : 'Reset current list'
+            }
+            disabled={reset.isPending}
+            variant="outline"
+            onPress={() => reset.mutate()}
+          >
+            <Icon as={RotateCcw} className="size-4" />
+            <Text>
+              {reset.isPending
+                ? 'Resetting current list…'
+                : 'Reset current list'}
+            </Text>
+          </Button>
+          <Button
+            accessibilityLabel={
+              refresh.isPending
+                ? 'Refreshing active catalog…'
+                : 'Refresh active catalog'
+            }
+            disabled={refresh.isPending}
+            variant="outline"
+            onPress={() => refresh.mutate()}
+          >
+            <Icon as={RefreshCcw} className="size-4" />
+            <Text>
+              {refresh.isPending
+                ? 'Refreshing active catalog…'
+                : 'Refresh active catalog'}
+            </Text>
+          </Button>
+          <Button variant="outline" onPress={clearCatalogCache}>
+            <Icon as={Trash2} className="size-4" />
+            <Text>Clear active catalog cache</Text>
+          </Button>
+          <Button variant="destructive" onPress={clearAllCatalogCaches}>
+            <Icon as={ServerCog} className="size-4" />
+            <Text>Clear all catalog caches</Text>
+          </Button>
         </View>
-      </View>
-      {mode === 'mock' ? (
-        <View style={styles.section}>
-          <AppText variant="heading">Mock environment</AppText>
-          <AppText muted>
-            These controls affect the current mock session only.
-          </AppText>
-          <View style={styles.setting}>
-            <View style={styles.copy}>
-              <AppText>Simulated request delay</AppText>
-              <AppText variant="caption" muted>
-                Add a short delay to repository operations.
-              </AppText>
-            </View>
-            <Switch
-              accessibilityLabel="Simulated request delay"
-              value={behavior.delayMode !== 'none'}
-              onValueChange={toggleDelay}
-              trackColor={{ false: colors.border, true: colors.primary }}
-            />
-          </View>
-          <View style={styles.setting}>
-            <View style={styles.copy}>
-              <AppText>Force repository errors</AppText>
-              <AppText variant="caption" muted>
-                Exercise loading recovery and error states.
-              </AppText>
-            </View>
-            <Switch
-              accessibilityLabel="Force repository errors"
-              value={behavior.forceErrors}
-              onValueChange={toggleErrors}
-              trackColor={{ false: colors.border, true: colors.danger }}
-            />
-          </View>
-        </View>
-      ) : null}
-      <View style={styles.section}>
-        <AppText variant="heading">Session data</AppText>
-        <AppText muted>
-          Personal-list changes and catalog caches remain in memory and reset
-          when the application process restarts.
-        </AppText>
-        <Button
-          label="Reset current list"
-          variant="secondary"
-          loading={reset.isPending}
-          onPress={() => reset.mutate()}
-          icon={<RotateCcw size={18} color={colors.text} />}
-        />
-        <Button
-          label="Refresh active catalog"
-          variant="secondary"
-          loading={refresh.isPending}
-          onPress={() => refresh.mutate()}
-          icon={<RefreshCcw size={18} color={colors.text} />}
-        />
-        <Button
-          label="Clear active catalog cache"
-          variant="secondary"
-          onPress={clearCatalogCache}
-          icon={<Trash2 size={18} color={colors.text} />}
-        />
-        <Button
-          label="Clear all catalog caches"
-          variant="secondary"
-          onPress={clearAllCatalogCaches}
-          icon={<ServerCog size={18} color={colors.text} />}
-        />
         {reset.isSuccess || refresh.isSuccess ? (
-          <AppText accessibilityRole="alert" style={styles.success}>
+          <Text accessibilityRole="alert" className="text-success">
             Session data refreshed.
-          </AppText>
+          </Text>
         ) : null}
         {reset.isError || refresh.isError ? (
-          <AppText accessibilityRole="alert" style={styles.danger}>
+          <Text accessibilityRole="alert" className="text-destructive">
             {refresh.isError
               ? 'The active catalog could not be refreshed. Previously loaded data is still available.'
               : 'Refresh failed. Check the active data source and try again.'}
-          </AppText>
+          </Text>
         ) : null}
-      </View>
-      <View style={styles.section}>
-        <AppText variant="heading">Service diagnostics</AppText>
-        <AppText muted>
-          Test each public provider independently. Diagnostic requests bypass
-          catalog caches and the automatic fallback.
-        </AppText>
-        <Button
-          label={
-            pendingDiagnostic === 'mal'
-              ? 'Testing MyAnimeList API…'
-              : 'Test MyAnimeList API'
-          }
-          accessibilityLabel={
-            pendingDiagnostic === 'mal'
-              ? 'Testing MyAnimeList API…'
-              : 'Test MyAnimeList API'
-          }
-          variant="secondary"
-          disabled={diagnosticPending}
-          onPress={() => void testMal()}
-          icon={<Activity size={18} color={colors.text} />}
-        />
-        <AppText variant="caption" muted>
-          Calls the public MyAnimeList API directly using the application Client
-          ID. Jikan and the automatic fallback are bypassed. No user account or
-          OAuth token is used.
-        </AppText>
-        {malDiagnostic ? (
-          <View
-            accessible
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite"
-            style={styles.diagnosticResult}
+      </SettingsSection>
+
+      <Collapsible
+        open={developerToolsOpen}
+        onOpenChange={setDeveloperToolsOpen}
+      >
+        <Card className="gap-0 border-0 p-0 py-0">
+          <CollapsibleTrigger
+            accessibilityLabel="Developer tools"
+            accessibilityState={{ expanded: developerToolsOpen }}
+            className="min-h-20 w-full flex-row items-center justify-between rounded-xl px-4 active:bg-muted/50"
           >
-            <AppText style={malDiagnostic.ok ? styles.success : styles.danger}>
-              {malDiagnostic.message}
-            </AppText>
-            {malDiagnostic.status !== null ? (
-              <AppText variant="caption" muted>
-                HTTP {malDiagnostic.status} • {malDiagnostic.elapsedMs} ms
-              </AppText>
+            <View className="flex-1 items-start gap-1">
+              <Text variant="heading">Developer tools</Text>
+              <Text variant="caption" muted>
+                Diagnostics, runtime status, and mock controls
+              </Text>
+            </View>
+            <Icon
+              as={developerToolsOpen ? ChevronUp : ChevronDown}
+              className="size-5 text-muted-foreground"
+            />
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="gap-5 px-4 pb-4">
+            <Separator />
+            <View className="gap-3">
+              <Text className="font-bold">Runtime catalog status</Text>
+              <View className="gap-2 rounded-xl bg-background/50 p-3">
+                <Text>Mode: {readableMode(catalogRuntimeStatus.mode)}</Text>
+                <Text>
+                  Last successful source:{' '}
+                  {readableSource(catalogRuntimeStatus.lastSuccessfulSource)}
+                </Text>
+                {catalogRuntimeStatus.jikanCircuitState ? (
+                  <Text>
+                    Jikan circuit:{' '}
+                    {catalogRuntimeStatus.jikanCircuitState.replace('_', ' ')}
+                  </Text>
+                ) : null}
+                {catalogRuntimeStatus.lastFallbackAt ? (
+                  <Text variant="caption" muted>
+                    Last fallback: {catalogRuntimeStatus.lastFallbackAt}
+                  </Text>
+                ) : null}
+                {catalogRuntimeStatus.mode === 'automatic' &&
+                catalogRuntimeStatus.lastSuccessfulSource === 'mal' ? (
+                  <Text variant="caption" className="text-warning">
+                    Jikan failed, so MyAnimeList data is being used.
+                  </Text>
+                ) : null}
+                {catalogRuntimeStatus.mode === 'automatic' &&
+                catalogRuntimeStatus.lastSuccessfulSource === 'cache' ? (
+                  <Text variant="caption" className="text-warning">
+                    Both catalog providers are currently unavailable. Previously
+                    loaded data is still available.
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+
+            {mode === 'mock' ? (
+              <View className="gap-3">
+                <Text className="font-bold">Mock environment</Text>
+                <View className="min-h-20 flex-row items-center gap-3 rounded-xl bg-background/50 p-3">
+                  <View className="flex-1 gap-1">
+                    <Text>Simulated request delay</Text>
+                    <Text variant="caption" muted>
+                      Add a short delay to repository operations.
+                    </Text>
+                  </View>
+                  <Switch
+                    accessibilityLabel="Simulated request delay"
+                    checked={behavior.delayMode !== 'none'}
+                    hitSlop={12}
+                    onCheckedChange={toggleDelay}
+                  />
+                </View>
+                <View className="min-h-20 flex-row items-center gap-3 rounded-xl bg-background/50 p-3">
+                  <View className="flex-1 gap-1">
+                    <Text>Force repository errors</Text>
+                    <Text variant="caption" muted>
+                      Exercise loading recovery and error states.
+                    </Text>
+                  </View>
+                  <Switch
+                    accessibilityLabel="Force repository errors"
+                    checked={behavior.forceErrors}
+                    hitSlop={12}
+                    onCheckedChange={toggleErrors}
+                  />
+                </View>
+              </View>
             ) : null}
-            {malDiagnostic.sampleAnimeTitle ? (
-              <AppText variant="caption" muted>
-                Sample result: {malDiagnostic.sampleAnimeTitle}
-              </AppText>
-            ) : null}
+
+            <View className="gap-3">
+              <Text className="font-bold">Service diagnostics</Text>
+              <Text muted>
+                Test each provider directly. These requests bypass catalog
+                caches and automatic fallback behavior.
+              </Text>
+              <Button
+                accessibilityLabel={
+                  pendingDiagnostic === 'mal'
+                    ? 'Testing MyAnimeList API…'
+                    : 'Test MyAnimeList API'
+                }
+                disabled={diagnosticPending}
+                variant="outline"
+                onPress={() => void testMal()}
+              >
+                <Icon as={Activity} className="size-4" />
+                <Text>
+                  {pendingDiagnostic === 'mal'
+                    ? 'Testing MyAnimeList API…'
+                    : 'Test MyAnimeList API'}
+                </Text>
+              </Button>
+              <Text variant="caption" muted>
+                Calls MyAnimeList using the application Client ID. No user
+                account or OAuth token is used.
+              </Text>
+              {malDiagnostic ? (
+                <View
+                  accessible
+                  accessibilityLiveRegion="polite"
+                  accessibilityRole="alert"
+                  className="gap-1 rounded-xl bg-background/50 p-3"
+                >
+                  <Text
+                    className={
+                      malDiagnostic.ok ? 'text-success' : 'text-destructive'
+                    }
+                  >
+                    {malDiagnostic.message}
+                  </Text>
+                  {malDiagnostic.status !== null ? (
+                    <Text variant="caption" muted>
+                      HTTP {malDiagnostic.status} • {malDiagnostic.elapsedMs} ms
+                    </Text>
+                  ) : null}
+                  {malDiagnostic.sampleAnimeTitle ? (
+                    <Text variant="caption" muted>
+                      Sample result: {malDiagnostic.sampleAnimeTitle}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <Button
+                accessibilityLabel={
+                  pendingDiagnostic === 'jikan'
+                    ? 'Testing Jikan API…'
+                    : 'Test Jikan API'
+                }
+                disabled={diagnosticPending}
+                variant="outline"
+                onPress={() => void testJikan()}
+              >
+                <Icon as={Activity} className="size-4" />
+                <Text>
+                  {pendingDiagnostic === 'jikan'
+                    ? 'Testing Jikan API…'
+                    : 'Test Jikan API'}
+                </Text>
+              </Button>
+              {jikanDiagnostic ? (
+                <View
+                  accessible
+                  accessibilityLiveRegion="polite"
+                  accessibilityRole="alert"
+                  className="gap-1 rounded-xl bg-background/50 p-3"
+                >
+                  <Text
+                    className={
+                      jikanDiagnostic.ok ? 'text-success' : 'text-destructive'
+                    }
+                  >
+                    {jikanDiagnostic.message}
+                  </Text>
+                  {jikanDiagnostic.status !== null ? (
+                    <Text variant="caption" muted>
+                      HTTP {jikanDiagnostic.status} •{' '}
+                      {jikanDiagnostic.elapsedMs} ms
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      <SettingsSection title="About">
+        <Card className="gap-2 border-0 p-4 py-4">
+          <View className="flex-row items-center justify-between gap-3">
+            <Text className="font-bold">Purikuki</Text>
+            <Badge variant="outline">
+              <Text>Version 1.0.0</Text>
+            </Badge>
           </View>
-        ) : null}
-        <Button
-          label={
-            pendingDiagnostic === 'jikan'
-              ? 'Testing Jikan API…'
-              : 'Test Jikan API'
-          }
-          accessibilityLabel={
-            pendingDiagnostic === 'jikan'
-              ? 'Testing Jikan API…'
-              : 'Test Jikan API'
-          }
-          variant="secondary"
-          disabled={diagnosticPending}
-          onPress={() => void testJikan()}
-          icon={<Activity size={18} color={colors.text} />}
-        />
-        {jikanDiagnostic ? (
-          <View
-            accessible
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite"
-            style={styles.diagnosticResult}
-          >
-            <AppText
-              style={jikanDiagnostic.ok ? styles.success : styles.danger}
-            >
-              {jikanDiagnostic.message}
-            </AppText>
-            {jikanDiagnostic.status !== null ? (
-              <AppText variant="caption" muted>
-                HTTP {jikanDiagnostic.status} • {jikanDiagnostic.elapsedMs} ms
-              </AppText>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
+          <Text muted>
+            A read-only public anime catalog with a session-only simulated
+            personal list.
+          </Text>
+          <Text variant="caption" muted>
+            Jikan primary • MyAnimeList fallback
+          </Text>
+        </Card>
+      </SettingsSection>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    minHeight: 70,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  card: {
-    padding: spacing.lg,
-    gap: spacing.sm,
-    borderRadius: radii.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  section: { marginTop: spacing.lg, gap: spacing.md },
-  sourceOption: {
-    minHeight: 88,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  sourceOptionSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceElevated,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  radioSelected: {
-    borderWidth: 6,
-    borderColor: colors.primary,
-  },
-  selectedLabel: { color: colors.primary, fontWeight: '800' },
-  setting: {
-    minHeight: 78,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  copy: { flex: 1, gap: spacing.xs },
-  diagnosticResult: {
-    gap: spacing.xs,
-    padding: spacing.md,
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  disabled: { opacity: 0.4 },
-  pressed: { opacity: 0.78 },
-  success: { color: colors.success },
-  warning: { color: colors.warning },
-  danger: { color: colors.danger },
-});

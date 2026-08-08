@@ -11,10 +11,16 @@ describe('MyListScreen', () => {
     await waitFor(() =>
       expect(screen.getByText('25 anime • All')).toBeVisible(),
     );
+    expect(
+      screen.getByLabelText('Filter by All').props.accessibilityState,
+    ).toMatchObject({ selected: true });
     await fireEvent.press(screen.getByLabelText('Filter by Completed'));
     await waitFor(() =>
       expect(screen.getByText('5 anime • Completed')).toBeVisible(),
     );
+    expect(
+      screen.getByLabelText('Filter by Completed').props.accessibilityState,
+    ).toMatchObject({ selected: true });
     expect(screen.getByText('Ember Archive')).toBeVisible();
   });
 

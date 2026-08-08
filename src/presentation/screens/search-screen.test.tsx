@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import { SearchScreen } from '@/presentation/screens/search-screen';
+import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { renderWithProviders } from '@/tests/render/test-render';
 
 describe('SearchScreen', () => {
@@ -17,7 +18,7 @@ describe('SearchScreen', () => {
       await jest.advanceTimersByTimeAsync(260);
     });
     await waitFor(() => expect(screen.getByText('Neon Ronin')).toBeVisible());
-    await waitFor(() => expect(screen.getByText('1 results')).toBeVisible());
+    await waitFor(() => expect(screen.getByText('1 result')).toBeVisible());
 
     await fireEvent.changeText(input, 'Gekko no Senjin');
     await act(async () => {
@@ -31,6 +32,32 @@ describe('SearchScreen', () => {
     await act(async () => {
       await jest.advanceTimersByTimeAsync(260);
     });
-    await waitFor(() => expect(screen.getByText('No matches')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByText('No anime found')).toBeVisible(),
+    );
+  });
+
+  it('explains the minimum query length and clears entered text', async () => {
+    await renderWithProviders(<SearchScreen />);
+    const input = screen.getByLabelText('Search anime');
+
+    await fireEvent.changeText(input, 'n');
+    expect(
+      screen.getByText('Type at least 2 characters to search'),
+    ).toBeVisible();
+    expect(screen.getByText('Keep typing')).toBeVisible();
+
+    await fireEvent.press(screen.getByLabelText('Clear search'));
+    expect(input).toHaveProp('value', '');
+  });
+
+  it('uses grid-shaped skeletons while discovery content is loading', async () => {
+    const dependencies = createTestDependencies();
+    dependencies.setDelayMode('normal');
+    await renderWithProviders(<SearchScreen />, { dependencies });
+
+    expect(screen.getAllByLabelText('Loading content').length).toBeGreaterThan(
+      1,
+    );
   });
 });

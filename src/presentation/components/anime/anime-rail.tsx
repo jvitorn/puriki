@@ -1,10 +1,9 @@
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
 import { AnimeCard } from '@/presentation/components/anime/anime-card';
-import { AppText } from '@/presentation/components/ui/app-text';
 import { SectionHeader } from '@/presentation/components/ui/section-header';
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { Text } from '@/presentation/components/ui/text';
 
 interface AnimeRailProps {
   title: string;
@@ -20,38 +19,26 @@ export function AnimeRail({
   emptyMessage = 'Nothing to show yet.',
 }: AnimeRailProps) {
   return (
-    <View style={styles.section}>
+    <View className="mt-7">
       <SectionHeader title={title} />
       {items.length === 0 ? (
-        <View style={styles.empty}>
-          <AppText muted>{emptyMessage}</AppText>
+        <View className="rounded-xl bg-card p-4">
+          <Text muted>{emptyMessage}</Text>
         </View>
       ) : (
         <FlatList
           horizontal
+          contentContainerClassName="gap-4 pr-8"
           data={items}
+          decelerationRate="fast"
           keyExtractor={(item) => String(item.anime.id)}
           renderItem={({ item }) => (
             <AnimeCard item={item} onPress={() => onPressItem(item)} />
           )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.list}
+          snapToInterval={160}
         />
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  section: { marginTop: spacing.lg },
-  list: { paddingRight: spacing.md },
-  separator: { width: spacing.md },
-  empty: {
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-});

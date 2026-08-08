@@ -1,25 +1,57 @@
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import {
   useContinueWatching,
   useFeaturedAnime,
   usePopularAnime,
-  useUpcomingAnime,
   useSeasonalAnime,
+  useUpcomingAnime,
 } from '@/application/queries/anime-queries';
 import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import type { AnimeCatalogItem, UnifiedAnime } from '@/domain/models/anime';
 import { FeaturedAnime } from '@/presentation/components/home/featured-anime';
 import { HomeAnimeRail } from '@/presentation/components/home/home-anime-rail';
-import { AppText } from '@/presentation/components/ui/app-text';
 import { ErrorState } from '@/presentation/components/ui/feedback';
 import { Screen } from '@/presentation/components/ui/screen';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
-import { colors, spacing } from '@/presentation/theme/tokens';
+import { Text } from '@/presentation/components/ui/text';
 
 function asUnified(items: AnimeCatalogItem[] | undefined): UnifiedAnime[] {
   return items?.map((anime) => ({ anime })) ?? [];
+}
+
+function HomeBrand() {
+  return (
+    <View className="min-h-20 justify-center py-3">
+      <Text variant="title" className="tracking-[3px] text-primary">
+        PURIKUKI
+      </Text>
+      <Text variant="caption" muted>
+        Your anime, your pace.
+      </Text>
+    </View>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <Screen scroll>
+      <HomeBrand />
+      <Skeleton className="h-[390px] w-full rounded-2xl md:h-[460px]" />
+      <View className="mt-7 gap-4">
+        <Skeleton className="h-6 w-2/5" />
+        <View className="flex-row gap-4 overflow-hidden">
+          {Array.from({ length: 3 }, (_, index) => (
+            <View key={index} className="w-36 gap-2">
+              <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+              <Skeleton className="h-4 w-4/5" />
+            </View>
+          ))}
+        </View>
+      </View>
+    </Screen>
+  );
 }
 
 export function HomeScreen() {
@@ -42,32 +74,12 @@ export function HomeScreen() {
   const open = (id: number) =>
     router.push({ pathname: '/anime/[id]', params: { id: String(id) } });
 
-  if (isLoading) {
-    return (
-      <Screen scroll>
-        <View style={styles.brand}>
-          <AppText variant="title">PURIKUKI</AppText>
-          <AppText variant="caption" muted>
-            Your anime, your pace.
-          </AppText>
-        </View>
-        <Skeleton height={390} />
-        <View style={styles.skeletons}>
-          <Skeleton height={24} width="45%" />
-          <Skeleton height={204} />
-          <Skeleton height={24} width="38%" />
-          <Skeleton height={204} />
-        </View>
-      </Screen>
-    );
-  }
+  if (isLoading) return <HomeSkeleton />;
 
   if (!displayedFeatured) {
     return (
       <Screen>
-        <View style={styles.brand}>
-          <AppText variant="title">PURIKUKI</AppText>
-        </View>
+        <HomeBrand />
         <ErrorState
           message={getUserSafeErrorMessage(
             queries.find((query) => query.isError)?.error,
@@ -82,17 +94,7 @@ export function HomeScreen() {
 
   return (
     <Screen scroll>
-      <View style={styles.brand}>
-        <View>
-          <AppText variant="title">PURIKUKI</AppText>
-          <AppText variant="caption" muted>
-            Your anime, your pace.
-          </AppText>
-        </View>
-        <View style={styles.phase}>
-          <AppText variant="caption">PHASE 2A</AppText>
-        </View>
-      </View>
+      <HomeBrand />
       <FeaturedAnime
         anime={displayedFeatured}
         onOpen={() => open(displayedFeatured.id)}
@@ -137,19 +139,3 @@ export function HomeScreen() {
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  brand: {
-    minHeight: 70,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  phase: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: 999,
-    backgroundColor: colors.surfaceElevated,
-  },
-  skeletons: { gap: spacing.md, marginTop: spacing.lg },
-});

@@ -1,52 +1,35 @@
 import type { LucideIcon } from 'lucide-react-native';
-import { Pressable, StyleSheet } from 'react-native';
 
-import { colors, radii, spacing } from '@/presentation/theme/tokens';
+import { Button } from '@/presentation/components/ui/button';
+import { Icon } from '@/presentation/components/ui/icon';
 
 interface IconButtonProps {
   icon: LucideIcon;
   label: string;
   onPress(): void;
   disabled?: boolean;
+  className?: string;
 }
 
 export function IconButton({
-  icon: Icon,
+  icon,
   label,
   onPress,
   disabled = false,
+  className,
 }: IconButtonProps) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Button
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
+      className={className}
       disabled={disabled}
+      hitSlop={6}
+      size="icon"
+      variant="outline"
       onPress={onPress}
-      hitSlop={8}
-      style={({ pressed }) => [
-        styles.base,
-        pressed && styles.pressed,
-        disabled && styles.disabled,
-      ]}
     >
-      <Icon color={colors.text} size={20} />
-    </Pressable>
+      <Icon as={icon} className="size-5" />
+    </Button>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    width: 42,
-    height: 42,
-    borderRadius: radii.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.border,
-    margin: spacing.xs,
-  },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.35 },
-});
