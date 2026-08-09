@@ -93,6 +93,29 @@ export const en = {
   'details.yourScore': 'Your score',
   'details.updateFailed': 'Update failed. Your previous values were restored.',
   'details.synopsis': 'Synopsis',
+  'details.synopsisTranslation.translateWithGoogle': 'Translate with Google',
+  'details.synopsisTranslation.translating': 'Translating…',
+  'details.synopsisTranslation.viewOriginal': 'View original',
+  'details.synopsisTranslation.viewGoogleTranslation':
+    'View Google translation',
+  'details.synopsisTranslation.failed': "Couldn't translate the synopsis.",
+  'details.synopsisTranslation.failedHint':
+    'Check your Wi-Fi connection and try again.',
+  'details.synopsisTranslation.retry': 'Try again',
+  'details.synopsisTranslation.modelDownloadHint':
+    'First use may require a translation model download over Wi-Fi.',
+  'details.synopsisTranslation.translateAccessibility':
+    'Translate synopsis with Google',
+  'details.synopsisTranslation.translatingAccessibility':
+    'Translating synopsis with Google',
+  'details.synopsisTranslation.viewOriginalAccessibility':
+    'View original synopsis',
+  'details.synopsisTranslation.viewGoogleTranslationAccessibility':
+    'View Google-translated synopsis',
+  'details.synopsisTranslation.retryAccessibility':
+    'Retry synopsis translation',
+  'details.synopsisTranslation.googleAttributionAccessibility':
+    'Powered by Google Translate',
   'details.information': 'Anime information',
   'details.season': 'Season',
   'details.year': 'Year',
@@ -121,7 +144,7 @@ export const en = {
     'A dark, artwork-first interface designed for quick daily anime tracking.',
   'settings.language': 'Language',
   'settings.languageDescription':
-    "Changes Purikuki's interface language. Anime titles and synopsis text remain in their original catalog language.",
+    "Changes Purikuki's interface language. Anime titles remain in their original catalog language; synopsis translation is available on demand.",
   'settings.languageSystem': 'System default',
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',

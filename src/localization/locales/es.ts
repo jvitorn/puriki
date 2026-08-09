@@ -101,6 +101,29 @@ export const es = {
   'details.updateFailed':
     'La actualización falló. Se restauraron los valores anteriores.',
   'details.synopsis': 'Sinopsis',
+  'details.synopsisTranslation.translateWithGoogle': 'Traducir con Google',
+  'details.synopsisTranslation.translating': 'Traduciendo…',
+  'details.synopsisTranslation.viewOriginal': 'Ver original',
+  'details.synopsisTranslation.viewGoogleTranslation':
+    'Ver traducción de Google',
+  'details.synopsisTranslation.failed': 'No se pudo traducir la sinopsis.',
+  'details.synopsisTranslation.failedHint':
+    'Comprueba tu conexión Wi-Fi e inténtalo de nuevo.',
+  'details.synopsisTranslation.retry': 'Reintentar',
+  'details.synopsisTranslation.modelDownloadHint':
+    'El primer uso puede requerir descargar un modelo de traducción por Wi-Fi.',
+  'details.synopsisTranslation.translateAccessibility':
+    'Traducir sinopsis con Google',
+  'details.synopsisTranslation.translatingAccessibility':
+    'Traduciendo sinopsis con Google',
+  'details.synopsisTranslation.viewOriginalAccessibility':
+    'Ver sinopsis original',
+  'details.synopsisTranslation.viewGoogleTranslationAccessibility':
+    'Ver sinopsis traducida por Google',
+  'details.synopsisTranslation.retryAccessibility':
+    'Reintentar la traducción de la sinopsis',
+  'details.synopsisTranslation.googleAttributionAccessibility':
+    'Con la tecnología de Google Translate',
   'details.information': 'Información del anime',
   'details.season': 'Temporada',
   'details.year': 'Año',
@@ -129,7 +152,7 @@ export const es = {
     'Una interfaz oscura, centrada en las ilustraciones y diseñada para seguir anime rápidamente a diario.',
   'settings.language': 'Idioma',
   'settings.languageDescription':
-    'Cambia el idioma de la interfaz de Purikuki. Los títulos y las sinopsis continúan en el idioma proporcionado por el catálogo.',
+    'Cambia el idioma de la interfaz de Purikuki. Los títulos siguen en el idioma del catálogo; la traducción de sinopsis está disponible bajo demanda.',
   'settings.languageSystem': 'Predeterminado del sistema',
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',

@@ -36,4 +36,32 @@ describe('ExpandableText', () => {
     expect(screen.queryByLabelText('Read more')).not.toBeOnTheScreen();
     expect(screen.queryByLabelText('Show less')).not.toBeOnTheScreen();
   });
+
+  it('remeasures and stays collapsed when short text becomes long', async () => {
+    const { rerender } = await renderWithProviders(
+      <ExpandableText text="A short synopsis." />,
+    );
+    await rerender(<ExpandableText text={longText} />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Read more')).toBeVisible(),
+    );
+    expect(screen.getByLabelText('Synopsis')).toHaveProp('numberOfLines', 4);
+  });
+
+  it('clears stale expansion state when long text becomes short', async () => {
+    const { rerender } = await renderWithProviders(
+      <ExpandableText text={longText} />,
+    );
+    await fireEvent.press(screen.getByLabelText('Read more'));
+    expect(
+      screen.getByLabelText('Synopsis').props.numberOfLines,
+    ).toBeUndefined();
+
+    await rerender(<ExpandableText text="Now short." />);
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Show less')).not.toBeOnTheScreen(),
+    );
+    expect(screen.getByLabelText('Synopsis')).toHaveProp('numberOfLines', 4);
+  });
 });

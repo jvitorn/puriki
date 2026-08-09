@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LocalizationProvider } from '@/localization/localization-provider';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
+import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 
 export function createAppQueryClient(): QueryClient {
   return new QueryClient({
@@ -30,7 +31,11 @@ export function AppProviders({ children }: PropsWithChildren) {
       <SafeAreaProvider>
         <LocalizationProvider>
           <QueryClientProvider client={queryClient}>
-            <RepositoryProvider>{children}</RepositoryProvider>
+            <RepositoryProvider>
+              <SynopsisTranslationProvider>
+                {children}
+              </SynopsisTranslationProvider>
+            </RepositoryProvider>
           </QueryClientProvider>
         </LocalizationProvider>
       </SafeAreaProvider>

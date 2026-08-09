@@ -19,6 +19,7 @@ import {
 } from '@/localization/localized-values';
 import { AnimeScoreSelector } from '@/presentation/components/anime/anime-score-selector';
 import { AnimeStatusSelector } from '@/presentation/components/anime/anime-status-selector';
+import { AnimeSynopsisSection } from '@/presentation/components/anime/anime-synopsis-section';
 import { BannerPlaceholder } from '@/presentation/components/anime/banner-placeholder';
 import { EpisodeProgressControl } from '@/presentation/components/anime/episode-progress-control';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
@@ -29,7 +30,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/presentation/components/ui/collapsible';
-import { ExpandableText } from '@/presentation/components/ui/expandable-text';
 import { EmptyState, ErrorState } from '@/presentation/components/ui/feedback';
 import { Icon } from '@/presentation/components/ui/icon';
 import { IconButton } from '@/presentation/components/ui/icon-button';
@@ -255,10 +255,11 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
         ) : null}
 
         {anime.synopsis ? (
-          <View className="gap-3">
-            <Text variant="heading">{t('details.synopsis')}</Text>
-            <ExpandableText text={anime.synopsis} collapsedLineCount={4} />
-          </View>
+          <AnimeSynopsisSection
+            animeId={anime.id}
+            synopsis={anime.synopsis}
+            appLanguage={language}
+          />
         ) : null}
 
         <View className="gap-1">

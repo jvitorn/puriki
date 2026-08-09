@@ -17,6 +17,21 @@ export function ExpandableText({
   collapsedLineCount = 4,
   accessibilityLabel,
 }: ExpandableTextProps) {
+  return (
+    <ExpandableTextContent
+      key={`${collapsedLineCount}:${text}`}
+      accessibilityLabel={accessibilityLabel}
+      collapsedLineCount={collapsedLineCount}
+      text={text}
+    />
+  );
+}
+
+function ExpandableTextContent({
+  text,
+  collapsedLineCount = 4,
+  accessibilityLabel,
+}: ExpandableTextProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(

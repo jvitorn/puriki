@@ -100,6 +100,28 @@ export const ptBR = {
   'details.updateFailed':
     'A atualização falhou. Os valores anteriores foram restaurados.',
   'details.synopsis': 'Sinopse',
+  'details.synopsisTranslation.translateWithGoogle': 'Traduzir com o Google',
+  'details.synopsisTranslation.translating': 'Traduzindo…',
+  'details.synopsisTranslation.viewOriginal': 'Ver original',
+  'details.synopsisTranslation.viewGoogleTranslation': 'Ver tradução do Google',
+  'details.synopsisTranslation.failed': 'Não foi possível traduzir a sinopse.',
+  'details.synopsisTranslation.failedHint':
+    'Verifique sua conexão Wi-Fi e tente novamente.',
+  'details.synopsisTranslation.retry': 'Tentar novamente',
+  'details.synopsisTranslation.modelDownloadHint':
+    'O primeiro uso pode exigir o download de um modelo de tradução por Wi-Fi.',
+  'details.synopsisTranslation.translateAccessibility':
+    'Traduzir sinopse com o Google',
+  'details.synopsisTranslation.translatingAccessibility':
+    'Traduzindo sinopse com o Google',
+  'details.synopsisTranslation.viewOriginalAccessibility':
+    'Ver sinopse original',
+  'details.synopsisTranslation.viewGoogleTranslationAccessibility':
+    'Ver sinopse traduzida pelo Google',
+  'details.synopsisTranslation.retryAccessibility':
+    'Tentar traduzir a sinopse novamente',
+  'details.synopsisTranslation.googleAttributionAccessibility':
+    'Tradução fornecida pelo Google Tradutor',
   'details.information': 'Informações do anime',
   'details.season': 'Temporada',
   'details.year': 'Ano',
@@ -128,7 +150,7 @@ export const ptBR = {
     'Uma interface escura, focada nas artes, feita para acompanhar animes rapidamente todos os dias.',
   'settings.language': 'Idioma',
   'settings.languageDescription':
-    'Altera o idioma da interface do Purikuki. Títulos e sinopses continuam no idioma fornecido pelo catálogo.',
+    'Altera o idioma da interface do Purikuki. Os títulos continuam no idioma do catálogo; a tradução de sinopses fica disponível sob demanda.',
   'settings.languageSystem': 'Padrão do sistema',
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',

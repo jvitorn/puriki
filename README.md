@@ -23,7 +23,9 @@ The complete interface is available in English, Brazilian Portuguese, and Spanis
 
 Translation resources are bundled locally under `src/localization/locales`, so interface translation works offline. Changing the interface language makes no network request and does not clear or refetch React Query data. Dates and numbers rendered by the interface use locale-aware `Intl` formatters.
 
-Anime synopsis translation is not part of Internationalization Phase I and is planned as a separate future phase. No machine-translation service or language model is included here.
+On Android Development/Release Builds, Portuguese and Spanish users can explicitly translate an English anime synopsis with Google. Purikuki uses [Google ML Kit on-device Translation](https://developers.google.com/ml-kit/language/translation) and never replaces the original provider synopsis. The action first checks a source-text-aware AsyncStorage cache, then downloads the required ML Kit model over Wi-Fi when necessary and translates locally on the device. English does not show the translation action, and changing the interface language never translates automatically.
+
+Translated results display Google's official unmodified “powered by Google Translate” attribution badge. The bundled white badge assets come from Google's [Cloud Translation attribution resources](https://cloud.google.com/translate/attribution). Purikuki is not affiliated with or endorsed by Google.
 
 ## MyAnimeList public catalog
 
@@ -121,6 +123,7 @@ The app preserves layered boundaries:
 - `mocks` owns deterministic factories, fixtures, scenarios, and timing.
 - `localization` owns local resources, system-locale resolution, persistence, localized presentation errors, and locale-aware formatting.
 - `presentation` receives repositories through `RepositoryProvider` and consumes domain models only.
+- `modules/purikuki-translation` owns the small Android Expo Modules bridge to Google ML Kit; presentation code depends only on the `SynopsisTranslator` contract.
 - `app` contains thin Expo Router route modules.
 
 ```text
@@ -155,6 +158,27 @@ npm run ios
 npm run web
 ```
 
+## Android Development Build
+
+Synopsis translation uses a custom Android native module and therefore requires a Purikuki Development Build; Expo Go cannot execute this feature. The persistent Android application identifier is `com.jvitorn.purikuki`.
+
+With the Android toolchain and a USB-debuggable device already configured, install dependencies and build/install the app locally:
+
+```bash
+npm install
+npx expo run:android --device
+```
+
+After the Development Build is installed, start Metro for it with:
+
+```bash
+npm run start:dev-client
+```
+
+JavaScript/TypeScript-only changes normally work through Fast Refresh without rebuilding. Rebuild the native app after changing the local Expo Module, native dependencies, or native app configuration. Missing translation models are downloaded on the first user-requested translation and require Wi-Fi by product policy.
+
+The Android bridge is implemented in `modules/purikuki-translation` and is regenerated into the native project through Expo Continuous Native Generation. The repository intentionally does not commit generated `android/` or `ios/` directories. iOS translation is not implemented or validated in this phase, and web safely keeps the original synopsis without offering a cloud translator.
+
 ## Quality commands
 
 Automated tests use injected fetch implementations and static fixtures; they never call live Jikan or MAL services.
@@ -174,6 +198,7 @@ npm run test:ci
 
 - Personal-list data, catalog caches, diagnostic results, and source selection are not persisted. The interface-language preference is persisted.
 - Public catalog availability and remote artwork depend on Jikan or MAL.
+- On-device synopsis translation is Android-only, requires a Purikuki Development Build, and may require a one-time Wi-Fi model download. Expo Go, web, and iOS keep the original synopsis without native translation.
 - MAL OAuth, login, profile access, list synchronization, offline mutation storage, a backend, and E2E tests are out of scope.
 - Purikuki is not affiliated with Jikan or MyAnimeList.
 

@@ -11,17 +11,21 @@ import { LocalizationProvider } from '@/localization/localization-provider';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
+import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
+import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
 
 interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   dependencies?: RepositoryDependencies;
   queryClient?: QueryClient;
   languagePreference?: LanguagePreference;
+  translationDependencies?: SynopsisTranslationDependencies;
 }
 
 export function createTestWrapper(
   dependencies?: RepositoryDependencies,
   queryClient: QueryClient = createAppQueryClient(),
   languagePreference: LanguagePreference = 'en',
+  translationDependencies?: SynopsisTranslationDependencies,
 ) {
   void appI18n.changeLanguage(
     resolveEffectiveLanguage(languagePreference, 'en-US'),
@@ -37,7 +41,11 @@ export function createTestWrapper(
         <LocalizationProvider initialPreference={languagePreference}>
           <QueryClientProvider client={queryClient}>
             <RepositoryProvider dependencies={dependencies}>
-              {children}
+              <SynopsisTranslationProvider
+                dependencies={translationDependencies}
+              >
+                {children}
+              </SynopsisTranslationProvider>
             </RepositoryProvider>
           </QueryClientProvider>
         </LocalizationProvider>
@@ -54,10 +62,16 @@ export async function renderWithProviders(
     dependencies,
     queryClient = createAppQueryClient(),
     languagePreference = 'en',
+    translationDependencies,
     ...renderOptions
   } = options;
   const renderResult = await render(ui, {
-    wrapper: createTestWrapper(dependencies, queryClient, languagePreference),
+    wrapper: createTestWrapper(
+      dependencies,
+      queryClient,
+      languagePreference,
+      translationDependencies,
+    ),
     ...renderOptions,
   });
   return {
