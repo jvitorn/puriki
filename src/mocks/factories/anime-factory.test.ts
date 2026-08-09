@@ -49,7 +49,9 @@ describe('anime factories', () => {
         (entry) => entry.status === 'completed',
       ),
     ).toBe(true);
-    expect(createMockScenario('large-list').userEntries).toHaveLength(50);
+    const largeList = createMockScenario('large-list');
+    expect(largeList.userEntries).toHaveLength(250);
+    expect(largeList.catalog).toHaveLength(250);
     expect(createMockScenario('loading').catalog).toHaveLength(50);
     expect(createMockScenario('error').catalog).toHaveLength(50);
   });

@@ -1,9 +1,21 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import type { InfiniteData } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import { queryKeys } from '@/application/queries/query-keys';
 import { unifyAnimeList } from '@/application/use-cases/unify-anime';
 import type { AnimeListStatus, UnifiedAnime } from '@/domain/models/anime';
+import type { PageResult } from '@/domain/models/pagination';
 import { useRepositories } from '@/presentation/providers/repository-provider';
+import {
+  CONTINUE_WATCHING_LIMIT,
+  USER_LIST_PAGE_SIZE,
+} from '@/shared/constants/user-list';
 import { normalizeSearchText } from '@/shared/utils/search';
 
 const CATALOG_STALE_TIME = 30 * 60_000;
@@ -76,33 +88,62 @@ export function useAnimeDetails(id: number) {
   });
 }
 
-export function useUserAnimeEntries(status?: AnimeListStatus) {
-  const { userListRepository } = useRepositories();
-  return useQuery({
-    queryKey: queryKeys.userList(status),
-    queryFn: () =>
-      status
-        ? userListRepository.getByStatus(status)
-        : userListRepository.getAll(),
-  });
-}
-
-export function useUnifiedUserList(status?: AnimeListStatus) {
+export function useInfiniteUnifiedUserList(status?: AnimeListStatus) {
   const { catalogRepository, userListRepository } = useRepositories();
-  return useQuery({
-    queryKey: queryKeys.unifiedList(status),
-    queryFn: async (): Promise<UnifiedAnime[]> => {
-      const entries = status
-        ? await userListRepository.getByStatus(status)
-        : await userListRepository.getAll();
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.infiniteUserList(status);
+  const query = useInfiniteQuery({
+    queryKey,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }): Promise<PageResult<UnifiedAnime>> => {
+      const entryPage = await userListRepository.getPage({
+        status,
+        page: pageParam,
+        pageSize: USER_LIST_PAGE_SIZE,
+      });
       const catalog = await catalogRepository.getManyByIds(
-        entries.map((entry) => entry.animeId),
+        entryPage.items.map((entry) => entry.animeId),
       );
-      return unifyAnimeList(catalog, entries);
+      return {
+        ...entryPage,
+        items: unifyAnimeList(catalog, entryPage.items),
+      };
     },
+    getNextPageParam: (lastPage) => lastPage.nextPage ?? undefined,
   });
+
+  const refreshFromStart = useCallback(async () => {
+    await queryClient.cancelQueries({ queryKey, exact: true });
+    queryClient.setQueryData<InfiniteData<PageResult<UnifiedAnime>, number>>(
+      queryKey,
+      (current) =>
+        current
+          ? {
+              pages: current.pages.slice(0, 1),
+              pageParams: current.pageParams.slice(0, 1),
+            }
+          : current,
+    );
+    return query.refetch();
+  }, [query, queryClient, queryKey]);
+
+  return { ...query, refreshFromStart };
 }
 
 export function useContinueWatching() {
-  return useUnifiedUserList('watching');
+  const { catalogRepository, userListRepository } = useRepositories();
+  return useQuery({
+    queryKey: queryKeys.continueWatching,
+    queryFn: async (): Promise<UnifiedAnime[]> => {
+      const entryPage = await userListRepository.getPage({
+        status: 'watching',
+        page: 1,
+        pageSize: CONTINUE_WATCHING_LIMIT,
+      });
+      const catalog = await catalogRepository.getManyByIds(
+        entryPage.items.map((entry) => entry.animeId),
+      );
+      return unifyAnimeList(catalog, entryPage.items);
+    },
+  });
 }

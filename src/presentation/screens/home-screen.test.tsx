@@ -6,10 +6,28 @@ import {
 } from '@/infrastructure/api/jikan/jikan-errors';
 import { HomeScreen } from '@/presentation/screens/home-screen';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
+import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
 import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { renderWithProviders } from '@/tests/render/test-render';
 
 describe('HomeScreen partial failures', () => {
+  it('requests only a bounded first page for Continue Watching', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 200, status: 'watching' }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    await renderWithProviders(<HomeScreen />, { dependencies });
+    await waitFor(() =>
+      expect(screen.getByText('Continue Watching')).toBeVisible(),
+    );
+    expect(getPage).toHaveBeenCalledTimes(1);
+    expect(getPage).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 10,
+      status: 'watching',
+    });
+  });
+
   it('keeps successful rails visible when an optional rail fails', async () => {
     const dependencies = createTestDependencies();
     dependencies.catalogRepository.getPopular = jest.fn(async () =>

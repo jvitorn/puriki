@@ -4,8 +4,13 @@ import type {
   AnimeListStatus,
   UserAnimeEntry,
 } from '@/domain/models/anime';
+import { validatePageRequest } from '@/domain/models/pagination';
+import type { PageResult } from '@/domain/models/pagination';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
-import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
+import type {
+  UserAnimeListPageRequest,
+  UserAnimeListRepository,
+} from '@/domain/repositories/user-anime-list-repository';
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
@@ -57,14 +62,22 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
     this.now = options.now ?? (() => new Date());
   }
 
-  async getAll(): Promise<UserAnimeEntry[]> {
+  async getPage(
+    request: UserAnimeListPageRequest,
+  ): Promise<PageResult<UserAnimeEntry>> {
+    validatePageRequest(request);
     await this.ensureInitialized();
-    return cloneEntries(this.entries ?? []);
-  }
-
-  async getByStatus(status: AnimeListStatus): Promise<UserAnimeEntry[]> {
-    const entries = await this.getAll();
-    return entries.filter((entry) => entry.status === status);
+    const filtered = request.status
+      ? (this.entries ?? []).filter((entry) => entry.status === request.status)
+      : (this.entries ?? []);
+    const start = (request.page - 1) * request.pageSize;
+    const end = start + request.pageSize;
+    return {
+      items: cloneEntries(filtered.slice(start, end)),
+      page: request.page,
+      nextPage: end < filtered.length ? request.page + 1 : null,
+      totalCount: filtered.length,
+    };
   }
 
   async getByAnimeId(animeId: number): Promise<UserAnimeEntry | null> {

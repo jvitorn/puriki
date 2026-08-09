@@ -1,20 +1,31 @@
+import type { InfiniteData } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
-import { useUpdateProgress } from '@/application/mutations/anime-mutations';
+import {
+  useResetSessionData,
+  useUpdateProgress,
+  useUpdateScore,
+  useUpdateStatus,
+} from '@/application/mutations/anime-mutations';
 import {
   useAnimeSearch,
+  useContinueWatching,
+  useInfiniteUnifiedUserList,
   usePopularAnime,
-  useUnifiedUserList,
 } from '@/application/queries/anime-queries';
 import { queryKeys } from '@/application/queries/query-keys';
+import { flattenUniqueAnimePages } from '@/application/use-cases/infinite-user-list';
 import type {
   AnimeCatalogItem,
+  AnimeListStatus,
   UnifiedAnime,
   UserAnimeEntry,
 } from '@/domain/models/anime';
+import type { PageResult } from '@/domain/models/pagination';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
+import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
 import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { createTestWrapper } from '@/tests/render/test-render';
 
@@ -70,16 +81,218 @@ describe('React Query integration', () => {
     expect(search).toHaveBeenCalledWith('neon ronin');
   });
 
-  it('unifies the personal list with one bulk catalog lookup', async () => {
-    const dependencies = createTestDependencies();
+  it('loads and hydrates only the first page of a 250-entry list', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 250 }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
     const getMany = jest.spyOn(dependencies.catalogRepository, 'getManyByIds');
-    const { result } = await renderHook(() => useUnifiedUserList(), {
+    const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
       wrapper: createTestWrapper(dependencies),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toHaveLength(25);
+    expect(result.current.data?.pages).toHaveLength(1);
+    expect(result.current.data?.pages[0]?.items).toHaveLength(25);
+    expect(getPage).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 25,
+      status: undefined,
+    });
+    expect(getPage).toHaveBeenCalledTimes(1);
     expect(getMany).toHaveBeenCalledTimes(1);
     expect(getMany.mock.calls[0]?.[0]).toHaveLength(25);
+  });
+
+  it('appends pages progressively and stops at the final page', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 250 }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    for (let page = 2; page <= 10; page += 1) {
+      await act(async () => result.current.fetchNextPage());
+      await waitFor(() =>
+        expect(result.current.data?.pages).toHaveLength(page),
+      );
+    }
+
+    expect(flattenUniqueAnimePages(result.current.data?.pages)).toHaveLength(
+      250,
+    );
+    expect(result.current.hasNextPage).toBe(false);
+    expect(getPage).toHaveBeenCalledTimes(10);
+  });
+
+  it('deduplicates overlapping page IDs while preserving first-seen order', () => {
+    const first = buildWatchingAnime({ id: 101, title: 'First' });
+    const second = buildWatchingAnime({ id: 102, title: 'Second' });
+    const duplicate = {
+      ...first,
+      anime: { ...first.anime, title: 'Duplicate response' },
+    };
+    const pages: PageResult<UnifiedAnime>[] = [
+      {
+        items: [first, second],
+        page: 1,
+        nextPage: 2,
+        totalCount: null,
+      },
+      {
+        items: [duplicate],
+        page: 2,
+        nextPage: null,
+        totalCount: null,
+      },
+    ];
+    expect(
+      flattenUniqueAnimePages(pages).map((item) => item.anime.title),
+    ).toEqual(['First', 'Second']);
+  });
+
+  it('preserves page 1 after a page 2 error and retries only page 2', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 53 }),
+    );
+    const originalGetPage = dependencies.userListRepository.getPage.bind(
+      dependencies.userListRepository,
+    );
+    let failPageTwo = true;
+    dependencies.userListRepository.getPage = jest.fn(async (request) => {
+      if (request.page === 2 && failPageTwo) {
+        throw new Error('Page 2 failed');
+      }
+      return originalGetPage(request);
+    });
+    const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => result.current.fetchNextPage());
+    await waitFor(() => expect(result.current.isFetchNextPageError).toBe(true));
+    expect(result.current.data?.pages).toHaveLength(1);
+    expect(result.current.data?.pages[0]?.items).toHaveLength(25);
+
+    failPageTwo = false;
+    await act(async () => result.current.fetchNextPage());
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(result.current.data?.pages[1]?.page).toBe(2);
+  });
+
+  it('uses isolated page-1 caches when the status filter changes', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 250 }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    const { result, rerender } = await renderHook(
+      ({ status }: { status?: AnimeListStatus }) =>
+        useInfiniteUnifiedUserList(status),
+      {
+        initialProps: { status: undefined },
+        wrapper: createTestWrapper(dependencies),
+      },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => result.current.fetchNextPage());
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+
+    rerender({ status: 'completed' });
+    await waitFor(() =>
+      expect(result.current.data?.pages[0]?.items[0]?.userEntry?.status).toBe(
+        'completed',
+      ),
+    );
+    expect(result.current.data?.pages).toHaveLength(1);
+    expect(getPage).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 25,
+      status: 'completed',
+    });
+  });
+
+  it('refreshes a multi-page list from page 1 without refetching old pages', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 250 }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    for (let page = 2; page <= 5; page += 1) {
+      await act(async () => result.current.fetchNextPage());
+    }
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(5));
+    getPage.mockClear();
+
+    await act(async () => result.current.refreshFromStart());
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(1));
+    expect(getPage).toHaveBeenCalledTimes(1);
+    expect(getPage).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 25,
+      status: undefined,
+    });
+
+    await act(async () => result.current.fetchNextPage());
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(getPage).toHaveBeenLastCalledWith({
+      page: 2,
+      pageSize: 25,
+      status: undefined,
+    });
+  });
+
+  it('resets active infinite queries to a freshly loaded page 1', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 53 }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    const queryClient = createAppQueryClient();
+    const listHook = await renderHook(() => useInfiniteUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+    await waitFor(() => expect(listHook.result.current.isSuccess).toBe(true));
+    await act(async () => listHook.result.current.fetchNextPage());
+    await waitFor(() =>
+      expect(listHook.result.current.data?.pages).toHaveLength(2),
+    );
+    getPage.mockClear();
+    const resetHook = await renderHook(() => useResetSessionData(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+
+    await act(async () => resetHook.result.current.mutate());
+    await waitFor(() => expect(resetHook.result.current.isSuccess).toBe(true));
+    expect(listHook.result.current.data?.pages).toHaveLength(1);
+    expect(getPage).toHaveBeenCalledTimes(1);
+    expect(getPage).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 25,
+      status: undefined,
+    });
+  });
+
+  it('bounds Continue Watching to the first 10 Watching entries', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 200, status: 'watching' }),
+    );
+    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    const getMany = jest.spyOn(dependencies.catalogRepository, 'getManyByIds');
+    const { result } = await renderHook(() => useContinueWatching(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toHaveLength(10);
+    expect(getPage).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 10,
+      status: 'watching',
+    });
+    expect(getMany.mock.calls[0]?.[0]).toHaveLength(10);
   });
 
   it('optimistically updates progress and rolls back a failed mutation', async () => {
@@ -113,21 +326,100 @@ describe('React Query integration', () => {
     ).toBe(4);
   });
 
-  it('invalidates affected caches after a successful mutation', async () => {
+  it('updates a later infinite page and restores it after failure', async () => {
     const dependencies = createTestDependencies();
     const queryClient = createAppQueryClient();
-    const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+    const pages = Array.from({ length: 4 }, (_, index) => {
+      const item = buildWatchingAnime({
+        id: 101 + index,
+        title: `Page ${index + 1}`,
+      });
+      return {
+        items: [item],
+        page: index + 1,
+        nextPage: index === 3 ? null : index + 2,
+        totalCount: 4,
+      } satisfies PageResult<UnifiedAnime>;
+    });
+    const cached: InfiniteData<PageResult<UnifiedAnime>, number> = {
+      pages,
+      pageParams: [1, 2, 3, 4],
+    };
+    queryClient.setQueryData(queryKeys.infiniteUserList(), cached);
+    let rejectUpdate: (error: Error) => void = () => undefined;
+    dependencies.userListRepository.updateProgress = jest.fn(
+      () =>
+        new Promise<UserAnimeEntry>((_resolve, reject) => {
+          rejectUpdate = reject;
+        }),
+    );
     const { result } = await renderHook(() => useUpdateProgress(), {
       wrapper: createTestWrapper(dependencies, queryClient),
     });
-    await act(async () => result.current.mutate({ animeId: 1, episodes: 2 }));
+
+    await act(async () => result.current.mutate({ animeId: 104, episodes: 8 }));
+    await waitFor(() => {
+      const optimistic = queryClient.getQueryData<typeof cached>(
+        queryKeys.infiniteUserList(),
+      );
+      expect(optimistic?.pages[3]?.items[0]?.userEntry?.watchedEpisodes).toBe(
+        8,
+      );
+      expect(optimistic?.pages.slice(0, 3)).toEqual(cached.pages.slice(0, 3));
+    });
+    await act(async () => rejectUpdate(new Error('Mutation failed')));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(queryClient.getQueryData(queryKeys.infiniteUserList())).toEqual(
+      cached,
+    );
+  });
+
+  it('removes a status transition from a filtered infinite cache', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 30, status: 'watching' }),
+    );
+    const queryClient = createAppQueryClient();
+    const listHook = await renderHook(
+      () => useInfiniteUnifiedUserList('watching'),
+      { wrapper: createTestWrapper(dependencies, queryClient) },
+    );
+    await waitFor(() => expect(listHook.result.current.isSuccess).toBe(true));
+    const animeId =
+      listHook.result.current.data?.pages[0]?.items[0]?.anime.id ?? 0;
+    const mutation = await renderHook(() => useUpdateStatus(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+
+    await act(async () =>
+      mutation.result.current.mutate({ animeId, status: 'completed' }),
+    );
+    await waitFor(() => expect(mutation.result.current.isSuccess).toBe(true));
+    const cached = queryClient.getQueryData<
+      InfiniteData<PageResult<UnifiedAnime>, number>
+    >(queryKeys.infiniteUserList('watching'));
+    expect(
+      cached?.pages
+        .flatMap((page) => page.items)
+        .some((item) => item.anime.id === animeId),
+    ).toBe(false);
+    expect(cached?.pages[0]?.totalCount).toBe(29);
+  });
+
+  it('uses targeted non-refetching invalidation after a score update', async () => {
+    const dependencies = createTestDependencies();
+    const queryClient = createAppQueryClient();
+    const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+    const { result } = await renderHook(() => useUpdateScore(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+    await act(async () => result.current.mutate({ animeId: 1, score: 9 }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: queryKeys.unifiedListRoot,
-    });
-    expect(invalidate).toHaveBeenCalledWith({
-      queryKey: queryKeys.userListRoot,
-    });
+    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(
+      invalidate.mock.calls.every(
+        ([filters]) => filters && filters.refetchType === 'none',
+      ),
+    ).toBe(true);
   });
 
   it('creates isolated query clients for every test or app boundary', () => {

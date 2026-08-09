@@ -3,6 +3,7 @@ import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/m
 import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
 import { MockUserAnimeListRepository } from '@/infrastructure/repositories/mock/mock-user-anime-list-repository';
 import { buildMockDataset } from '@/mocks/fixtures/mock-dataset';
+import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
 
 describe('mock repositories', () => {
   let runtime: MockRuntime;
@@ -36,10 +37,80 @@ describe('mock repositories', () => {
   });
 
   it('filters and retrieves personal list entries', async () => {
-    const watching = await list.getByStatus('watching');
-    expect(watching).toHaveLength(5);
-    expect(watching.every((entry) => entry.status === 'watching')).toBe(true);
+    const watching = await list.getPage({
+      page: 1,
+      pageSize: 25,
+      status: 'watching',
+    });
+    expect(watching.items).toHaveLength(5);
+    expect(watching.totalCount).toBe(5);
+    expect(watching.items.every((entry) => entry.status === 'watching')).toBe(
+      true,
+    );
     await expect(list.getByAnimeId(50)).resolves.toBeNull();
+  });
+
+  it('paginates 53 entries and stops after the partial final page', async () => {
+    const largeRuntime = new MockRuntime(buildUserListDataset({ size: 53 }));
+    const largeList = new MockUserAnimeListRepository(largeRuntime);
+    await expect(
+      largeList.getPage({ page: 1, pageSize: 25 }),
+    ).resolves.toMatchObject({
+      page: 1,
+      nextPage: 2,
+      totalCount: 53,
+      items: expect.arrayContaining([
+        expect.objectContaining({ animeId: 10_001 }),
+      ]),
+    });
+    await expect(
+      largeList.getPage({ page: 2, pageSize: 25 }),
+    ).resolves.toMatchObject({
+      page: 2,
+      nextPage: 3,
+      totalCount: 53,
+    });
+    const finalPage = await largeList.getPage({ page: 3, pageSize: 25 });
+    expect(finalPage.items).toHaveLength(3);
+    expect(finalPage.nextPage).toBeNull();
+  });
+
+  it('filters before paginating and preserves stable isolated results', async () => {
+    const largeRuntime = new MockRuntime(buildUserListDataset({ size: 53 }));
+    const largeList = new MockUserAnimeListRepository(largeRuntime);
+    const first = await largeList.getPage({
+      page: 1,
+      pageSize: 5,
+      status: 'completed',
+    });
+    const repeated = await largeList.getPage({
+      page: 1,
+      pageSize: 5,
+      status: 'completed',
+    });
+    expect(first.items).toHaveLength(5);
+    expect(first.totalCount).toBe(11);
+    expect(first.items).toEqual(repeated.items);
+    expect(first.items.every((entry) => entry.status === 'completed')).toBe(
+      true,
+    );
+    const originalAnimeId = repeated.items[0]?.animeId;
+    if (!first.items[0]) throw new Error('Expected a paginated entry.');
+    first.items[0].animeId = -1;
+    const isolated = await largeList.getPage({
+      page: 1,
+      pageSize: 5,
+      status: 'completed',
+    });
+    expect(isolated.items[0]?.animeId).toBe(originalAnimeId);
+  });
+
+  it.each([
+    { page: 0, pageSize: 25 },
+    { page: 1, pageSize: 0 },
+    { page: 1.5, pageSize: 25 },
+  ])('rejects invalid page requests: %o', async (request) => {
+    await expect(list.getPage(request)).rejects.toThrow(/integer/);
   });
 
   it('updates progress and automatically completes known series', async () => {
@@ -88,7 +159,9 @@ describe('mock repositories', () => {
   it('supports forced repository failures', async () => {
     runtime.setForceErrors(true);
     await expect(catalog.getPopular()).rejects.toBeInstanceOf(RepositoryError);
-    await expect(list.getAll()).rejects.toBeInstanceOf(RepositoryError);
+    await expect(
+      list.getPage({ page: 1, pageSize: 25 }),
+    ).rejects.toBeInstanceOf(RepositoryError);
   });
 
   it('supports normal and slow artificial delays', async () => {

@@ -174,11 +174,11 @@ export function SettingsScreen() {
 
   const toggleDelay = (enabled: boolean) => {
     setDelayMode(enabled ? 'normal' : 'none');
-    void queryClient.invalidateQueries();
+    void queryClient.resetQueries({ type: 'active' });
   };
   const toggleErrors = (enabled: boolean) => {
     setForceErrors(enabled);
-    void queryClient.invalidateQueries();
+    void queryClient.resetQueries({ type: 'active' });
   };
 
   return (

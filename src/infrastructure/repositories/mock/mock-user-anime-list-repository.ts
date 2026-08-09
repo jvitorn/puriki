@@ -1,5 +1,10 @@
 import type { AnimeListStatus, UserAnimeEntry } from '@/domain/models/anime';
-import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
+import { validatePageRequest } from '@/domain/models/pagination';
+import type { PageResult } from '@/domain/models/pagination';
+import type {
+  UserAnimeListPageRequest,
+  UserAnimeListRepository,
+} from '@/domain/repositories/user-anime-list-repository';
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
@@ -8,19 +13,25 @@ import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
 export class MockUserAnimeListRepository implements UserAnimeListRepository {
   constructor(private readonly runtime: MockRuntime) {}
 
-  getAll(): Promise<UserAnimeEntry[]> {
-    return this.runtime.run(() =>
-      this.runtime.getDataset().userEntries.map((entry) => ({ ...entry })),
-    );
-  }
-
-  getByStatus(status: AnimeListStatus): Promise<UserAnimeEntry[]> {
-    return this.runtime.run(() =>
-      this.runtime
-        .getDataset()
-        .userEntries.filter((entry) => entry.status === status)
-        .map((entry) => ({ ...entry })),
-    );
+  getPage(
+    request: UserAnimeListPageRequest,
+  ): Promise<PageResult<UserAnimeEntry>> {
+    return this.runtime.run(() => {
+      validatePageRequest(request);
+      const filtered = request.status
+        ? this.runtime
+            .getDataset()
+            .userEntries.filter((entry) => entry.status === request.status)
+        : this.runtime.getDataset().userEntries;
+      const start = (request.page - 1) * request.pageSize;
+      const end = start + request.pageSize;
+      return {
+        items: filtered.slice(start, end).map((entry) => ({ ...entry })),
+        page: request.page,
+        nextPage: end < filtered.length ? request.page + 1 : null,
+        totalCount: filtered.length,
+      };
+    });
   }
 
   getByAnimeId(animeId: number): Promise<UserAnimeEntry | null> {

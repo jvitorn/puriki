@@ -1,6 +1,7 @@
 import type { AnimeListStatus } from '@/domain/models/anime';
 
 export const queryKeys = {
+  detailsRoot: ['anime', 'details'] as const,
   featured: ['anime', 'featured'] as const,
   popular: ['anime', 'popular'] as const,
   seasonal: ['anime', 'seasonal'] as const,
@@ -8,9 +9,7 @@ export const queryKeys = {
   search: (query: string) => ['anime', 'search', query] as const,
   details: (id: number) => ['anime', 'details', id] as const,
   userListRoot: ['user-list'] as const,
-  userList: (status?: AnimeListStatus) =>
-    ['user-list', status ?? 'all'] as const,
-  unifiedListRoot: ['unified-list'] as const,
-  unifiedList: (status?: AnimeListStatus) =>
-    ['unified-list', status ?? 'all'] as const,
+  infiniteUserList: (status?: AnimeListStatus) =>
+    ['user-list', 'infinite', status ?? 'all'] as const,
+  continueWatching: ['user-list', 'continue-watching'] as const,
 };

@@ -1,8 +1,14 @@
 import type { AnimeListStatus, UserAnimeEntry } from '@/domain/models/anime';
+import type { PageRequest, PageResult } from '@/domain/models/pagination';
+
+export interface UserAnimeListPageRequest extends PageRequest {
+  status?: AnimeListStatus;
+}
 
 export interface UserAnimeListRepository {
-  getAll(): Promise<UserAnimeEntry[]>;
-  getByStatus(status: AnimeListStatus): Promise<UserAnimeEntry[]>;
+  getPage(
+    request: UserAnimeListPageRequest,
+  ): Promise<PageResult<UserAnimeEntry>>;
   getByAnimeId(animeId: number): Promise<UserAnimeEntry | null>;
   updateProgress(animeId: number, episodes: number): Promise<UserAnimeEntry>;
   updateStatus(

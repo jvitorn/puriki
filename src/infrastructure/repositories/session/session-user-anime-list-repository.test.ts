@@ -7,6 +7,11 @@ import {
 } from '@/mocks/factories/anime-factory';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 
+async function getSessionEntries(session: SessionUserAnimeListRepository) {
+  const page = await session.getPage({ page: 1, pageSize: 100 });
+  return page.items;
+}
+
 function createCatalog(): {
   catalog: AnimeCatalogItem[];
   repository: jest.Mocked<AnimeCatalogRepository>;
@@ -53,7 +58,7 @@ function createSession() {
 describe('SessionUserAnimeListRepository', () => {
   it('builds a 20-25 item real-ID sample spanning every status', async () => {
     const { session } = createSession();
-    const entries = await session.getAll();
+    const entries = await getSessionEntries(session);
     expect(entries.length).toBeGreaterThanOrEqual(20);
     expect(entries.length).toBeLessThanOrEqual(25);
     expect(entries.every((entry) => entry.animeId >= 10_001)).toBe(true);
@@ -66,7 +71,7 @@ describe('SessionUserAnimeListRepository', () => {
 
   it('generates valid progress and includes an unknown episode total', async () => {
     const { catalog, session } = createSession();
-    const entries = await session.getAll();
+    const entries = await getSessionEntries(session);
     const unknown = catalog.find((anime) => anime.totalEpisodes === null);
     expect(entries.some((entry) => entry.animeId === unknown?.id)).toBe(true);
     entries.forEach((entry) => {
@@ -85,7 +90,7 @@ describe('SessionUserAnimeListRepository', () => {
 
   it('initializes from collections without N+1 detail requests', async () => {
     const { repository, session } = createSession();
-    await Promise.all([session.getAll(), session.getAll()]);
+    await Promise.all([getSessionEntries(session), getSessionEntries(session)]);
     expect(repository.getPopular).toHaveBeenCalledTimes(1);
     expect(repository.getSeasonal).toHaveBeenCalledTimes(1);
     expect(repository.getUpcoming).toHaveBeenCalledTimes(1);
@@ -96,14 +101,14 @@ describe('SessionUserAnimeListRepository', () => {
   it('initializes from successful collections when one Jikan rail fails', async () => {
     const { repository, session } = createSession();
     repository.getUpcoming.mockRejectedValueOnce(new Error('Unavailable'));
-    const entries = await session.getAll();
+    const entries = await getSessionEntries(session);
     expect(entries.length).toBeGreaterThanOrEqual(20);
     expect(repository.getManyByIds).toHaveBeenCalledTimes(1);
   });
 
   it('updates progress using the real episode total', async () => {
     const { catalog, session } = createSession();
-    const entry = (await session.getAll()).find((item) => {
+    const entry = (await getSessionEntries(session)).find((item) => {
       const total = catalog.find(
         (anime) => anime.id === item.animeId,
       )?.totalEpisodes;
@@ -125,7 +130,7 @@ describe('SessionUserAnimeListRepository', () => {
 
   it('updates status and score with existing domain rules', async () => {
     const { session } = createSession();
-    const entry = (await session.getAll())[0];
+    const entry = (await getSessionEntries(session))[0];
     if (!entry) throw new Error('Expected a sample entry.');
     await session.updateProgress(entry.animeId, 3);
     await expect(
@@ -138,17 +143,17 @@ describe('SessionUserAnimeListRepository', () => {
 
   it('resets mutations back to the current session sample', async () => {
     const { session } = createSession();
-    const original = await session.getAll();
+    const original = await getSessionEntries(session);
     const first = original[0];
     if (!first) throw new Error('Expected a sample entry.');
     await session.updateScore(first.animeId, first.userScore === 10 ? 9 : 10);
     await session.reset();
-    await expect(session.getAll()).resolves.toEqual(original);
+    await expect(getSessionEntries(session)).resolves.toEqual(original);
   });
 
   it('can generate a fresh sample after catalog refresh', async () => {
     const { repository, session } = createSession();
-    await session.getAll();
+    await getSessionEntries(session);
     await session.generateNewSample();
     expect(repository.getPopular).toHaveBeenCalledTimes(2);
     expect(repository.getSeasonal).toHaveBeenCalledTimes(2);
@@ -158,11 +163,44 @@ describe('SessionUserAnimeListRepository', () => {
 
   it('retains the current sample when generating a replacement fails', async () => {
     const { repository, session } = createSession();
-    const original = await session.getAll();
+    const original = await getSessionEntries(session);
     repository.getPopular.mockRejectedValueOnce(new Error('Unavailable'));
     repository.getSeasonal.mockRejectedValueOnce(new Error('Unavailable'));
     repository.getUpcoming.mockRejectedValueOnce(new Error('Unavailable'));
     await expect(session.generateNewSample()).rejects.toThrow('Unavailable');
-    await expect(session.getAll()).resolves.toEqual(original);
+    await expect(getSessionEntries(session)).resolves.toEqual(original);
+  });
+
+  it('filters before pagination and returns stable cloned pages', async () => {
+    const { session } = createSession();
+    const all = await session.getPage({ page: 1, pageSize: 5 });
+    const watching = await session.getPage({
+      page: 1,
+      pageSize: 2,
+      status: 'watching',
+    });
+    expect(all.items).toHaveLength(5);
+    expect(all.nextPage).toBe(2);
+    expect(watching.items).toHaveLength(2);
+    expect(watching.items.every((entry) => entry.status === 'watching')).toBe(
+      true,
+    );
+    const repeated = await session.getPage({ page: 1, pageSize: 5 });
+    expect(repeated.items).toEqual(all.items);
+    const originalAnimeId = repeated.items[0]?.animeId;
+    if (!all.items[0]) throw new Error('Expected a session entry.');
+    all.items[0].animeId = -1;
+    const isolated = await session.getPage({ page: 1, pageSize: 5 });
+    expect(isolated.items[0]?.animeId).toBe(originalAnimeId);
+  });
+
+  it('rejects invalid page requests', async () => {
+    const { session } = createSession();
+    await expect(session.getPage({ page: 0, pageSize: 25 })).rejects.toThrow(
+      'Page must',
+    );
+    await expect(session.getPage({ page: 1, pageSize: 0 })).rejects.toThrow(
+      'Page size must',
+    );
   });
 });
