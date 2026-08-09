@@ -1,7 +1,11 @@
 import animeCollectionFixture from '@/infrastructure/api/jikan/fixtures/anime-collection.json';
 import animeFullFixture from '@/infrastructure/api/jikan/fixtures/anime-full.json';
 import type { JikanClientPort } from '@/infrastructure/api/jikan/jikan-client';
-import { JikanServiceUnavailableError } from '@/infrastructure/api/jikan/jikan-errors';
+import {
+  JikanHttpError,
+  JikanNotFoundError,
+  JikanServiceUnavailableError,
+} from '@/infrastructure/api/jikan/jikan-errors';
 import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 import { JikanAnimeCatalogRepository } from '@/infrastructure/repositories/jikan/jikan-anime-catalog-repository';
 
@@ -92,6 +96,47 @@ describe('JikanAnimeCatalogRepository', () => {
     expect(getAnimeFullById).toHaveBeenNthCalledWith(2, 8);
   });
 
+  it('starts missing detail resolutions sequentially instead of queuing the batch', async () => {
+    const { getAnimeFullById, repository } = createRepository();
+    let resolveFirst: (value: {
+      data: typeof animeFullFixture.data;
+    }) => void = () => undefined;
+    getAnimeFullById.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    const details = jest.spyOn(repository, 'getDetailsById');
+    const batch = repository.getManyByIds([7, 8]);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(details).toHaveBeenCalledTimes(1);
+    resolveFirst({
+      data: { ...animeFullFixture.data, mal_id: 7, title: 'Detail Anime 7' },
+    });
+    await expect(batch).resolves.toHaveLength(2);
+    expect(details).toHaveBeenCalledTimes(2);
+  });
+
+  it('omits detail 404s and preserves order for the remaining IDs', async () => {
+    const { getAnimeFullById, repository } = createRepository();
+    getAnimeFullById.mockRejectedValueOnce(new JikanNotFoundError());
+    await expect(repository.getManyByIds([7, 8, 7])).resolves.toMatchObject([
+      { id: 8 },
+    ]);
+    expect(getAnimeFullById).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops direct-mode batch work after the first non-404 failure', async () => {
+    const { getAnimeFullById, repository } = createRepository();
+    const failure = new JikanHttpError(400);
+    getAnimeFullById.mockRejectedValueOnce(failure);
+    await expect(repository.getManyByIds([7, 8, 9])).rejects.toBe(failure);
+    expect(getAnimeFullById).toHaveBeenCalledTimes(1);
+    expect(getAnimeFullById).toHaveBeenCalledWith(7);
+  });
+
   it('coalesces duplicate calls and keeps the session order stable', async () => {
     const { getTopAnime, repository } = createRepository();
     const [first, concurrent] = await Promise.all([
@@ -141,6 +186,41 @@ describe('JikanAnimeCatalogRepository', () => {
     await repository.getDetailsById(99);
     expect(getTopAnime).toHaveBeenCalledTimes(2);
     expect(getAnimeFullById).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reset shared request coordination when clearing data cache', async () => {
+    let currentTime = 0;
+    const starts: number[] = [];
+    const scheduler = new JikanRequestScheduler({
+      requestIntervalMs: 500,
+      now: () => currentTime,
+      sleep: async (milliseconds) => {
+        currentTime += milliseconds;
+      },
+    });
+    const getTopAnime = jest.fn(async () => {
+      starts.push(currentTime);
+      return animeCollectionFixture;
+    });
+    const repository = new JikanAnimeCatalogRepository({
+      client: {
+        anime: {
+          getAnimeFullById: jest.fn(),
+          getAnimeSearch: jest.fn(),
+        },
+        seasons: {
+          getSeasonNow: jest.fn(),
+          getSeasonUpcoming: jest.fn(),
+        },
+        top: { getTopAnime },
+      },
+      scheduler,
+      sleep: async () => undefined,
+    });
+    await repository.getPopular();
+    repository.clearCache();
+    await repository.getPopular();
+    expect(starts).toEqual([0, 500]);
   });
 
   it('replaces every discovery collection after a successful refresh', async () => {

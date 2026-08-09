@@ -2,7 +2,9 @@ import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { useEffect } from 'react';
 import { Pressable, Text } from 'react-native';
 
+import animeCollectionFixture from '@/infrastructure/api/jikan/fixtures/anime-collection.json';
 import { JikanNetworkError } from '@/infrastructure/api/jikan/jikan-errors';
+import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
@@ -97,6 +99,52 @@ describe('repository dependency creation', () => {
     });
     expect(listener).toHaveBeenCalled();
     unsubscribe();
+  });
+
+  it('shares one request budget between automatic catalog traffic and Jikan diagnostics', async () => {
+    let currentTime = 0;
+    const starts: number[] = [];
+    const scheduler = new JikanRequestScheduler({
+      requestIntervalMs: 0,
+      sustainedRequestLimit: 5,
+      sustainedWindowMs: 1_000,
+      now: () => currentTime,
+      sleep: async (milliseconds) => {
+        currentTime += milliseconds;
+      },
+    });
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async (input) => {
+        starts.push(currentTime);
+        const url = String(input);
+        const body = url.endsWith('/top/anime')
+          ? JSON.stringify(animeCollectionFixture)
+          : url.includes('/anime/1/full')
+            ? '{"data":{}}'
+            : '{"data":[]}';
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => null },
+          text: jest.fn(async () => body),
+        } as unknown as Response;
+      });
+    try {
+      const dependencies = createAutomaticDependencies({
+        jikanScheduler: scheduler,
+        malConfigured: false,
+      });
+      await expect(dependencies.runJikanDiagnostic()).resolves.toMatchObject({
+        health: 'healthy',
+      });
+      await expect(
+        dependencies.catalogRepository.getPopular(),
+      ).resolves.toHaveLength(2);
+      expect(starts).toEqual([0, 0, 0, 0, 0, 1_000]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 });
 

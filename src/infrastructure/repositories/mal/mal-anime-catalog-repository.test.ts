@@ -1,7 +1,10 @@
 import animeCollectionFixture from '@/infrastructure/api/mal/fixtures/anime-collection.json';
 import animeDetailFixture from '@/infrastructure/api/mal/fixtures/anime-detail.json';
 import type { MalClientPort } from '@/infrastructure/api/mal/mal-client';
-import { MalNotFoundError } from '@/infrastructure/api/mal/mal-errors';
+import {
+  MalHttpError,
+  MalNotFoundError,
+} from '@/infrastructure/api/mal/mal-errors';
 import { MAL_ANIME_FIELDS } from '@/infrastructure/api/mal/mal-fields';
 import {
   currentMalSeason,
@@ -109,6 +112,43 @@ describe('MAL anime catalog repository', () => {
     expect(result.map((item) => item.id)).toEqual([1, 7, 8]);
     expect(getDetails).toHaveBeenCalledTimes(2);
     expect(getDetails.mock.calls.map(([id]) => id)).toEqual([7, 8]);
+  });
+
+  it('starts missing detail resolutions sequentially instead of queuing the batch', async () => {
+    const { getDetails, repository } = createRepository();
+    let resolveFirst: (value: typeof animeDetailFixture) => void = () =>
+      undefined;
+    getDetails.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    const details = jest.spyOn(repository, 'getDetailsById');
+    const batch = repository.getManyByIds([7, 8]);
+    await Promise.resolve();
+    expect(details).toHaveBeenCalledTimes(1);
+    resolveFirst(detailFor(7));
+    await expect(batch).resolves.toHaveLength(2);
+    expect(details).toHaveBeenCalledTimes(2);
+  });
+
+  it('omits detail 404s and preserves order for the remaining IDs', async () => {
+    const { getDetails, repository } = createRepository();
+    getDetails.mockRejectedValueOnce(new MalNotFoundError());
+    await expect(repository.getManyByIds([7, 8, 7])).resolves.toMatchObject([
+      { id: 8 },
+    ]);
+    expect(getDetails).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops direct-mode batch work after the first non-404 failure', async () => {
+    const { getDetails, repository } = createRepository();
+    const failure = new MalHttpError(400);
+    getDetails.mockRejectedValueOnce(failure);
+    await expect(repository.getManyByIds([7, 8, 9])).rejects.toBe(failure);
+    expect(getDetails).toHaveBeenCalledTimes(1);
+    expect(getDetails).toHaveBeenCalledWith(7, MAL_ANIME_FIELDS);
   });
 
   it('coalesces concurrent collection and detail requests', async () => {

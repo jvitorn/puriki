@@ -60,8 +60,7 @@ function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
 }
 
 export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
-  private client: JikanClientPort;
-  private readonly ownsClient: boolean;
+  private readonly client: JikanClientPort;
   private readonly cache: JikanCatalogCache;
   private readonly random: RandomGenerator;
   private readonly scheduler: JikanRequestScheduler;
@@ -79,7 +78,6 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
 
   constructor(options: JikanAnimeCatalogRepositoryOptions = {}) {
     this.client = options.client ?? createJikanClient();
-    this.ownsClient = options.client === undefined;
     this.cache = options.cache ?? new JikanCatalogCache();
     this.random = options.random ?? Math.random;
     this.scheduler = options.scheduler ?? new JikanRequestScheduler();
@@ -149,12 +147,10 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
       if (summary) resolved.set(id, summary);
       else missing.push(id);
     });
-    const fetched = await Promise.all(
-      missing.map((id) => this.getDetailsById(id)),
-    );
-    fetched.forEach((item) => {
+    for (const id of missing) {
+      const item = await this.getDetailsById(id);
       if (item) resolved.set(item.id, item);
-    });
+    }
     return uniqueIds.flatMap((id) => {
       const item = resolved.get(id);
       return item ? [item] : [];
@@ -212,8 +208,6 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
   clearCache(): void {
     this.generation += 1;
     this.cache.clear();
-    this.scheduler.clear();
-    if (this.ownsClient) this.client = createJikanClient();
     this.sessionCollections.clear();
     this.sessionPool = null;
     this.featured = null;

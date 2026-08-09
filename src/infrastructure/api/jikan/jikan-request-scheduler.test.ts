@@ -1,3 +1,4 @@
+import { JikanRateLimitError } from '@/infrastructure/api/jikan/jikan-errors';
 import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 
 describe('JikanRequestScheduler', () => {
@@ -101,5 +102,61 @@ describe('JikanRequestScheduler', () => {
     const next = scheduler.schedule('next', async () => 'done');
     await expect(failed).rejects.toThrow('temporary failure');
     await expect(next).resolves.toBe('done');
+  });
+
+  it('enforces a sustained rolling-window budget across catalog and diagnostic keys', async () => {
+    let currentTime = 0;
+    const starts: number[] = [];
+    const sleeps: number[] = [];
+    const scheduler = new JikanRequestScheduler({
+      requestIntervalMs: 0,
+      sustainedRequestLimit: 3,
+      sustainedWindowMs: 1_000,
+      now: () => currentTime,
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+        currentTime += milliseconds;
+      },
+    });
+
+    await Promise.all(
+      [
+        'catalog:popular',
+        'diagnostic:details',
+        'catalog:seasonal',
+        'diagnostic:search',
+      ].map((key) =>
+        scheduler.schedule(key, async () => {
+          starts.push(currentTime);
+        }),
+      ),
+    );
+
+    expect(starts).toEqual([0, 0, 0, 1_000]);
+    expect(sleeps).toEqual([1_000]);
+  });
+
+  it('shares server Retry-After blocking with future scheduled work', async () => {
+    let currentTime = 0;
+    const starts: number[] = [];
+    const scheduler = new JikanRequestScheduler({
+      requestIntervalMs: 0,
+      now: () => currentTime,
+      sleep: async (milliseconds) => {
+        currentTime += milliseconds;
+      },
+    });
+
+    await expect(
+      scheduler.schedule('catalog:popular', async () => {
+        starts.push(currentTime);
+        throw new JikanRateLimitError(2_000);
+      }),
+    ).rejects.toBeInstanceOf(JikanRateLimitError);
+    await scheduler.schedule('diagnostic:details', async () => {
+      starts.push(currentTime);
+    });
+
+    expect(starts).toEqual([0, 2_000]);
   });
 });

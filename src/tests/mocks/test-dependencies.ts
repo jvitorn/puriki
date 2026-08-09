@@ -1,4 +1,5 @@
 import type { MockDelayMode } from '@/domain/models/mock-behavior';
+import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
 import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
 import { MockUserAnimeListRepository } from '@/infrastructure/repositories/mock/mock-user-anime-list-repository';
@@ -52,6 +53,7 @@ export function createTestDependencies(
     clearCatalogCache: () => dependencies.catalogRepository.clearCache(),
     clearAllCatalogCaches: () => dependencies.catalogRepository.clearCache(),
     resetJikanCircuits: () => undefined,
+    runJikanDiagnostic: () => runJikanConnectivityDiagnostic(),
     refreshCurrentSample: () => dependencies.userListRepository.reset(),
     mockDevelopmentControls: {
       generateTestList: () =>

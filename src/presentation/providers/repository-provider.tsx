@@ -8,6 +8,11 @@ import type {
 } from '@/domain/models/mock-behavior';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
+import {
+  runJikanConnectivityDiagnostic,
+  type JikanServiceDiagnosticResult,
+} from '@/infrastructure/api/jikan/jikan-diagnostics';
+import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 import { isMalConfigured } from '@/infrastructure/api/mal/mal-config';
 import { JikanAnimeCatalogRepository } from '@/infrastructure/repositories/jikan/jikan-anime-catalog-repository';
 import { MalAnimeCatalogRepository } from '@/infrastructure/repositories/mal/mal-anime-catalog-repository';
@@ -66,6 +71,7 @@ export interface RepositoryDependencies {
   clearCatalogCache(): void;
   clearAllCatalogCaches(): void;
   resetJikanCircuits(): void;
+  runJikanDiagnostic(): Promise<JikanServiceDiagnosticResult>;
   refreshCurrentSample(): Promise<void>;
   mockDevelopmentControls: MockDevelopmentControls | null;
 }
@@ -88,6 +94,7 @@ export interface AutomaticDependenciesOptions {
   jikanRepository?: AnimeCatalogRepository;
   malRepository?: AnimeCatalogRepository;
   circuitRegistry?: CatalogCircuitBreakerRegistry;
+  jikanScheduler?: JikanRequestScheduler;
   malConfigured?: boolean;
 }
 
@@ -208,6 +215,7 @@ function createLiveDependencies(
   refreshCatalog: () => Promise<void>,
   channel: StatusChannel,
   malConfigured: boolean,
+  runJikanDiagnostic: () => Promise<JikanServiceDiagnosticResult>,
   resetJikanCircuits: () => void = () => undefined,
 ): RepositoryDependencies {
   const userListRepository = new SessionUserAnimeListRepository(
@@ -229,6 +237,7 @@ function createLiveDependencies(
     clearCatalogCache: () => catalogRepository.clearCache(),
     clearAllCatalogCaches: () => catalogRepository.clearCache(),
     resetJikanCircuits,
+    runJikanDiagnostic,
     refreshCurrentSample: async () => {
       await refreshCatalog();
       await userListRepository.generateNewSample();
@@ -239,6 +248,7 @@ function createLiveDependencies(
 
 export function createMockDependencies(): RepositoryDependencies {
   const runtime = new MockRuntime();
+  const jikanScheduler = new JikanRequestScheduler();
   const catalogRepository = new MockAnimeCatalogRepository(runtime);
   const userListRepository = new MockUserAnimeListRepository(runtime);
   const channel = createStatusChannel({
@@ -269,6 +279,8 @@ export function createMockDependencies(): RepositoryDependencies {
     clearCatalogCache: () => catalogRepository.clearCache(),
     clearAllCatalogCaches: () => catalogRepository.clearCache(),
     resetJikanCircuits: () => undefined,
+    runJikanDiagnostic: () =>
+      runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
     refreshCurrentSample: () => userListRepository.reset(),
     mockDevelopmentControls: {
       generateTestList: () =>
@@ -281,7 +293,10 @@ export function createMockDependencies(): RepositoryDependencies {
 }
 
 export function createJikanDependencies(): RepositoryDependencies {
-  const jikanRepository = new JikanAnimeCatalogRepository();
+  const jikanScheduler = new JikanRequestScheduler();
+  const jikanRepository = new JikanAnimeCatalogRepository({
+    scheduler: jikanScheduler,
+  });
   const channel = createStatusChannel({
     mode: 'jikan',
     jikanHealth: null,
@@ -304,10 +319,12 @@ export function createJikanDependencies(): RepositoryDependencies {
     },
     channel,
     isMalConfigured,
+    () => runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
   );
 }
 
 export function createMalDependencies(): RepositoryDependencies {
+  const jikanScheduler = new JikanRequestScheduler();
   const malRepository = new MalAnimeCatalogRepository();
   const channel = createStatusChannel({
     mode: 'mal',
@@ -331,6 +348,7 @@ export function createMalDependencies(): RepositoryDependencies {
     },
     channel,
     isMalConfigured,
+    () => runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
   );
 }
 
@@ -338,9 +356,13 @@ export function createAutomaticDependencies(
   options: AutomaticDependenciesOptions = {},
 ): RepositoryDependencies {
   const malAvailable = options.malConfigured ?? isMalConfigured;
+  const jikanScheduler = options.jikanScheduler ?? new JikanRequestScheduler();
   const jikanRepository =
     options.jikanRepository ??
-    new JikanAnimeCatalogRepository({ maximumAttempts: 2 });
+    new JikanAnimeCatalogRepository({
+      maximumAttempts: 2,
+      scheduler: jikanScheduler,
+    });
   const malRepository =
     options.malRepository ?? new MalAnimeCatalogRepository();
   const circuitRegistry =
@@ -363,6 +385,7 @@ export function createAutomaticDependencies(
     () => catalogRepository.refresh(),
     channel,
     malAvailable,
+    () => runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
     () => catalogRepository.resetCircuits(),
   );
 }

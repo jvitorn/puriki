@@ -23,11 +23,31 @@ import type {
   UserAnimeEntry,
 } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
+import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
+import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
+import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
 import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
 import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { createTestWrapper } from '@/tests/render/test-render';
+
+function createCatalogMock(
+  catalog: AnimeCatalogItem[],
+): jest.Mocked<AnimeCatalogRepository> {
+  return {
+    getFeatured: jest.fn(async () => catalog[0] as AnimeCatalogItem),
+    getPopular: jest.fn(async () => catalog),
+    getSeasonal: jest.fn(async () => catalog),
+    getUpcoming: jest.fn(async () => catalog),
+    search: jest.fn(async (_query: string) => catalog),
+    getManyByIds: jest.fn(async (_ids: number[]) => catalog),
+    getDetailsById: jest.fn(
+      async (id) => catalog.find((item) => item.id === id) ?? null,
+    ),
+    clearCache: jest.fn(),
+  };
+}
 
 describe('React Query integration', () => {
   it('moves a catalog query from loading to success', async () => {
@@ -101,6 +121,58 @@ describe('React Query integration', () => {
     expect(getPage).toHaveBeenCalledTimes(1);
     expect(getMany).toHaveBeenCalledTimes(1);
     expect(getMany.mock.calls[0]?.[0]).toHaveLength(25);
+  });
+
+  it('renders two large-list pages from normalized known items with zero detail traffic', async () => {
+    const dataset = buildUserListDataset({ size: 250 });
+    const dependencies = createTestDependencies(dataset);
+    const primary = createCatalogMock(dataset.catalog);
+    const fallback = createCatalogMock(dataset.catalog);
+    const catalogRepository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+    await catalogRepository.getPopular();
+    dependencies.catalogRepository = catalogRepository;
+    const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => result.current.fetchNextPage());
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+
+    expect(result.current.data?.pages[0]?.items).toHaveLength(25);
+    expect(result.current.data?.pages[1]?.items).toHaveLength(25);
+    expect(primary.getDetailsById).not.toHaveBeenCalled();
+    expect(fallback.getDetailsById).not.toHaveBeenCalled();
+    expect(primary.getManyByIds).not.toHaveBeenCalled();
+    expect(fallback.getManyByIds).not.toHaveBeenCalled();
+  });
+
+  it('renders the session-generated My List page with zero detail traffic', async () => {
+    const dataset = buildUserListDataset({ size: 30 });
+    const dependencies = createTestDependencies(dataset);
+    const primary = createCatalogMock(dataset.catalog);
+    const fallback = createCatalogMock(dataset.catalog);
+    const catalogRepository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+    dependencies.catalogRepository = catalogRepository;
+    dependencies.userListRepository = new SessionUserAnimeListRepository(
+      catalogRepository,
+      { random: () => 0.25 },
+    );
+    const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data?.pages[0]?.items).toHaveLength(23);
+    expect(primary.getDetailsById).not.toHaveBeenCalled();
+    expect(fallback.getDetailsById).not.toHaveBeenCalled();
+    expect(primary.getManyByIds).not.toHaveBeenCalled();
+    expect(fallback.getManyByIds).not.toHaveBeenCalled();
   });
 
   it('appends pages progressively and stops at the final page', async () => {
@@ -293,6 +365,27 @@ describe('React Query integration', () => {
       status: 'watching',
     });
     expect(getMany.mock.calls[0]?.[0]).toHaveLength(10);
+  });
+
+  it('builds Continue Watching from normalized known items with zero detail traffic', async () => {
+    const dataset = buildUserListDataset({ size: 200, status: 'watching' });
+    const dependencies = createTestDependencies(dataset);
+    const primary = createCatalogMock(dataset.catalog);
+    const fallback = createCatalogMock(dataset.catalog);
+    const catalogRepository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+    await catalogRepository.getSeasonal();
+    dependencies.catalogRepository = catalogRepository;
+    const { result } = await renderHook(() => useContinueWatching(), {
+      wrapper: createTestWrapper(dependencies),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toHaveLength(10);
+    expect(primary.getDetailsById).not.toHaveBeenCalled();
+    expect(fallback.getDetailsById).not.toHaveBeenCalled();
   });
 
   it('optimistically updates progress and rolls back a failed mutation', async () => {

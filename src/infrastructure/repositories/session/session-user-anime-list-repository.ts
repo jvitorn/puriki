@@ -176,10 +176,7 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
     ) {
       selected[selected.length - 1] = unknownEpisodes;
     }
-    const catalog = await this.catalogRepository.getManyByIds(
-      selected.map((anime) => anime.id),
-    );
-    return catalog.map((anime, index) => this.createEntry(anime, index));
+    return selected.map((anime, index) => this.createEntry(anime, index));
   }
 
   private createEntry(anime: AnimeCatalogItem, index: number): UserAnimeEntry {

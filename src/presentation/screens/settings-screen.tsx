@@ -15,7 +15,6 @@ import { Pressable, View } from 'react-native';
 
 import { useResetSessionData } from '@/application/mutations/anime-mutations';
 import { queryKeys } from '@/application/queries/query-keys';
-import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import type {
   JikanDiagnosticErrorKind,
   JikanServiceDiagnosticResult,
@@ -208,6 +207,7 @@ export function SettingsScreen() {
     mode,
     refreshCurrentSample,
     resetJikanCircuits,
+    runJikanDiagnostic,
     mockDevelopmentControls,
     selectDataSourceMode,
     setDelayMode,
@@ -268,7 +268,7 @@ export function SettingsScreen() {
     setPendingDiagnostic('jikan');
     setJikanDiagnostic(null);
     try {
-      setJikanDiagnostic(await runJikanConnectivityDiagnostic());
+      setJikanDiagnostic(await runJikanDiagnostic());
     } catch {
       setJikanDiagnostic({
         platform: 'unknown',

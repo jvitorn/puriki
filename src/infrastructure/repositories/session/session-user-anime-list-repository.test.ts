@@ -88,13 +88,13 @@ describe('SessionUserAnimeListRepository', () => {
     });
   });
 
-  it('initializes from collections without N+1 detail requests', async () => {
+  it('initializes directly from collection items without detail hydration', async () => {
     const { repository, session } = createSession();
     await Promise.all([getSessionEntries(session), getSessionEntries(session)]);
     expect(repository.getPopular).toHaveBeenCalledTimes(1);
     expect(repository.getSeasonal).toHaveBeenCalledTimes(1);
     expect(repository.getUpcoming).toHaveBeenCalledTimes(1);
-    expect(repository.getManyByIds).toHaveBeenCalledTimes(1);
+    expect(repository.getManyByIds).not.toHaveBeenCalled();
     expect(repository.getDetailsById).not.toHaveBeenCalled();
   });
 
@@ -103,7 +103,7 @@ describe('SessionUserAnimeListRepository', () => {
     repository.getUpcoming.mockRejectedValueOnce(new Error('Unavailable'));
     const entries = await getSessionEntries(session);
     expect(entries.length).toBeGreaterThanOrEqual(20);
-    expect(repository.getManyByIds).toHaveBeenCalledTimes(1);
+    expect(repository.getManyByIds).not.toHaveBeenCalled();
   });
 
   it('updates progress using the real episode total', async () => {
@@ -158,7 +158,7 @@ describe('SessionUserAnimeListRepository', () => {
     expect(repository.getPopular).toHaveBeenCalledTimes(2);
     expect(repository.getSeasonal).toHaveBeenCalledTimes(2);
     expect(repository.getUpcoming).toHaveBeenCalledTimes(2);
-    expect(repository.getManyByIds).toHaveBeenCalledTimes(2);
+    expect(repository.getManyByIds).not.toHaveBeenCalled();
   });
 
   it('retains the current sample when generating a replacement fails', async () => {

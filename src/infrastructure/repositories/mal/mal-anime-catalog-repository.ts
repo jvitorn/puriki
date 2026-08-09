@@ -158,12 +158,10 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
       if (summary) resolved.set(id, summary);
       else missing.push(id);
     });
-    const fetched = await Promise.all(
-      missing.map((id) => this.getDetailsById(id)),
-    );
-    fetched.forEach((item) => {
+    for (const id of missing) {
+      const item = await this.getDetailsById(id);
       if (item) resolved.set(item.id, item);
-    });
+    }
     return uniqueIds.flatMap((id) => {
       const item = resolved.get(id);
       return item ? [item] : [];

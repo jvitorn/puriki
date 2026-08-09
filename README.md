@@ -82,9 +82,13 @@ Jikan HTTP 429 responses are handled separately from endpoint health. `Retry-Aft
 
 Developer runtime status shows compact Popular, Seasonal, Upcoming, Search, and Details rows with independent circuit and source state. Featured still has an isolated circuit internally, but its row is omitted because it is a composite selection derived from discovery collections rather than a direct Jikan endpoint. A separate development-only action resets Jikan circuit state; clearing catalog data does not reset provider health.
 
-Successful normalized results are cached by logical operation. If Jikan and MAL both fail, Automatic mode returns the previous valid result for that same operation when one exists and records `cache` for that family. Popular, Seasonal, and Upcoming refresh independently, replacing each family only after a fresh usable result; a Popular failure can therefore use MAL without discarding healthy Jikan Seasonal or Upcoming refreshes. **Clear active catalog cache** and **Clear all catalog caches** remove data caches without pretending provider health recovered or resetting circuit state.
+Successful normalized results are cached by logical operation. If Jikan and MAL both fail, Automatic mode returns the previous valid result for that same operation when one exists and records `cache` for that family. Popular, Seasonal, and Upcoming refresh independently, replacing each family only after a fresh usable result; a Popular failure can therefore use MAL without discarding healthy Jikan Seasonal or Upcoming refreshes.
 
-Provider caches remain in memory only. Collection responses populate the ID summary cache, details enrich it, and identical in-flight requests are coalesced. `getManyByIds` resolves known collection IDs without one detail request per list entry. Discovery order and Featured selection remain stable for the application session.
+Automatic mode also maintains a separate, provider-neutral in-memory item index keyed by anime ID. Featured, Popular, Seasonal, Upcoming, Search, Details, MAL fallback, and resilient-cache results populate this index immediately. Jikan items take precedence over MAL items, MAL can populate or replace cache-only data, and later MAL/cache results do not degrade an item already known from Jikan. Stored values and item-index results are cloned so callers cannot mutate shared index state.
+
+`getManyByIds` is a resolution API, not a bulk-enrichment API. It preserves the caller's first-seen ID order, filters invalid/duplicate IDs, returns known summaries from the normalized index, and resolves only missing IDs. Missing IDs are processed sequentially through `getDetailsById`, so the Details circuit and provider-wide rate-limit gate are checked between items. Neither Automatic mode nor the direct Jikan/MAL repositories use parallel detail fan-out. Legitimate 404s are omitted without failing the valid remainder.
+
+Provider caches remain in memory only. Collection responses populate each provider's ID summary cache, details enrich it, and identical in-flight requests are coalesced. **Clear active catalog cache** and **Clear all catalog caches** remove operation data, the normalized item index, and provider data caches without resetting circuit health or Jikan request-budget coordination. Discovery order and Featured selection remain stable for the application session.
 
 ## Jikan catalog
 
@@ -98,6 +102,8 @@ The native Jikan v4 integration uses:
 
 Jikan-only mode preserves its scheduler, duplicate-request coalescing, explicit error mapping, 12-second timeout, and maximum three-attempt policy. Automatic mode injects the shorter two-attempt policy into the same client and repository; it does not duplicate the transport.
 
+The application-scoped Jikan request coordinator protects both official public budgets: starts are spaced by 500 ms (below 3 requests/second) and a rolling window allows at most 60 starts per minute. A Jikan 429 pauses all future coordinated work for `Retry-After`, or a bounded 15-second fallback when the header is absent. Catalog traffic and manual Jikan diagnostics share the same coordinator for the active repository dependency graph. Clearing anime data does not reset this transport budget; only an explicit coordinator reset does.
+
 API structure and attribution: [Jikan REST API v4 documentation](https://docs.api.jikan.moe/).
 
 ## Service diagnostics
@@ -105,13 +111,15 @@ API structure and attribution: [Jikan REST API v4 documentation](https://docs.ap
 Settings → **Service diagnostics** compares providers independently:
 
 - **Test MyAnimeList API** directly requests one `bypopularity` ranking result with `id,title,main_picture`. It bypasses Jikan, the resilient repository, React Query, and catalog caches. A successful result shows HTTP status, elapsed time, and one sample title.
-- **Test Jikan API** sequentially checks raw Jikan Details (`/anime/1/full`), Popular (`/top/anime?limit=1&sfw=true`), Seasonal (`/seasons/now?limit=1&sfw=true`), Upcoming (`/seasons/upcoming?limit=1&sfw=true`), and Search (`/anime?q=Naruto&limit=1&sfw=true`). It uses the existing 500 ms request scheduler and bypasses catalog repositories, caches, fallback, and circuit breakers. The result is Healthy, Degraded, Unavailable, or Rate limited and includes one compact row per endpoint.
+- **Test Jikan API** sequentially checks raw Jikan Details (`/anime/1/full`), Popular (`/top/anime?limit=1&sfw=true`), Seasonal (`/seasons/now?limit=1&sfw=true`), Upcoming (`/seasons/upcoming?limit=1&sfw=true`), and Search (`/anime?q=Naruto&limit=1&sfw=true`). It shares the active Jikan request coordinator but bypasses catalog repositories, data caches, fallback, and circuit breakers. The result is Healthy, Degraded, Unavailable, or Rate limited and includes one compact row per endpoint.
 
 Only one diagnostic can run at a time. Results are accessible alerts and are not persisted. Diagnostics report configuration, authorization, rate limiting, service, network, timeout, and invalid-payload failures without exposing credentials or large upstream response bodies. A failing Popular endpoint no longer makes healthy Jikan Details or Seasons appear unavailable.
 
 ## Session-only personal list
 
-The personal list remains simulated in every mode. Live catalog modes build a sample from already loaded popular, seasonal, and upcoming collections, deduplicate real provider IDs, and avoid N+1 details when summaries are available. Episode progress, list status, and user score changes use local domain rules and are discarded when the process restarts. No MAL account or authenticated list endpoint is used.
+The personal list remains simulated in every mode. Live catalog modes build a sample directly from already loaded Popular, Seasonal, and Upcoming `AnimeCatalogItem` values; sample generation does not call `getManyByIds` or hydrate the selected IDs again. My List and Continue Watching keep their existing query contracts but normally resolve those rows as normalized item-index hits with zero detail requests. Episode progress, list status, and user score changes use local domain rules and are discarded when the process restarts. No MAL account or authenticated list endpoint is used.
+
+A future authenticated MAL list should populate this same normalized item index from MAL list summaries. A large user list must not imply one Jikan full-detail request per entry; rich Jikan details remain an explicit, selected-item operation.
 
 Progress is a non-negative whole number and is capped when the catalog has a known total. Unknown totals remain incrementable. Reaching the final known episode marks an entry completed; Plan to Watch resets progress; returning to Watching preserves valid progress. Scores are empty or whole numbers from 1 through 10.
 
