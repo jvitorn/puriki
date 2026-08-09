@@ -1,11 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FlatList, ScrollView, View } from 'react-native';
 
 import { useInfiniteUnifiedUserList } from '@/application/queries/anime-queries';
 import { flattenUniqueAnimePages } from '@/application/use-cases/infinite-user-list';
-import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import type { AnimeListStatus } from '@/domain/models/anime';
+import {
+  localizedError,
+  localizedStatus,
+} from '@/localization/localized-values';
 import { AnimeListItem } from '@/presentation/components/anime/anime-list-item';
 import { Button } from '@/presentation/components/ui/button';
 import { EmptyState, ErrorState } from '@/presentation/components/ui/feedback';
@@ -17,7 +21,7 @@ import {
   ToggleGroupItem,
 } from '@/presentation/components/ui/toggle-group';
 import { formatUserListCount } from '@/presentation/utils/user-list-count';
-import { ANIME_STATUSES, STATUS_LABELS } from '@/shared/constants/anime-status';
+import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 import { cn } from '@/shared/rnr/utils';
 
 type ListFilter = AnimeListStatus | 'all';
@@ -40,13 +44,15 @@ function AnimeListSkeletonRows({ count = 3 }: { count?: number }) {
 }
 
 export function MyListScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [filter, setFilter] = useState<ListFilter>('all');
   const list = useInfiniteUnifiedUserList(
     filter === 'all' ? undefined : filter,
   );
   const filters: ListFilter[] = ['all', ...ANIME_STATUSES];
-  const filterLabel = filter === 'all' ? 'All' : STATUS_LABELS[filter];
+  const filterLabel =
+    filter === 'all' ? t('myList.all') : localizedStatus(filter, t);
   const items = flattenUniqueAnimePages(list.data?.pages);
   const totalCount = list.data?.pages[0]?.totalCount;
   const countLabel = formatUserListCount({
@@ -54,6 +60,7 @@ export function MyListScreen() {
     hasNextPage: list.hasNextPage,
     loadedCount: items.length,
     totalCount,
+    t,
   });
   const loadNextPage = () => {
     if (!list.hasNextPage || list.isFetching) return;
@@ -69,14 +76,14 @@ export function MyListScreen() {
       accessibilityRole="alert"
       className="mx-4 mb-24 mt-2 items-center gap-3 rounded-xl bg-card p-4 md:mx-6"
     >
-      <Text muted>Couldn&apos;t load more anime.</Text>
+      <Text muted>{t('myList.loadMoreFailed')}</Text>
       <Button
-        accessibilityLabel="Retry loading more anime"
+        accessibilityLabel={t('myList.retryMore')}
         size="sm"
         variant="outline"
         onPress={loadNextPage}
       >
-        <Text>Retry</Text>
+        <Text>{t('common.retry')}</Text>
       </Button>
     </View>
   ) : (
@@ -86,7 +93,7 @@ export function MyListScreen() {
   return (
     <Screen padded={false}>
       <View className="gap-1 px-4 pt-2 md:px-6">
-        <Text variant="title">My List</Text>
+        <Text variant="title">{t('myList.title')}</Text>
         <Text variant="caption" muted>
           {countLabel}
         </Text>
@@ -94,7 +101,7 @@ export function MyListScreen() {
 
       <ScrollView
         horizontal
-        accessibilityLabel="List filters"
+        accessibilityLabel={t('myList.filters')}
         contentContainerClassName="px-4 py-4 md:px-6"
         showsHorizontalScrollIndicator={false}
       >
@@ -109,11 +116,12 @@ export function MyListScreen() {
         >
           {filters.map((value) => {
             const selected = value === filter;
-            const label = value === 'all' ? 'All' : STATUS_LABELS[value];
+            const label =
+              value === 'all' ? t('myList.all') : localizedStatus(value, t);
             return (
               <ToggleGroupItem
                 key={value}
-                accessibilityLabel={`Filter by ${label}`}
+                accessibilityLabel={t('myList.filterBy', { filter: label })}
                 accessibilityState={{ selected }}
                 className={cn(
                   'min-h-11 rounded-full border px-4',
@@ -134,7 +142,7 @@ export function MyListScreen() {
         </View>
       ) : list.isError && !list.data ? (
         <ErrorState
-          message={getUserSafeErrorMessage(list.error)}
+          message={localizedError(list.error, t)}
           onRetry={() => void list.refetch()}
         />
       ) : (
@@ -160,8 +168,10 @@ export function MyListScreen() {
           ItemSeparatorComponent={() => <View className="h-2" />}
           ListEmptyComponent={
             <EmptyState
-              title={`No ${filterLabel.toLowerCase()} anime`}
-              message="Anime in this category will appear here."
+              title={t('myList.empty', {
+                filter: filterLabel.toLocaleLowerCase(),
+              })}
+              message={t('myList.emptyMessage')}
             />
           }
           ListFooterComponent={listFooter}

@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ChevronDown, ChevronUp, Star } from 'lucide-react-native';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWindowDimensions, View } from 'react-native';
 
 import {
@@ -9,7 +10,13 @@ import {
   useUpdateStatus,
 } from '@/application/mutations/anime-mutations';
 import { useAnimeDetails } from '@/application/queries/anime-queries';
-import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
+import { useAppLanguage } from '@/localization/localization-provider';
+import {
+  formatNumber,
+  localizedAiringStatus,
+  localizedError,
+  localizedStatus,
+} from '@/localization/localized-values';
 import { AnimeScoreSelector } from '@/presentation/components/anime/anime-score-selector';
 import { AnimeStatusSelector } from '@/presentation/components/anime/anime-status-selector';
 import { BannerPlaceholder } from '@/presentation/components/anime/banner-placeholder';
@@ -30,14 +37,14 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Separator } from '@/presentation/components/ui/separator';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
-import { STATUS_LABELS } from '@/shared/constants/anime-status';
 
 function DetailsBackButton({ onPress }: { onPress(): void }) {
+  const { t } = useTranslation();
   return (
     <IconButton
       className="bg-background/80"
       icon={ArrowLeft}
-      label="Go back"
+      label={t('details.goBack')}
       onPress={onPress}
     />
   );
@@ -53,6 +60,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
+  const { t } = useTranslation();
+  const { language } = useAppLanguage();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const [alternativeTitlesOpen, setAlternativeTitlesOpen] = useState(false);
@@ -86,7 +95,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <DetailsBackButton onPress={() => router.back()} />
         </View>
         <ErrorState
-          message={getUserSafeErrorMessage(details.error)}
+          message={localizedError(details.error, t)}
           onRetry={() => void details.refetch()}
         />
       </Screen>
@@ -100,8 +109,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <DetailsBackButton onPress={() => router.back()} />
         </View>
         <EmptyState
-          title="Anime not found"
-          message="This title is not available from the active catalog."
+          title={t('details.notFound')}
+          message={t('details.notAvailable')}
         />
       </Screen>
     );
@@ -150,20 +159,25 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               {anime.score !== null ? (
                 <View className="flex-row items-center gap-1">
                   <Icon as={Star} className="size-4 text-warning" />
-                  <Text variant="caption">{anime.score.toFixed(1)}</Text>
+                  <Text variant="caption">
+                    {formatNumber(anime.score, language, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}
+                  </Text>
                 </View>
               ) : null}
               <Text variant="caption" muted>
-                {anime.year ?? 'Year TBD'}
+                {anime.year ?? t('common.yearTbd')}
               </Text>
               <Text variant="caption" muted>
                 {anime.totalEpisodes
-                  ? `${anime.totalEpisodes} eps`
-                  : 'Episodes TBD'}
+                  ? t('common.episodesShort', { count: anime.totalEpisodes })
+                  : t('common.episodesTbd')}
               </Text>
             </View>
             <Badge className="self-start">
-              <Text>{anime.airingStatus}</Text>
+              <Text>{localizedAiringStatus(anime.airingStatus, t)}</Text>
             </Badge>
           </View>
         </View>
@@ -171,22 +185,27 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
         <Card className="gap-5 border-0 p-4 py-4">
           <View className="flex-row items-center justify-between gap-3">
             <View>
-              <Text variant="heading">My List</Text>
+              <Text variant="heading">{t('details.myList')}</Text>
               <Text variant="caption" muted>
-                {STATUS_LABELS[currentEntry.status]} •{' '}
-                {currentEntry.watchedEpisodes}/{anime.totalEpisodes ?? '?'}{' '}
-                episodes
+                {t('details.entrySummary', {
+                  count: anime.totalEpisodes ?? 2,
+                  status: localizedStatus(currentEntry.status, t),
+                  watched: currentEntry.watchedEpisodes,
+                  total: anime.totalEpisodes ?? '?',
+                })}
               </Text>
             </View>
             {currentEntry.userScore !== null ? (
               <Badge variant="secondary">
-                <Text>Score {currentEntry.userScore}</Text>
+                <Text>
+                  {t('common.score', { score: currentEntry.userScore })}
+                </Text>
               </Badge>
             ) : null}
           </View>
           <View className="gap-3">
             <Text variant="caption" muted>
-              Episode progress
+              {t('details.episodeProgress')}
             </Text>
             <EpisodeProgressControl
               current={currentEntry.watchedEpisodes}
@@ -198,7 +217,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <Separator />
           <View className="gap-3">
             <Text variant="caption" muted>
-              List status
+              {t('details.listStatus')}
             </Text>
             <AnimeStatusSelector
               value={currentEntry.status}
@@ -211,7 +230,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <Separator />
           <View className="gap-3">
             <Text variant="caption" muted>
-              Your score
+              {t('details.yourScore')}
             </Text>
             <AnimeScoreSelector
               value={currentEntry.userScore}
@@ -230,43 +249,52 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             className="rounded-xl border border-destructive bg-destructive/10 p-4"
           >
             <Text className="text-destructive">
-              Update failed. Your previous values were restored.
+              {t('details.updateFailed')}
             </Text>
           </View>
         ) : null}
 
         {anime.synopsis ? (
           <View className="gap-3">
-            <Text variant="heading">Synopsis</Text>
+            <Text variant="heading">{t('details.synopsis')}</Text>
             <ExpandableText text={anime.synopsis} collapsedLineCount={4} />
           </View>
         ) : null}
 
         <View className="gap-1">
           <Text variant="heading" className="mb-2">
-            Anime information
+            {t('details.information')}
           </Text>
-          <InfoRow label="Season" value={anime.season ?? 'Unknown'} />
-          <Separator />
           <InfoRow
-            label="Year"
-            value={anime.year ? String(anime.year) : 'Unknown'}
+            label={t('details.season')}
+            value={anime.season ?? t('common.unknown')}
           />
           <Separator />
           <InfoRow
-            label="Studio"
-            value={anime.studios.join(', ') || 'Unknown'}
-          />
-          <Separator />
-          <InfoRow
-            label="Genres"
-            value={anime.genres.join(', ') || 'Unknown'}
-          />
-          <Separator />
-          <InfoRow
-            label="Episodes"
+            label={t('details.year')}
             value={
-              anime.totalEpisodes ? String(anime.totalEpisodes) : 'Unknown'
+              anime.year
+                ? formatNumber(anime.year, language)
+                : t('common.unknown')
+            }
+          />
+          <Separator />
+          <InfoRow
+            label={t('details.studio')}
+            value={anime.studios.join(', ') || t('common.unknown')}
+          />
+          <Separator />
+          <InfoRow
+            label={t('details.genres')}
+            value={anime.genres.join(', ') || t('common.unknown')}
+          />
+          <Separator />
+          <InfoRow
+            label={t('details.episodes')}
+            value={
+              anime.totalEpisodes
+                ? formatNumber(anime.totalEpisodes, language)
+                : t('common.unknown')
             }
           />
         </View>
@@ -277,11 +305,11 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             onOpenChange={setAlternativeTitlesOpen}
           >
             <CollapsibleTrigger
-              accessibilityLabel="Alternative titles"
+              accessibilityLabel={t('details.alternativeTitles')}
               accessibilityState={{ expanded: alternativeTitlesOpen }}
               className="min-h-12 w-full flex-row items-center justify-between active:opacity-75"
             >
-              <Text variant="heading">Alternative titles</Text>
+              <Text variant="heading">{t('details.alternativeTitles')}</Text>
               <Icon
                 as={alternativeTitlesOpen ? ChevronUp : ChevronDown}
                 className="size-5 text-muted-foreground"

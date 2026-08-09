@@ -7,11 +7,3 @@ export const ANIME_STATUSES: AnimeListStatus[] = [
   'dropped',
   'plan_to_watch',
 ];
-
-export const STATUS_LABELS: Record<AnimeListStatus, string> = {
-  watching: 'Watching',
-  completed: 'Completed',
-  on_hold: 'On Hold',
-  dropped: 'Dropped',
-  plan_to_watch: 'Plan to Watch',
-};

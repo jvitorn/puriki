@@ -17,6 +17,14 @@ Changing modes clears React Query state and constructs a new compatible catalog 
 
 Home loads Featured, Continue Watching, Popular Now, This Season, and Upcoming independently. Search starts after two normalized characters. Anime Details and the session-only progress, status, and score controls use the same provider-neutral domain model in every mode.
 
+## Localization
+
+The complete interface is available in English, Brazilian Portuguese, and Spanish. Settings → **Language** offers those three manual choices plus **System default**. The preference is stored with AsyncStorage; System default is resolved with Expo Localization and checked again when the app becomes active. Catalog titles, alternative titles, synopsis, genres, and studio names remain exactly as supplied by the active provider.
+
+Translation resources are bundled locally under `src/localization/locales`, so interface translation works offline. Changing the interface language makes no network request and does not clear or refetch React Query data. Dates and numbers rendered by the interface use locale-aware `Intl` formatters.
+
+Anime synopsis translation is not part of Internationalization Phase I and is planned as a separate future phase. No machine-translation service or language model is included here.
+
 ## MyAnimeList public catalog
 
 Configure the application Client ID in a local `.env` file:
@@ -101,6 +109,8 @@ The personal list remains simulated in every mode. Live catalog modes build a sa
 
 Progress is a non-negative whole number and is capped when the catalog has a known total. Unknown totals remain incrementable. Reaching the final known episode marks an entry completed; Plan to Watch resets progress; returning to Watching preserves valid progress. Scores are empty or whole numbers from 1 through 10.
 
+In Mock mode, Settings → Developer tools → **Mock environment** includes **Generate 100-item test list**. It replaces the current mock dataset with exactly 100 deterministic matching catalog/list records, designed to exercise four 25-item pages without network access. **Reset current list** restores the normal mock baseline. This development control resets only `user-list` React Query entries; catalog query caches are left intact.
+
 ## Architecture
 
 The app preserves layered boundaries:
@@ -109,6 +119,7 @@ The app preserves layered boundaries:
 - `application` owns query keys, React Query hooks, mutations, and use cases.
 - `infrastructure` owns native transports, DTO validation, mapping, caches, circuit breaking, and repositories.
 - `mocks` owns deterministic factories, fixtures, scenarios, and timing.
+- `localization` owns local resources, system-locale resolution, persistence, localized presentation errors, and locale-aware formatting.
 - `presentation` receives repositories through `RepositoryProvider` and consumes domain models only.
 - `app` contains thin Expo Router route modules.
 
@@ -161,7 +172,7 @@ npm run test:ci
 
 ## Current limitations
 
-- Personal-list data, catalog caches, settings, diagnostic results, and source selection are not persisted.
+- Personal-list data, catalog caches, diagnostic results, and source selection are not persisted. The interface-language preference is persisted.
 - Public catalog availability and remote artwork depend on Jikan or MAL.
 - MAL OAuth, login, profile access, list synchronization, offline mutation storage, a backend, and E2E tests are out of scope.
 - Purikuki is not affiliated with Jikan or MyAnimeList.

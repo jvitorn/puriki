@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FlatList, useWindowDimensions, View } from 'react-native';
 
 import { useAnimeSearch } from '@/application/queries/anime-queries';
-import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
+import { localizedError } from '@/localization/localized-values';
 import { AnimeCard } from '@/presentation/components/anime/anime-card';
 import { SearchInput } from '@/presentation/components/anime/search-input';
 import { EmptyState, ErrorState } from '@/presentation/components/ui/feedback';
@@ -35,6 +36,7 @@ function SearchGridSkeleton({ columns }: { columns: number }) {
 }
 
 export function SearchScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const columns = getSearchColumnCount(width);
@@ -45,15 +47,15 @@ export function SearchScreen() {
   const isSearching = normalizedQuery.length >= 2;
   const resultCount = results.data?.length ?? 0;
   const label = isSearching
-    ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}`
+    ? t('search.results', { count: resultCount })
     : normalizedQuery.length === 1
-      ? 'Type at least 2 characters to search'
-      : 'Popular anime to get you started';
+      ? t('search.typeMinimum')
+      : t('search.popularStarter');
 
   return (
     <Screen padded={false}>
       <View className="gap-3 px-4 pb-4 pt-2 md:px-6">
-        <Text variant="title">Search</Text>
+        <Text variant="title">{t('search.title')}</Text>
         <SearchInput value={query} onChangeText={setQuery} />
         <Text variant="caption" muted>
           {label}
@@ -62,14 +64,14 @@ export function SearchScreen() {
 
       {normalizedQuery.length === 1 ? (
         <EmptyState
-          title="Keep typing"
-          message="Enter at least two characters to search the anime catalog."
+          title={t('search.keepTyping')}
+          message={t('search.minimumMessage')}
         />
       ) : results.isLoading ? (
         <SearchGridSkeleton columns={columns} />
       ) : results.isError ? (
         <ErrorState
-          message={getUserSafeErrorMessage(results.error)}
+          message={localizedError(results.error, t)}
           onRetry={() => void results.refetch()}
         />
       ) : (
@@ -97,11 +99,11 @@ export function SearchScreen() {
           )}
           ListEmptyComponent={
             <EmptyState
-              title={isSearching ? 'No anime found' : 'Nothing to discover'}
+              title={isSearching ? t('search.noAnime') : t('search.nothing')}
               message={
                 isSearching
-                  ? `No anime matched “${normalizedQuery}”. Try another title.`
-                  : 'Popular anime are unavailable right now.'
+                  ? t('search.noMatch', { query: normalizedQuery })
+                  : t('search.unavailable')
               }
             />
           }

@@ -19,6 +19,7 @@ import type { CircuitState } from '@/infrastructure/repositories/resilient/catal
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import type { CatalogSuccessfulSource } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
+import { createGeneratedListDataset } from '@/mocks/factories/generated-list-dataset';
 
 export type DataSourceMode = 'automatic' | 'jikan' | 'mal' | 'mock';
 
@@ -27,6 +28,10 @@ export interface CatalogRuntimeStatus {
   lastSuccessfulSource: 'jikan' | 'mal' | 'cache' | 'mock' | null;
   jikanCircuitState: CircuitState | null;
   lastFallbackAt: string | null;
+}
+
+export interface MockDevelopmentControls {
+  generateTestList(): Promise<void>;
 }
 
 export interface RepositoryDependencies {
@@ -45,6 +50,7 @@ export interface RepositoryDependencies {
   clearCatalogCache(): void;
   clearAllCatalogCaches(): void;
   refreshCurrentSample(): Promise<void>;
+  mockDevelopmentControls: MockDevelopmentControls | null;
 }
 
 interface RepositoryProviderProps extends PropsWithChildren {
@@ -147,6 +153,7 @@ function createLiveDependencies(
       await refreshCatalog();
       await userListRepository.generateNewSample();
     },
+    mockDevelopmentControls: null,
   };
 }
 
@@ -182,6 +189,12 @@ export function createMockDependencies(): RepositoryDependencies {
     clearCatalogCache: () => catalogRepository.clearCache(),
     clearAllCatalogCaches: () => catalogRepository.clearCache(),
     refreshCurrentSample: () => userListRepository.reset(),
+    mockDevelopmentControls: {
+      generateTestList: () =>
+        runtime.run(() =>
+          runtime.replaceDataset(createGeneratedListDataset(100)),
+        ),
+    },
   };
   return dependencies;
 }

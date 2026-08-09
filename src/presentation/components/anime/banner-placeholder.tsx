@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/presentation/components/ui/text';
@@ -19,6 +20,7 @@ export function BannerPlaceholder({
   height: number;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const palette =
     posterPalettes[Math.abs(seed) % posterPalettes.length] ?? posterPalettes[0];
   const source = imageUrl ? { uri: imageUrl } : undefined;
@@ -26,7 +28,7 @@ export function BannerPlaceholder({
   return (
     <View
       accessibilityRole="image"
-      accessibilityLabel={`Banner placeholder for ${title}`}
+      accessibilityLabel={t('common.bannerPlaceholder', { title })}
       className={cn('relative w-full overflow-hidden bg-muted', className)}
       style={{ height }}
       testID={`banner-${seed}`}
@@ -44,7 +46,7 @@ export function BannerPlaceholder({
       {source ? (
         <Image
           accessibilityIgnoresInvertColors
-          accessibilityLabel={`Banner for ${title}`}
+          accessibilityLabel={t('common.banner', { title })}
           className="absolute inset-0 h-full w-full"
           resizeMode="cover"
           source={source}

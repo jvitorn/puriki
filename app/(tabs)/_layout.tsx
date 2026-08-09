@@ -1,9 +1,11 @@
 import { Tabs } from 'expo-router';
 import { Home, List, Search, Settings } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 
 import { colors } from '@/presentation/theme/tokens';
 
 export default function TabLayout() {
+  const { t } = useTranslation();
   return (
     <Tabs
       screenOptions={{
@@ -28,28 +30,28 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t('nav.home'),
           tabBarIcon: ({ color }) => <Home color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Search',
+          title: t('nav.search'),
           tabBarIcon: ({ color }) => <Search color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="my-list"
         options={{
-          title: 'My List',
+          title: t('nav.myList'),
           tabBarIcon: ({ color }) => <List color={color} size={22} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: t('nav.settings'),
           tabBarIcon: ({ color }) => <Settings color={color} size={22} />,
         }}
       />

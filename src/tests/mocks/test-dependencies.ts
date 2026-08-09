@@ -2,6 +2,7 @@ import type { MockDelayMode } from '@/domain/models/mock-behavior';
 import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
 import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
 import { MockUserAnimeListRepository } from '@/infrastructure/repositories/mock/mock-user-anime-list-repository';
+import { createGeneratedListDataset } from '@/mocks/factories/generated-list-dataset';
 import type { MockDataset } from '@/mocks/fixtures/mock-dataset';
 import { buildMockDataset } from '@/mocks/fixtures/mock-dataset';
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
@@ -35,6 +36,12 @@ export function createTestDependencies(
     clearCatalogCache: () => dependencies.catalogRepository.clearCache(),
     clearAllCatalogCaches: () => dependencies.catalogRepository.clearCache(),
     refreshCurrentSample: () => dependencies.userListRepository.reset(),
+    mockDevelopmentControls: {
+      generateTestList: () =>
+        runtime.run(() =>
+          runtime.replaceDataset(createGeneratedListDataset(100)),
+        ),
+    },
   };
   return dependencies;
 }

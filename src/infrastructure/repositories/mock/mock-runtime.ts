@@ -53,6 +53,10 @@ export class MockRuntime implements MockBehaviorController {
     this.dataset = cloneDataset(this.originalDataset);
   }
 
+  replaceDataset(dataset: MockDataset): void {
+    this.dataset = cloneDataset(dataset);
+  }
+
   async run<T>(operation: () => T): Promise<T> {
     const delay =
       this.behavior.delayMode === 'slow'

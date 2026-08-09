@@ -1,13 +1,14 @@
 import { ChevronRight, Star } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
+import { localizedStatus } from '@/localization/localized-values';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
 import { Badge } from '@/presentation/components/ui/badge';
 import { Icon } from '@/presentation/components/ui/icon';
 import { ProgressBar } from '@/presentation/components/ui/progress-bar';
 import { Text } from '@/presentation/components/ui/text';
-import { STATUS_LABELS } from '@/shared/constants/anime-status';
 
 export function AnimeListItem({
   item,
@@ -16,6 +17,7 @@ export function AnimeListItem({
   item: UnifiedAnime;
   onPress(): void;
 }) {
+  const { t } = useTranslation();
   const entry = item.userEntry;
   const progress = item.anime.totalEpisodes
     ? (entry?.watchedEpisodes ?? 0) / item.anime.totalEpisodes
@@ -24,7 +26,7 @@ export function AnimeListItem({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${item.anime.title}`}
+      accessibilityLabel={t('common.openAnime', { title: item.anime.title })}
       className="flex-row items-center gap-3 rounded-xl bg-card p-2 active:opacity-75 web:hover:bg-muted/60"
       onPress={onPress}
     >
@@ -45,7 +47,7 @@ export function AnimeListItem({
             className="self-start"
             variant={entry.status === 'watching' ? 'default' : 'outline'}
           >
-            <Text>{STATUS_LABELS[entry.status]}</Text>
+            <Text>{localizedStatus(entry.status, t)}</Text>
           </Badge>
         ) : null}
         {entry ? (
@@ -53,8 +55,11 @@ export function AnimeListItem({
             <ProgressBar value={progress} />
             <View className="flex-row items-center justify-between gap-2">
               <Text variant="caption" muted>
-                {entry.watchedEpisodes} / {item.anime.totalEpisodes ?? '?'}{' '}
-                episodes
+                {t('common.episodeFraction', {
+                  count: item.anime.totalEpisodes ?? 2,
+                  watched: entry.watchedEpisodes,
+                  total: item.anime.totalEpisodes ?? '?',
+                })}
               </Text>
               {entry.userScore ? (
                 <View className="flex-row items-center gap-1">

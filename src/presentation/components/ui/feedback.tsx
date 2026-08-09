@@ -1,4 +1,5 @@
 import { AlertCircle, Inbox } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import { Button } from '@/presentation/components/ui/button';
@@ -32,14 +33,15 @@ export function EmptyState({
 }
 
 export function ErrorState({
-  title = 'Unable to load',
-  message = 'Something went wrong. Please try again.',
+  title,
+  message,
   onRetry,
 }: {
   title?: string;
   message?: string;
   onRetry?: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <View
       accessible
@@ -50,14 +52,14 @@ export function ErrorState({
         <Icon as={AlertCircle} className="size-6 text-destructive" />
       </View>
       <Text variant="heading" className="text-center">
-        {title}
+        {title ?? t('feedback.unableToLoad')}
       </Text>
       <Text muted className="max-w-md text-center">
-        {message}
+        {message ?? t('errors.generic')}
       </Text>
       {onRetry ? (
         <Button className="mt-2 min-h-11" onPress={onRetry}>
-          <Text>Try again</Text>
+          <Text>{t('common.tryAgain')}</Text>
         </Button>
       ) : null}
     </View>
@@ -73,6 +75,7 @@ export function SectionErrorState({
   onRetry(): void;
   retryLabel: string;
 }) {
+  const { t } = useTranslation();
   return (
     <View
       accessible
@@ -91,7 +94,7 @@ export function SectionErrorState({
         variant="outline"
         onPress={onRetry}
       >
-        <Text>Try again</Text>
+        <Text>{t('common.tryAgain')}</Text>
       </Button>
     </View>
   );

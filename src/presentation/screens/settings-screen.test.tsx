@@ -1,5 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
+import { queryKeys } from '@/application/queries/query-keys';
 import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
 import { SettingsScreen } from '@/presentation/screens/settings-screen';
@@ -53,6 +55,16 @@ describe('SettingsScreen', () => {
     expect(
       screen.getByText('Uses Jikan first and falls back to MyAnimeList.'),
     ).toBeVisible();
+  });
+
+  it('supports System default as the selected language preference', async () => {
+    await renderWithProviders(<SettingsScreen />, {
+      languagePreference: 'system',
+    });
+    expect(
+      screen.getByLabelText('System default').props.accessibilityState,
+    ).toMatchObject({ checked: true });
+    expect(screen.getByText('Settings')).toBeVisible();
   });
 
   it('disables MAL-only while leaving Automatic available when unconfigured', async () => {
@@ -136,9 +148,9 @@ describe('SettingsScreen', () => {
   it.each([
     ['not_configured', 'MyAnimeList Client ID is not configured.'],
     ['unauthorized', 'MyAnimeList rejected the application Client ID.'],
-    ['timeout', 'MyAnimeList took too long to respond.'],
-    ['network', 'Unable to reach the MyAnimeList API.'],
-    ['service_unavailable', 'The MyAnimeList API is temporarily unavailable.'],
+    ['timeout', 'The service took too long to respond.'],
+    ['network', 'Unable to reach the service.'],
+    ['service_unavailable', 'The service is temporarily unavailable.'],
   ] as const)(
     'renders the %s MAL failure safely',
     async (errorKind, message) => {
@@ -201,5 +213,76 @@ describe('SettingsScreen', () => {
         checked: true,
       }),
     );
+  });
+
+  it('switches and persists the interface language without touching query state', async () => {
+    const { queryClient } = await renderWithProviders(<SettingsScreen />);
+    const resetQueries = jest.spyOn(queryClient, 'resetQueries');
+    const invalidateQueries = jest.spyOn(queryClient, 'invalidateQueries');
+    fireEvent.press(screen.getByLabelText('Português (Brasil)'));
+    await waitFor(() =>
+      expect(screen.getByText('Configurações')).toBeVisible(),
+    );
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      'purikuki:language-preference:v1',
+      'pt-BR',
+    );
+    fireEvent.press(screen.getByLabelText('Español'));
+    await waitFor(() =>
+      expect(screen.getByText('Configuración')).toBeVisible(),
+    );
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      'purikuki:language-preference:v1',
+      'es',
+    );
+    fireEvent.press(screen.getByLabelText('English'));
+    await waitFor(() => expect(screen.getByText('Settings')).toBeVisible());
+    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
+      'purikuki:language-preference:v1',
+      'en',
+    );
+    expect(resetQueries).not.toHaveBeenCalled();
+    expect(invalidateQueries).not.toHaveBeenCalled();
+  });
+
+  it('generates the 100-item mock list and resets only user-list queries', async () => {
+    const dependencies = createTestDependencies();
+    const { queryClient } = await renderWithProviders(<SettingsScreen />, {
+      dependencies,
+    });
+    queryClient.setQueryData(queryKeys.popular, ['catalog-sentinel']);
+    const resetQueries = jest.spyOn(queryClient, 'resetQueries');
+    await expandDeveloperTools();
+    fireEvent.press(screen.getByLabelText('Generate 100-item test list'));
+    await waitFor(() =>
+      expect(screen.getByText('100-item test list created.')).toBeVisible(),
+    );
+    expect(resetQueries).toHaveBeenCalledWith({
+      queryKey: queryKeys.userListRoot,
+    });
+    expect(queryClient.getQueryData(queryKeys.popular)).toEqual([
+      'catalog-sentinel',
+    ]);
+    await expect(
+      dependencies.userListRepository.getPage({ page: 4, pageSize: 25 }),
+    ).resolves.toMatchObject({
+      totalCount: 100,
+      nextPage: null,
+      items: expect.arrayContaining([
+        expect.objectContaining({ animeId: expect.any(Number) }),
+      ]),
+    });
+    expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
+    expect(runJikanConnectivityDiagnostic).not.toHaveBeenCalled();
+  });
+
+  it('hides the mock-list generator outside mock mode', async () => {
+    const dependencies = createTestDependencies();
+    dependencies.mode = 'automatic';
+    await renderWithProviders(<SettingsScreen />, { dependencies });
+    await expandDeveloperTools();
+    expect(
+      screen.queryByLabelText('Generate 100-item test list'),
+    ).not.toBeOnTheScreen();
   });
 });

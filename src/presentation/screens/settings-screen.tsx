@@ -3,19 +3,25 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
+  ListPlus,
   RefreshCcw,
   RotateCcw,
   ServerCog,
   Trash2,
 } from 'lucide-react-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
 import { useResetSessionData } from '@/application/mutations/anime-mutations';
+import { queryKeys } from '@/application/queries/query-keys';
 import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import type { JikanConnectivityResult } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
 import type { MalConnectivityResult } from '@/infrastructure/api/mal/mal-diagnostics';
+import type { LanguagePreference } from '@/localization/languages';
+import { useAppLanguage } from '@/localization/localization-provider';
+import { formatDateTime, formatNumber } from '@/localization/localized-values';
 import { Badge } from '@/presentation/components/ui/badge';
 import { Button } from '@/presentation/components/ui/button';
 import { Card } from '@/presentation/components/ui/card';
@@ -41,43 +47,89 @@ import { cn } from '@/shared/rnr/utils';
 
 const DATA_SOURCE_OPTIONS: readonly {
   mode: DataSourceMode;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
 }[] = [
   {
     mode: 'automatic',
-    label: 'Automatic',
-    description: 'Uses Jikan first and falls back to MyAnimeList.',
+    labelKey: 'settings.sourceAutomatic',
+    descriptionKey: 'settings.sourceAutomaticDescription',
   },
   {
     mode: 'jikan',
-    label: 'Jikan only',
-    description: 'Uses Jikan without the MyAnimeList fallback.',
+    labelKey: 'settings.sourceJikan',
+    descriptionKey: 'settings.sourceJikanDescription',
   },
   {
     mode: 'mal',
-    label: 'MyAnimeList only',
-    description: 'Uses the public MyAnimeList catalog directly.',
+    labelKey: 'settings.sourceMal',
+    descriptionKey: 'settings.sourceMalDescription',
   },
   {
     mode: 'mock',
-    label: 'Mock',
-    description: 'Uses deterministic local development data.',
+    labelKey: 'settings.sourceMock',
+    descriptionKey: 'settings.sourceMockDescription',
   },
 ];
 
-function readableSource(source: string | null): string {
+const LANGUAGE_OPTIONS: readonly {
+  value: LanguagePreference;
+  labelKey: string;
+}[] = [
+  { value: 'system', labelKey: 'settings.languageSystem' },
+  { value: 'en', labelKey: 'settings.languageEnglish' },
+  { value: 'pt-BR', labelKey: 'settings.languagePortuguese' },
+  { value: 'es', labelKey: 'settings.languageSpanish' },
+];
+
+function readableSource(
+  source: string | null,
+  t: (key: string) => string,
+): string {
   if (source === 'mal') return 'MyAnimeList';
   if (source === 'jikan') return 'Jikan';
-  if (source === 'cache') return 'Previous valid cache';
-  if (source === 'mock') return 'Mock';
-  return 'No successful request yet';
+  if (source === 'cache') return t('settings.sourceCache');
+  if (source === 'mock') return t('settings.sourceMock');
+  return t('settings.sourceNone');
 }
 
-function readableMode(mode: DataSourceMode): string {
-  return (
-    DATA_SOURCE_OPTIONS.find((option) => option.mode === mode)?.label ?? mode
-  );
+function readableMode(
+  mode: DataSourceMode,
+  t: (key: string) => string,
+): string {
+  const key = DATA_SOURCE_OPTIONS.find(
+    (option) => option.mode === mode,
+  )?.labelKey;
+  return key ? t(key) : mode;
+}
+
+function readableCircuitState(
+  state: 'closed' | 'open' | 'half_open',
+  t: (key: string) => string,
+): string {
+  if (state === 'closed') return t('settings.circuitClosed');
+  if (state === 'open') return t('settings.circuitOpen');
+  return t('settings.circuitHalfOpen');
+}
+
+function diagnosticMessage(
+  result: MalConnectivityResult | JikanConnectivityResult,
+  service: 'mal' | 'jikan',
+  t: (key: string) => string,
+): string {
+  if (result.ok)
+    return t(
+      service === 'mal' ? 'settings.malSuccess' : 'settings.jikanSuccess',
+    );
+  if (result.errorKind === 'not_configured')
+    return t('settings.diagnosticNotConfigured');
+  if (result.errorKind === 'unauthorized')
+    return t('settings.diagnosticUnauthorized');
+  if (result.errorKind === 'timeout') return t('settings.diagnosticTimeout');
+  if (result.errorKind === 'network') return t('settings.diagnosticNetwork');
+  if (result.errorKind === 'service_unavailable')
+    return t('settings.diagnosticUnavailable');
+  return t('settings.diagnosticFailed');
 }
 
 function SettingsSection({
@@ -101,6 +153,8 @@ function SettingsSection({
 }
 
 export function SettingsScreen() {
+  const { t } = useTranslation();
+  const { language, preference, setPreference } = useAppLanguage();
   const queryClient = useQueryClient();
   const {
     behavior,
@@ -110,12 +164,26 @@ export function SettingsScreen() {
     malConfigured,
     mode,
     refreshCurrentSample,
+    mockDevelopmentControls,
     selectDataSourceMode,
     setDelayMode,
     setForceErrors,
   } = useRepositories();
   const reset = useResetSessionData();
   const refresh = useMutation({ mutationFn: refreshCurrentSample });
+  const generateTestList = useMutation({
+    mutationFn: async () => {
+      if (!mockDevelopmentControls) return;
+      await mockDevelopmentControls.generateTestList();
+      await queryClient.resetQueries({ queryKey: queryKeys.userListRoot });
+    },
+  });
+  const resetGeneratedListNotice = generateTestList.reset;
+  useEffect(() => {
+    if (!generateTestList.isSuccess) return;
+    const timeout = setTimeout(() => resetGeneratedListNotice(), 4_000);
+    return () => clearTimeout(timeout);
+  }, [generateTestList.isSuccess, resetGeneratedListNotice]);
   const diagnosticLock = useRef(false);
   const [developerToolsOpen, setDeveloperToolsOpen] = useState(false);
   const [pendingDiagnostic, setPendingDiagnostic] = useState<
@@ -184,22 +252,60 @@ export function SettingsScreen() {
   return (
     <Screen scroll contentClassName="gap-8 pt-2">
       <View className="min-h-16 justify-center">
-        <Text variant="title">Settings</Text>
+        <Text variant="title">{t('settings.title')}</Text>
       </View>
 
-      <SettingsSection title="General">
+      <SettingsSection title={t('settings.general')}>
         <Card className="gap-2 border-0 p-4 py-4">
-          <Text className="font-bold">Purikuki experience</Text>
-          <Text muted>
-            A dark, artwork-first interface designed for quick daily anime
-            tracking.
-          </Text>
+          <Text className="font-bold">{t('settings.experienceTitle')}</Text>
+          <Text muted>{t('settings.experienceDescription')}</Text>
         </Card>
+        <View className="gap-2">
+          <Text className="font-bold">{t('settings.language')}</Text>
+          <Text variant="caption" muted>
+            {t('settings.languageDescription')}
+          </Text>
+        </View>
+        <RadioGroup
+          value={preference}
+          onValueChange={(value) =>
+            void setPreference(value as LanguagePreference)
+          }
+        >
+          {LANGUAGE_OPTIONS.map((option) => {
+            const label = t(option.labelKey);
+            const selected = preference === option.value;
+            return (
+              <Pressable
+                key={option.value}
+                accessibilityRole="radio"
+                accessibilityLabel={label}
+                accessibilityState={{ checked: selected }}
+                className={cn(
+                  'min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 active:opacity-80',
+                  selected && 'border-primary bg-primary/10',
+                )}
+                onPress={() => void setPreference(option.value)}
+              >
+                <Text
+                  className={cn('flex-1 font-bold', selected && 'text-primary')}
+                >
+                  {label}
+                </Text>
+                <RadioGroupItem
+                  accessible={false}
+                  pointerEvents="none"
+                  value={option.value}
+                />
+              </Pressable>
+            );
+          })}
+        </RadioGroup>
       </SettingsSection>
 
       <SettingsSection
-        title="Data source"
-        description="Choose where Purikuki reads public catalog information."
+        title={t('settings.dataSource')}
+        description={t('settings.dataSourceDescription')}
       >
         <RadioGroup
           value={mode}
@@ -210,12 +316,14 @@ export function SettingsScreen() {
           {DATA_SOURCE_OPTIONS.map((option) => {
             const selected = mode === option.mode;
             const disabled = option.mode === 'mal' && !malConfigured;
+            const label = t(option.labelKey);
+            const description = t(option.descriptionKey);
             return (
               <Pressable
                 key={option.mode}
                 accessibilityRole="radio"
-                accessibilityLabel={option.label}
-                accessibilityHint={option.description}
+                accessibilityLabel={label}
+                accessibilityHint={description}
                 accessibilityState={{ checked: selected, disabled }}
                 className={cn(
                   'min-h-20 flex-row items-center gap-3 rounded-xl border border-border bg-card p-4 active:opacity-80',
@@ -227,14 +335,14 @@ export function SettingsScreen() {
               >
                 <View className="flex-1 gap-1">
                   <Text className={cn('font-bold', selected && 'text-primary')}>
-                    {option.label}
+                    {label}
                   </Text>
                   <Text variant="caption" muted>
-                    {option.description}
+                    {description}
                   </Text>
                   {option.mode === 'mal' && !malConfigured ? (
                     <Text variant="caption" className="text-destructive">
-                      MyAnimeList Client ID is not configured.
+                      {t('settings.malNotConfigured')}
                     </Text>
                   ) : null}
                 </View>
@@ -250,20 +358,21 @@ export function SettingsScreen() {
         </RadioGroup>
         {!malConfigured ? (
           <Text variant="caption" className="text-warning">
-            Automatic mode remains available, but its MyAnimeList fallback is
-            unavailable until the application Client ID is configured.
+            {t('settings.autoFallbackUnavailable')}
           </Text>
         ) : null}
       </SettingsSection>
 
       <SettingsSection
-        title="Session / Storage"
-        description="Personal-list changes and catalog caches remain in memory until the app process restarts."
+        title={t('settings.session')}
+        description={t('settings.sessionDescription')}
       >
         <View className="gap-3">
           <Button
             accessibilityLabel={
-              reset.isPending ? 'Resetting current list…' : 'Reset current list'
+              reset.isPending
+                ? t('settings.resettingList')
+                : t('settings.resetList')
             }
             disabled={reset.isPending}
             variant="outline"
@@ -272,15 +381,15 @@ export function SettingsScreen() {
             <Icon as={RotateCcw} className="size-4" />
             <Text>
               {reset.isPending
-                ? 'Resetting current list…'
-                : 'Reset current list'}
+                ? t('settings.resettingList')
+                : t('settings.resetList')}
             </Text>
           </Button>
           <Button
             accessibilityLabel={
               refresh.isPending
-                ? 'Refreshing active catalog…'
-                : 'Refresh active catalog'
+                ? t('settings.refreshingCatalog')
+                : t('settings.refreshCatalog')
             }
             disabled={refresh.isPending}
             variant="outline"
@@ -289,29 +398,29 @@ export function SettingsScreen() {
             <Icon as={RefreshCcw} className="size-4" />
             <Text>
               {refresh.isPending
-                ? 'Refreshing active catalog…'
-                : 'Refresh active catalog'}
+                ? t('settings.refreshingCatalog')
+                : t('settings.refreshCatalog')}
             </Text>
           </Button>
           <Button variant="outline" onPress={clearCatalogCache}>
             <Icon as={Trash2} className="size-4" />
-            <Text>Clear active catalog cache</Text>
+            <Text>{t('settings.clearCatalogCache')}</Text>
           </Button>
           <Button variant="destructive" onPress={clearAllCatalogCaches}>
             <Icon as={ServerCog} className="size-4" />
-            <Text>Clear all catalog caches</Text>
+            <Text>{t('settings.clearAllCaches')}</Text>
           </Button>
         </View>
         {reset.isSuccess || refresh.isSuccess ? (
           <Text accessibilityRole="alert" className="text-success">
-            Session data refreshed.
+            {t('settings.sessionRefreshed')}
           </Text>
         ) : null}
         {reset.isError || refresh.isError ? (
           <Text accessibilityRole="alert" className="text-destructive">
             {refresh.isError
-              ? 'The active catalog could not be refreshed. Previously loaded data is still available.'
-              : 'Refresh failed. Check the active data source and try again.'}
+              ? t('settings.refreshCatalogFailed')
+              : t('settings.refreshFailed')}
           </Text>
         ) : null}
       </SettingsSection>
@@ -322,14 +431,14 @@ export function SettingsScreen() {
       >
         <Card className="gap-0 border-0 p-0 py-0">
           <CollapsibleTrigger
-            accessibilityLabel="Developer tools"
+            accessibilityLabel={t('settings.developerTools')}
             accessibilityState={{ expanded: developerToolsOpen }}
             className="min-h-20 w-full flex-row items-center justify-between rounded-xl px-4 active:bg-muted/50"
           >
             <View className="flex-1 items-start gap-1">
-              <Text variant="heading">Developer tools</Text>
+              <Text variant="heading">{t('settings.developerTools')}</Text>
               <Text variant="caption" muted>
-                Diagnostics, runtime status, and mock controls
+                {t('settings.developerDescription')}
               </Text>
             </View>
             <Icon
@@ -341,35 +450,51 @@ export function SettingsScreen() {
           <CollapsibleContent className="gap-5 px-4 pb-4">
             <Separator />
             <View className="gap-3">
-              <Text className="font-bold">Runtime catalog status</Text>
+              <Text className="font-bold">{t('settings.runtimeStatus')}</Text>
               <View className="gap-2 rounded-xl bg-background/50 p-3">
-                <Text>Mode: {readableMode(catalogRuntimeStatus.mode)}</Text>
                 <Text>
-                  Last successful source:{' '}
-                  {readableSource(catalogRuntimeStatus.lastSuccessfulSource)}
+                  {t('settings.mode', {
+                    mode: readableMode(catalogRuntimeStatus.mode, t),
+                  })}
+                </Text>
+                <Text>
+                  {t('settings.lastSource', {
+                    source: readableSource(
+                      catalogRuntimeStatus.lastSuccessfulSource,
+                      t,
+                    ),
+                  })}
                 </Text>
                 {catalogRuntimeStatus.jikanCircuitState ? (
                   <Text>
-                    Jikan circuit:{' '}
-                    {catalogRuntimeStatus.jikanCircuitState.replace('_', ' ')}
+                    {t('settings.jikanCircuit', {
+                      state: readableCircuitState(
+                        catalogRuntimeStatus.jikanCircuitState,
+                        t,
+                      ),
+                    })}
                   </Text>
                 ) : null}
                 {catalogRuntimeStatus.lastFallbackAt ? (
                   <Text variant="caption" muted>
-                    Last fallback: {catalogRuntimeStatus.lastFallbackAt}
+                    {t('settings.lastFallback', {
+                      date: formatDateTime(
+                        catalogRuntimeStatus.lastFallbackAt,
+                        language,
+                      ),
+                    })}
                   </Text>
                 ) : null}
                 {catalogRuntimeStatus.mode === 'automatic' &&
                 catalogRuntimeStatus.lastSuccessfulSource === 'mal' ? (
                   <Text variant="caption" className="text-warning">
-                    Jikan failed, so MyAnimeList data is being used.
+                    {t('settings.usingMalFallback')}
                   </Text>
                 ) : null}
                 {catalogRuntimeStatus.mode === 'automatic' &&
                 catalogRuntimeStatus.lastSuccessfulSource === 'cache' ? (
                   <Text variant="caption" className="text-warning">
-                    Both catalog providers are currently unavailable. Previously
-                    loaded data is still available.
+                    {t('settings.usingCache')}
                   </Text>
                 ) : null}
               </View>
@@ -377,16 +502,48 @@ export function SettingsScreen() {
 
             {mode === 'mock' ? (
               <View className="gap-3">
-                <Text className="font-bold">Mock environment</Text>
+                <Text className="font-bold">
+                  {t('settings.mockEnvironment')}
+                </Text>
+                <Button
+                  accessibilityLabel={
+                    generateTestList.isPending
+                      ? t('settings.generatingList')
+                      : t('settings.generateList')
+                  }
+                  disabled={generateTestList.isPending}
+                  variant="outline"
+                  onPress={() => generateTestList.mutate()}
+                >
+                  <Icon as={ListPlus} className="size-4" />
+                  <Text>
+                    {generateTestList.isPending
+                      ? t('settings.generatingList')
+                      : t('settings.generateList')}
+                  </Text>
+                </Button>
+                <Text variant="caption" muted>
+                  {t('settings.generateListDescription')}
+                </Text>
+                {generateTestList.isSuccess ? (
+                  <Text accessibilityRole="alert" className="text-success">
+                    {t('settings.listGenerated')}
+                  </Text>
+                ) : null}
+                {generateTestList.isError ? (
+                  <Text accessibilityRole="alert" className="text-destructive">
+                    {t('settings.generateFailed')}
+                  </Text>
+                ) : null}
                 <View className="min-h-20 flex-row items-center gap-3 rounded-xl bg-background/50 p-3">
                   <View className="flex-1 gap-1">
-                    <Text>Simulated request delay</Text>
+                    <Text>{t('settings.simulatedDelay')}</Text>
                     <Text variant="caption" muted>
-                      Add a short delay to repository operations.
+                      {t('settings.simulatedDelayDescription')}
                     </Text>
                   </View>
                   <Switch
-                    accessibilityLabel="Simulated request delay"
+                    accessibilityLabel={t('settings.simulatedDelay')}
                     checked={behavior.delayMode !== 'none'}
                     hitSlop={12}
                     onCheckedChange={toggleDelay}
@@ -394,13 +551,13 @@ export function SettingsScreen() {
                 </View>
                 <View className="min-h-20 flex-row items-center gap-3 rounded-xl bg-background/50 p-3">
                   <View className="flex-1 gap-1">
-                    <Text>Force repository errors</Text>
+                    <Text>{t('settings.forceErrors')}</Text>
                     <Text variant="caption" muted>
-                      Exercise loading recovery and error states.
+                      {t('settings.forceErrorsDescription')}
                     </Text>
                   </View>
                   <Switch
-                    accessibilityLabel="Force repository errors"
+                    accessibilityLabel={t('settings.forceErrors')}
                     checked={behavior.forceErrors}
                     hitSlop={12}
                     onCheckedChange={toggleErrors}
@@ -410,16 +567,13 @@ export function SettingsScreen() {
             ) : null}
 
             <View className="gap-3">
-              <Text className="font-bold">Service diagnostics</Text>
-              <Text muted>
-                Test each provider directly. These requests bypass catalog
-                caches and automatic fallback behavior.
-              </Text>
+              <Text className="font-bold">{t('settings.diagnostics')}</Text>
+              <Text muted>{t('settings.diagnosticsDescription')}</Text>
               <Button
                 accessibilityLabel={
                   pendingDiagnostic === 'mal'
-                    ? 'Testing MyAnimeList API…'
-                    : 'Test MyAnimeList API'
+                    ? t('settings.testingMal')
+                    : t('settings.testMal')
                 }
                 disabled={diagnosticPending}
                 variant="outline"
@@ -428,13 +582,12 @@ export function SettingsScreen() {
                 <Icon as={Activity} className="size-4" />
                 <Text>
                   {pendingDiagnostic === 'mal'
-                    ? 'Testing MyAnimeList API…'
-                    : 'Test MyAnimeList API'}
+                    ? t('settings.testingMal')
+                    : t('settings.testMal')}
                 </Text>
               </Button>
               <Text variant="caption" muted>
-                Calls MyAnimeList using the application Client ID. No user
-                account or OAuth token is used.
+                {t('settings.malDiagnosticDescription')}
               </Text>
               {malDiagnostic ? (
                 <View
@@ -448,16 +601,24 @@ export function SettingsScreen() {
                       malDiagnostic.ok ? 'text-success' : 'text-destructive'
                     }
                   >
-                    {malDiagnostic.message}
+                    {diagnosticMessage(malDiagnostic, 'mal', t)}
                   </Text>
                   {malDiagnostic.status !== null ? (
                     <Text variant="caption" muted>
-                      HTTP {malDiagnostic.status} • {malDiagnostic.elapsedMs} ms
+                      {t('settings.httpResult', {
+                        status: malDiagnostic.status,
+                        elapsed: formatNumber(
+                          malDiagnostic.elapsedMs,
+                          language,
+                        ),
+                      })}
                     </Text>
                   ) : null}
                   {malDiagnostic.sampleAnimeTitle ? (
                     <Text variant="caption" muted>
-                      Sample result: {malDiagnostic.sampleAnimeTitle}
+                      {t('settings.sampleResult', {
+                        title: malDiagnostic.sampleAnimeTitle,
+                      })}
                     </Text>
                   ) : null}
                 </View>
@@ -466,8 +627,8 @@ export function SettingsScreen() {
               <Button
                 accessibilityLabel={
                   pendingDiagnostic === 'jikan'
-                    ? 'Testing Jikan API…'
-                    : 'Test Jikan API'
+                    ? t('settings.testingJikan')
+                    : t('settings.testJikan')
                 }
                 disabled={diagnosticPending}
                 variant="outline"
@@ -476,8 +637,8 @@ export function SettingsScreen() {
                 <Icon as={Activity} className="size-4" />
                 <Text>
                   {pendingDiagnostic === 'jikan'
-                    ? 'Testing Jikan API…'
-                    : 'Test Jikan API'}
+                    ? t('settings.testingJikan')
+                    : t('settings.testJikan')}
                 </Text>
               </Button>
               {jikanDiagnostic ? (
@@ -492,12 +653,17 @@ export function SettingsScreen() {
                       jikanDiagnostic.ok ? 'text-success' : 'text-destructive'
                     }
                   >
-                    {jikanDiagnostic.message}
+                    {diagnosticMessage(jikanDiagnostic, 'jikan', t)}
                   </Text>
                   {jikanDiagnostic.status !== null ? (
                     <Text variant="caption" muted>
-                      HTTP {jikanDiagnostic.status} •{' '}
-                      {jikanDiagnostic.elapsedMs} ms
+                      {t('settings.httpResult', {
+                        status: jikanDiagnostic.status,
+                        elapsed: formatNumber(
+                          jikanDiagnostic.elapsedMs,
+                          language,
+                        ),
+                      })}
                     </Text>
                   ) : null}
                 </View>
@@ -507,20 +673,17 @@ export function SettingsScreen() {
         </Card>
       </Collapsible>
 
-      <SettingsSection title="About">
+      <SettingsSection title={t('settings.about')}>
         <Card className="gap-2 border-0 p-4 py-4">
           <View className="flex-row items-center justify-between gap-3">
             <Text className="font-bold">Purikuki</Text>
             <Badge variant="outline">
-              <Text>Version 1.0.0</Text>
+              <Text>{t('settings.version', { version: '1.0.0' })}</Text>
             </Badge>
           </View>
-          <Text muted>
-            A read-only public anime catalog with a session-only simulated
-            personal list.
-          </Text>
+          <Text muted>{t('settings.aboutDescription')}</Text>
           <Text variant="caption" muted>
-            Jikan primary • MyAnimeList fallback
+            {t('settings.providers')}
           </Text>
         </Card>
       </SettingsSection>

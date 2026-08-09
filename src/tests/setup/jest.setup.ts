@@ -2,6 +2,16 @@ import 'react-native-gesture-handler/jestSetup';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  jest.requireActual(
+    '@react-native-async-storage/async-storage/jest/async-storage-mock',
+  ),
+);
+
+jest.mock('expo-localization', () => ({
+  getLocales: () => [{ languageTag: 'en-US' }],
+}));
+
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() }),
   useLocalSearchParams: () => ({ id: '1' }),

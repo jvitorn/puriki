@@ -1,7 +1,10 @@
 import { Star } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
+import { useAppLanguage } from '@/localization/localization-provider';
+import { formatNumber } from '@/localization/localized-values';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
 import { Icon } from '@/presentation/components/ui/icon';
 import { ProgressBar } from '@/presentation/components/ui/progress-bar';
@@ -15,19 +18,23 @@ interface AnimeCardProps {
 }
 
 export function AnimeCard({ item, onPress, className }: AnimeCardProps) {
+  const { t } = useTranslation();
+  const { language } = useAppLanguage();
   const { anime, userEntry } = item;
   const progress = anime.totalEpisodes
     ? (userEntry?.watchedEpisodes ?? 0) / anime.totalEpisodes
     : 0;
   const yearAndEpisodes = [
-    anime.year ?? 'Year TBD',
-    anime.totalEpisodes ? `${anime.totalEpisodes} eps` : 'Episodes TBD',
+    anime.year ? formatNumber(anime.year, language) : t('common.yearTbd'),
+    anime.totalEpisodes
+      ? t('common.episodesShort', { count: anime.totalEpisodes })
+      : t('common.episodesTbd'),
   ].join(' • ');
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Open ${anime.title}`}
+      accessibilityLabel={t('common.openAnime', { title: anime.title })}
       className={cn(
         'group w-36 max-w-[180px] gap-2 active:scale-[0.98] active:opacity-80 web:hover:opacity-90',
         className,
@@ -53,7 +60,12 @@ export function AnimeCard({ item, onPress, className }: AnimeCardProps) {
               className="size-3.5 text-warning"
               fill="currentColor"
             />
-            <Text variant="caption">{anime.score.toFixed(1)}</Text>
+            <Text variant="caption">
+              {formatNumber(anime.score, language, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              })}
+            </Text>
           </View>
         ) : null}
         {userEntry ? (

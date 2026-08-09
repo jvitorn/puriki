@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
 import {
@@ -8,8 +9,8 @@ import {
   useSeasonalAnime,
   useUpcomingAnime,
 } from '@/application/queries/anime-queries';
-import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import type { AnimeCatalogItem, UnifiedAnime } from '@/domain/models/anime';
+import { localizedError } from '@/localization/localized-values';
 import { FeaturedAnime } from '@/presentation/components/home/featured-anime';
 import { HomeAnimeRail } from '@/presentation/components/home/home-anime-rail';
 import { ErrorState } from '@/presentation/components/ui/feedback';
@@ -22,13 +23,14 @@ function asUnified(items: AnimeCatalogItem[] | undefined): UnifiedAnime[] {
 }
 
 function HomeBrand() {
+  const { t } = useTranslation();
   return (
     <View className="min-h-20 justify-center py-3">
       <Text variant="title" className="tracking-[3px] text-primary">
         PURIKUKI
       </Text>
       <Text variant="caption" muted>
-        Your anime, your pace.
+        {t('home.tagline')}
       </Text>
     </View>
   );
@@ -55,6 +57,7 @@ function HomeSkeleton() {
 }
 
 export function HomeScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const featured = useFeaturedAnime();
   const watching = useContinueWatching();
@@ -81,8 +84,9 @@ export function HomeScreen() {
       <Screen>
         <HomeBrand />
         <ErrorState
-          message={getUserSafeErrorMessage(
+          message={localizedError(
             queries.find((query) => query.isError)?.error,
+            t,
           )}
           onRetry={() =>
             void Promise.all(queries.map((query) => query.refetch()))
@@ -100,17 +104,17 @@ export function HomeScreen() {
         onOpen={() => open(displayedFeatured.id)}
       />
       <HomeAnimeRail
-        title="Continue Watching"
+        title={t('home.continueWatching')}
         items={watching.data}
         isLoading={watching.isLoading}
         isError={watching.isError}
         error={watching.error}
         onPressItem={(item) => open(item.anime.id)}
         onRetry={() => void watching.refetch()}
-        emptyMessage="Start an anime to see it here."
+        emptyMessage={t('home.continueEmpty')}
       />
       <HomeAnimeRail
-        title="Popular Now"
+        title={t('home.popular')}
         items={asUnified(popular.data)}
         isLoading={popular.isLoading}
         isError={popular.isError}
@@ -119,7 +123,7 @@ export function HomeScreen() {
         onRetry={() => void popular.refetch()}
       />
       <HomeAnimeRail
-        title="This Season"
+        title={t('home.seasonal')}
         items={asUnified(seasonal.data)}
         isLoading={seasonal.isLoading}
         isError={seasonal.isError}
@@ -128,7 +132,7 @@ export function HomeScreen() {
         onRetry={() => void seasonal.refetch()}
       />
       <HomeAnimeRail
-        title="Upcoming"
+        title={t('home.upcoming')}
         items={asUnified(upcoming.data)}
         isLoading={upcoming.isLoading}
         isError={upcoming.isError}

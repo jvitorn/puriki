@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/presentation/components/ui/text';
@@ -21,6 +22,7 @@ export function PosterPlaceholder({
   height?: number;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const palette =
     posterPalettes[Math.abs(seed) % posterPalettes.length] ?? posterPalettes[0];
   const source = imageUrl ? { uri: imageUrl } : undefined;
@@ -30,7 +32,7 @@ export function PosterPlaceholder({
   return (
     <View
       accessibilityRole="image"
-      accessibilityLabel={`Poster placeholder for ${title}`}
+      accessibilityLabel={t('common.posterPlaceholder', { title })}
       className={cn(
         'relative aspect-[2/3] w-full overflow-hidden rounded-xl bg-muted',
         className,
@@ -52,7 +54,7 @@ export function PosterPlaceholder({
       {source ? (
         <Image
           accessibilityIgnoresInvertColors
-          accessibilityLabel={`Poster for ${title}`}
+          accessibilityLabel={t('common.poster', { title })}
           className="absolute inset-0 h-full w-full"
           resizeMode="cover"
           source={source}

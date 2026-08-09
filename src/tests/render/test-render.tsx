@@ -4,6 +4,10 @@ import type { RenderOptions } from '@testing-library/react-native';
 import type { PropsWithChildren, ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { appI18n } from '@/localization/i18n';
+import type { LanguagePreference } from '@/localization/languages';
+import { resolveEffectiveLanguage } from '@/localization/languages';
+import { LocalizationProvider } from '@/localization/localization-provider';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
@@ -11,12 +15,17 @@ import type { RepositoryDependencies } from '@/presentation/providers/repository
 interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   dependencies?: RepositoryDependencies;
   queryClient?: QueryClient;
+  languagePreference?: LanguagePreference;
 }
 
 export function createTestWrapper(
   dependencies?: RepositoryDependencies,
   queryClient: QueryClient = createAppQueryClient(),
+  languagePreference: LanguagePreference = 'en',
 ) {
+  void appI18n.changeLanguage(
+    resolveEffectiveLanguage(languagePreference, 'en-US'),
+  );
   return function TestWrapper({ children }: PropsWithChildren) {
     return (
       <SafeAreaProvider
@@ -25,11 +34,13 @@ export function createTestWrapper(
           insets: { top: 44, left: 0, right: 0, bottom: 34 },
         }}
       >
-        <QueryClientProvider client={queryClient}>
-          <RepositoryProvider dependencies={dependencies}>
-            {children}
-          </RepositoryProvider>
-        </QueryClientProvider>
+        <LocalizationProvider initialPreference={languagePreference}>
+          <QueryClientProvider client={queryClient}>
+            <RepositoryProvider dependencies={dependencies}>
+              {children}
+            </RepositoryProvider>
+          </QueryClientProvider>
+        </LocalizationProvider>
       </SafeAreaProvider>
     );
   };
@@ -42,10 +53,11 @@ export async function renderWithProviders(
   const {
     dependencies,
     queryClient = createAppQueryClient(),
+    languagePreference = 'en',
     ...renderOptions
   } = options;
   const renderResult = await render(ui, {
-    wrapper: createTestWrapper(dependencies, queryClient),
+    wrapper: createTestWrapper(dependencies, queryClient, languagePreference),
     ...renderOptions,
   });
   return {

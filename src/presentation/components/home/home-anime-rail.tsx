@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import { getUserSafeErrorMessage } from '@/domain/errors/domain-error';
 import type { UnifiedAnime } from '@/domain/models/anime';
+import { localizedError } from '@/localization/localized-values';
 import { AnimeRail } from '@/presentation/components/anime/anime-rail';
 import { SectionErrorState } from '@/presentation/components/ui/feedback';
 import { SectionHeader } from '@/presentation/components/ui/section-header';
@@ -29,6 +30,7 @@ export function HomeAnimeRail({
   onPressItem,
   onRetry,
 }: HomeAnimeRailProps) {
+  const { t } = useTranslation();
   if (items.length > 0) {
     return (
       <AnimeRail
@@ -55,13 +57,13 @@ export function HomeAnimeRail({
         </View>
       ) : isError ? (
         <SectionErrorState
-          message={getUserSafeErrorMessage(error)}
+          message={localizedError(error, t)}
           onRetry={onRetry}
-          retryLabel={`Retry ${title}`}
+          retryLabel={t('home.retrySection', { section: title })}
         />
       ) : (
         <View className="rounded-xl bg-card p-4">
-          <Text muted>{emptyMessage ?? 'Nothing to show yet.'}</Text>
+          <Text muted>{emptyMessage ?? t('common.nothingToShow')}</Text>
         </View>
       )}
     </View>

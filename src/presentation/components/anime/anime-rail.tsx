@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { FlatList, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
@@ -16,14 +17,15 @@ export function AnimeRail({
   title,
   items,
   onPressItem,
-  emptyMessage = 'Nothing to show yet.',
+  emptyMessage,
 }: AnimeRailProps) {
+  const { t } = useTranslation();
   return (
     <View className="mt-7">
       <SectionHeader title={title} />
       {items.length === 0 ? (
         <View className="rounded-xl bg-card p-4">
-          <Text muted>{emptyMessage}</Text>
+          <Text muted>{emptyMessage ?? t('common.nothingToShow')}</Text>
         </View>
       ) : (
         <FlatList

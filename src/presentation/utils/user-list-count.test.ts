@@ -1,3 +1,4 @@
+import { appI18n } from '@/localization/i18n';
 import { formatUserListCount } from '@/presentation/utils/user-list-count';
 
 describe('formatUserListCount', () => {
@@ -8,6 +9,7 @@ describe('formatUserListCount', () => {
         hasNextPage: true,
         loadedCount: 25,
         totalCount: 250,
+        t: appI18n.t,
       }),
     ).toBe('250 anime • All');
   });
@@ -19,6 +21,7 @@ describe('formatUserListCount', () => {
         hasNextPage: true,
         loadedCount: 25,
         totalCount: null,
+        t: appI18n.t,
       }),
     ).toBe('25+ anime • Watching');
   });
@@ -30,6 +33,7 @@ describe('formatUserListCount', () => {
         hasNextPage: false,
         loadedCount: 42,
         totalCount: null,
+        t: appI18n.t,
       }),
     ).toBe('42 anime • Completed');
   });

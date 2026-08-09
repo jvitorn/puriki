@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ScrollView } from 'react-native';
 
 import { Text } from '@/presentation/components/ui/text';
@@ -17,12 +18,13 @@ export function AnimeScoreSelector({
   onChange(value: number | null): void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   const selectedValue = value === null ? 'clear' : String(value);
 
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
       <ToggleGroup
-        accessibilityLabel="Your anime score"
+        accessibilityLabel={t('details.scoreSelector')}
         className="gap-2 pr-4"
         disabled={disabled}
         type="single"
@@ -34,7 +36,7 @@ export function AnimeScoreSelector({
         }}
       >
         <ToggleGroupItem
-          accessibilityLabel="Clear score"
+          accessibilityLabel={t('details.clearScore')}
           accessibilityState={{ selected: value === null, disabled }}
           className="min-h-11 rounded-lg border px-3"
           value="clear"
@@ -44,7 +46,7 @@ export function AnimeScoreSelector({
         {SCORES.map((score) => (
           <ToggleGroupItem
             key={score}
-            accessibilityLabel={`Score ${score}`}
+            accessibilityLabel={t('details.scoreValue', { score })}
             accessibilityState={{ selected: value === score, disabled }}
             className="min-h-11 min-w-11 rounded-lg border px-3"
             value={String(score)}

@@ -1,10 +1,13 @@
+import { useTranslation } from 'react-i18next';
+
 import type { AnimeListStatus } from '@/domain/models/anime';
+import { localizedStatus } from '@/localization/localized-values';
 import { Text } from '@/presentation/components/ui/text';
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@/presentation/components/ui/toggle-group';
-import { ANIME_STATUSES, STATUS_LABELS } from '@/shared/constants/anime-status';
+import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 
 export function AnimeStatusSelector({
   value,
@@ -15,9 +18,10 @@ export function AnimeStatusSelector({
   onChange(value: AnimeListStatus): void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <ToggleGroup
-      accessibilityLabel="Anime list status"
+      accessibilityLabel={t('details.statusSelector')}
       className="flex-wrap justify-start gap-2"
       disabled={disabled}
       type="single"
@@ -32,12 +36,12 @@ export function AnimeStatusSelector({
         return (
           <ToggleGroupItem
             key={status}
-            accessibilityLabel={STATUS_LABELS[status]}
+            accessibilityLabel={localizedStatus(status, t)}
             accessibilityState={{ selected, disabled }}
             className="min-h-11 rounded-lg border px-3"
             value={status}
           >
-            <Text>{STATUS_LABELS[status]}</Text>
+            <Text>{localizedStatus(status, t)}</Text>
           </ToggleGroupItem>
         );
       })}

@@ -6,7 +6,18 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "purikuki",
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["en", "pt-BR", "es"],
+            "android": ["en", "pt-BR", "es"]
+          }
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },

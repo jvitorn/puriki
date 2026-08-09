@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { NativeSyntheticEvent, TextLayoutEventData } from 'react-native';
 import { View } from 'react-native';
 
@@ -14,8 +15,9 @@ interface ExpandableTextProps {
 export function ExpandableText({
   text,
   collapsedLineCount = 4,
-  accessibilityLabel = 'Synopsis',
+  accessibilityLabel,
 }: ExpandableTextProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(
     text.trim().length > collapsedLineCount * 55,
@@ -36,7 +38,7 @@ export function ExpandableText({
         {text}
       </Text>
       <Text
-        accessibilityLabel={accessibilityLabel}
+        accessibilityLabel={accessibilityLabel ?? t('details.synopsis')}
         className="leading-6 text-muted-foreground"
         numberOfLines={expanded ? undefined : collapsedLineCount}
       >
@@ -44,13 +46,17 @@ export function ExpandableText({
       </Text>
       {canExpand ? (
         <Button
-          accessibilityLabel={expanded ? 'Show less' : 'Read more'}
+          accessibilityLabel={
+            expanded ? t('details.showLess') : t('details.readMore')
+          }
           accessibilityState={{ expanded }}
           className="h-11 self-start px-0"
           variant="link"
           onPress={() => setExpanded((current) => !current)}
         >
-          <Text>{expanded ? 'Show less' : 'Read more'}</Text>
+          <Text>
+            {expanded ? t('details.showLess') : t('details.readMore')}
+          </Text>
         </Button>
       ) : null}
     </View>

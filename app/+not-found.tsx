@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/presentation/components/ui/button';
 import { EmptyState } from '@/presentation/components/ui/feedback';
@@ -7,14 +8,12 @@ import { Text } from '@/presentation/components/ui/text';
 
 export default function NotFoundScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   return (
     <Screen>
-      <EmptyState
-        title="Screen not found"
-        message="The requested screen does not exist."
-      />
+      <EmptyState title={t('notFound.title')} message={t('notFound.message')} />
       <Button onPress={() => router.replace('/')}>
-        <Text>Return home</Text>
+        <Text>{t('notFound.returnHome')}</Text>
       </Button>
     </Screen>
   );
