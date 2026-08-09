@@ -12,7 +12,9 @@ export class MalCatalogCache {
 
   setCollection(key: string, items: AnimeCatalogItem[]): void {
     this.collections.set(key, items);
-    items.forEach((item) => this.summaries.set(item.id, item));
+    items.forEach((item) =>
+      this.summaries.set(item.id, this.details.get(item.id) ?? item),
+    );
   }
 
   replaceCollections(

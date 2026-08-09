@@ -105,6 +105,26 @@ describe('MAL anime catalog repository', () => {
     expect(getDetails).not.toHaveBeenCalled();
   });
 
+  it('still fetches explicit details after a collection summary and then reuses them', async () => {
+    const { getDetails, repository } = createRepository();
+    await repository.getPopular();
+    await expect(repository.getDetailsById(1)).resolves.toMatchObject({
+      id: 1,
+      title: 'Detail Anime 1',
+    });
+    await repository.getDetailsById(1);
+    expect(getDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps details as the best known direct-mode item after a later collection', async () => {
+    const { repository } = createRepository();
+    await repository.getDetailsById(1);
+    await repository.getPopular();
+    await expect(repository.getManyByIds([1])).resolves.toMatchObject([
+      { id: 1, title: 'Detail Anime 1' },
+    ]);
+  });
+
   it('fetches only unique IDs missing from the collection cache', async () => {
     const { getDetails, repository } = createRepository();
     await repository.getPopular();

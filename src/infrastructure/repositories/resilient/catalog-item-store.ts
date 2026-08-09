@@ -1,16 +1,26 @@
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 
 export type CatalogItemSource = 'jikan' | 'mal' | 'cache';
+export type CatalogItemCompleteness = 'summary' | 'details';
 
-export interface StoredCatalogItem {
-  item: AnimeCatalogItem;
+export interface CatalogItemMetadata {
   source: CatalogItemSource;
+  completeness: CatalogItemCompleteness;
+}
+
+export interface StoredCatalogItem extends CatalogItemMetadata {
+  item: AnimeCatalogItem;
 }
 
 const SOURCE_PRIORITY: Record<CatalogItemSource, number> = {
   cache: 0,
   mal: 1,
   jikan: 2,
+};
+
+const COMPLETENESS_PRIORITY: Record<CatalogItemCompleteness, number> = {
+  summary: 0,
+  details: 1,
 };
 
 export function normalizeCatalogItemIds(ids: readonly number[]): number[] {
@@ -26,42 +36,75 @@ function cloneItem(item: AnimeCatalogItem): AnimeCatalogItem {
   };
 }
 
+function cloneStoredItem(stored: StoredCatalogItem): StoredCatalogItem {
+  return { ...stored, item: cloneItem(stored.item) };
+}
+
+export function satisfiesMinimumCompleteness(
+  available: CatalogItemCompleteness,
+  required: CatalogItemCompleteness,
+): boolean {
+  return COMPLETENESS_PRIORITY[available] >= COMPLETENESS_PRIORITY[required];
+}
+
+export function shouldReplaceStoredItem(
+  current: StoredCatalogItem,
+  incoming: StoredCatalogItem,
+): boolean {
+  const completenessDifference =
+    COMPLETENESS_PRIORITY[incoming.completeness] -
+    COMPLETENESS_PRIORITY[current.completeness];
+  if (completenessDifference !== 0) return completenessDifference > 0;
+  return SOURCE_PRIORITY[incoming.source] >= SOURCE_PRIORITY[current.source];
+}
+
 export class CatalogItemStore {
   private readonly items = new Map<number, StoredCatalogItem>();
 
-  get(id: number): AnimeCatalogItem | undefined {
+  get(id: number): StoredCatalogItem | undefined {
     const stored = this.items.get(id);
-    return stored ? cloneItem(stored.item) : undefined;
+    return stored ? cloneStoredItem(stored) : undefined;
   }
 
-  getStored(id: number): StoredCatalogItem | undefined {
+  getItem(
+    id: number,
+    minimumCompleteness: CatalogItemCompleteness = 'summary',
+  ): AnimeCatalogItem | undefined {
     const stored = this.items.get(id);
-    return stored
-      ? { item: cloneItem(stored.item), source: stored.source }
+    return stored &&
+      satisfiesMinimumCompleteness(stored.completeness, minimumCompleteness)
+      ? cloneItem(stored.item)
       : undefined;
   }
 
-  getMany(ids: readonly number[]): AnimeCatalogItem[] {
+  getMany(
+    ids: readonly number[],
+    minimumCompleteness: CatalogItemCompleteness = 'summary',
+  ): AnimeCatalogItem[] {
     return normalizeCatalogItemIds(ids).flatMap((id) => {
-      const item = this.get(id);
+      const item = this.getItem(id, minimumCompleteness);
       return item ? [item] : [];
     });
   }
 
-  upsert(item: AnimeCatalogItem, source: CatalogItemSource): void {
+  upsert(item: AnimeCatalogItem, metadata: CatalogItemMetadata): void {
     if (!Number.isInteger(item.id) || item.id <= 0) return;
+    const incoming: StoredCatalogItem = {
+      item: cloneItem(item),
+      ...metadata,
+    };
     const current = this.items.get(item.id);
-    if (current && SOURCE_PRIORITY[current.source] > SOURCE_PRIORITY[source]) {
+    if (current && !shouldReplaceStoredItem(current, incoming)) {
       return;
     }
-    this.items.set(item.id, { item: cloneItem(item), source });
+    this.items.set(item.id, incoming);
   }
 
   upsertMany(
     items: readonly AnimeCatalogItem[],
-    source: CatalogItemSource,
+    metadata: CatalogItemMetadata,
   ): void {
-    items.forEach((item) => this.upsert(item, source));
+    items.forEach((item) => this.upsert(item, metadata));
   }
 
   clear(): void {

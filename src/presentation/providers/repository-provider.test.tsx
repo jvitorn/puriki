@@ -6,6 +6,8 @@ import animeCollectionFixture from '@/infrastructure/api/jikan/fixtures/anime-co
 import { JikanNetworkError } from '@/infrastructure/api/jikan/jikan-errors';
 import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
+import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
+import { JIKAN_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import {
@@ -146,6 +148,40 @@ describe('repository dependency creation', () => {
       fetchSpy.mockRestore();
     }
   });
+
+  it.each([429, 504])(
+    'keeps every runtime circuit unchanged after a failing %s diagnostic',
+    async (status) => {
+      const circuitRegistry = new CatalogCircuitBreakerRegistry();
+      const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: false,
+        status,
+        headers: { get: () => null },
+        text: jest.fn(async () => JSON.stringify({ status })),
+      } as unknown as Response);
+      try {
+        const dependencies = createAutomaticDependencies({
+          circuitRegistry,
+          jikanScheduler: new JikanRequestScheduler({ requestIntervalMs: 0 }),
+          malConfigured: false,
+        });
+
+        await expect(dependencies.runJikanDiagnostic()).resolves.toMatchObject({
+          health: status === 429 ? 'rate_limited' : 'unavailable',
+        });
+        JIKAN_OPERATION_FAMILIES.forEach((family) => {
+          expect(circuitRegistry.get(family).getSnapshot()).toMatchObject({
+            state: 'closed',
+            consecutiveFailures: 0,
+            lastFailureAt: null,
+            lastSuccessAt: null,
+          });
+        });
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    },
+  );
 });
 
 describe('RepositoryProvider', () => {

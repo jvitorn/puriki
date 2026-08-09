@@ -346,6 +346,120 @@ describe('resilient anime catalog repository', () => {
     expect(fallback.getManyByIds).not.toHaveBeenCalled();
   });
 
+  it('promotes a search summary on the first explicit detail request and reuses it', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const itemStore = new CatalogItemStore();
+    const summary = animeWithId(jikanAnime, 7, 'Search summary');
+    const details = animeWithId(jikanAnime, 7, 'Full details');
+    primary.search.mockResolvedValueOnce([summary]);
+    primary.getDetailsById.mockResolvedValue(details);
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      itemStore,
+    });
+
+    await expect(repository.search('anime')).resolves.toEqual([summary]);
+    expect(itemStore.get(7)).toMatchObject({
+      source: 'jikan',
+      completeness: 'summary',
+    });
+    await expect(repository.getDetailsById(7)).resolves.toEqual(details);
+    expect(itemStore.get(7)).toMatchObject({
+      item: { title: 'Full details' },
+      source: 'jikan',
+      completeness: 'details',
+    });
+    await expect(repository.getDetailsById(7)).resolves.toEqual(details);
+    expect(primary.getDetailsById).toHaveBeenCalledTimes(1);
+    expect(fallback.getDetailsById).not.toHaveBeenCalled();
+  });
+
+  it('accepts mixed known summaries and details in getManyByIds without provider work', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const itemStore = new CatalogItemStore();
+    itemStore.upsert(animeWithId(jikanAnime, 1, 'Known summary'), {
+      source: 'jikan',
+      completeness: 'summary',
+    });
+    itemStore.upsert(animeWithId(malAnime, 2, 'Known details'), {
+      source: 'mal',
+      completeness: 'details',
+    });
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      itemStore,
+    });
+
+    await expect(repository.getManyByIds([2, 1, 2])).resolves.toMatchObject([
+      { id: 2, title: 'Known details' },
+      { id: 1, title: 'Known summary' },
+    ]);
+    expect(primary.getDetailsById).not.toHaveBeenCalled();
+    expect(fallback.getDetailsById).not.toHaveBeenCalled();
+  });
+
+  it('promotes a Jikan summary with MAL details and never downgrades it later', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const itemStore = new CatalogItemStore();
+    const summary = animeWithId(jikanAnime, 5, 'Jikan summary');
+    const details = animeWithId(malAnime, 5, 'MAL details');
+    primary.search.mockResolvedValueOnce([summary]);
+    primary.getDetailsById.mockRejectedValueOnce(new JikanNetworkError());
+    fallback.getDetailsById.mockResolvedValueOnce(details);
+    primary.getPopular.mockResolvedValueOnce([
+      animeWithId(jikanAnime, 5, 'Later Jikan summary'),
+    ]);
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      itemStore,
+    });
+
+    await repository.search('anime');
+    await expect(repository.getDetailsById(5)).resolves.toEqual(details);
+    await repository.getPopular();
+    expect(itemStore.get(5)).toMatchObject({
+      item: { title: 'MAL details' },
+      source: 'mal',
+      completeness: 'details',
+    });
+    await repository.getDetailsById(5);
+    expect(primary.getDetailsById).toHaveBeenCalledTimes(1);
+    expect(fallback.getDetailsById).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows Jikan details to recover a MAL summary', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const itemStore = new CatalogItemStore();
+    const fallbackSummary = animeWithId(malAnime, 9, 'MAL summary');
+    const primaryDetails = animeWithId(jikanAnime, 9, 'Jikan details');
+    primary.search.mockRejectedValueOnce(new JikanNetworkError());
+    fallback.search.mockResolvedValueOnce([fallbackSummary]);
+    primary.getDetailsById.mockResolvedValueOnce(primaryDetails);
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      itemStore,
+    });
+
+    await repository.search('anime');
+    expect(itemStore.get(9)).toMatchObject({
+      source: 'mal',
+      completeness: 'summary',
+    });
+    await expect(repository.getDetailsById(9)).resolves.toEqual(primaryDetails);
+    expect(itemStore.get(9)).toMatchObject({
+      source: 'jikan',
+      completeness: 'details',
+    });
+  });
+
   it('resolves only two unknown IDs when 23 of 25 are already known', async () => {
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
@@ -500,6 +614,10 @@ describe('resilient anime catalog repository', () => {
     primary.getPopular.mockRejectedValueOnce(new JikanTimeoutError());
     fallback.getPopular.mockRejectedValueOnce(new MalNetworkError());
     await expect(repository.getPopular()).resolves.toEqual([jikanAnime]);
+    expect(itemStore.get(1)).toMatchObject({
+      source: 'cache',
+      completeness: 'summary',
+    });
     primary.getDetailsById.mockClear();
     fallback.getDetailsById.mockClear();
 
@@ -508,6 +626,58 @@ describe('resilient anime catalog repository', () => {
     ]);
     expect(primary.getDetailsById).not.toHaveBeenCalled();
     expect(fallback.getDetailsById).not.toHaveBeenCalled();
+  });
+
+  it('repopulates cleared normalized state from a details operation cache as details', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const itemStore = new CatalogItemStore();
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      itemStore,
+    });
+    await repository.getDetailsById(1);
+    itemStore.clear();
+    primary.getDetailsById.mockRejectedValueOnce(new JikanTimeoutError());
+    fallback.getDetailsById.mockRejectedValueOnce(new MalNetworkError());
+
+    await expect(repository.getDetailsById(1)).resolves.toEqual(jikanAnime);
+    expect(itemStore.get(1)).toMatchObject({
+      source: 'cache',
+      completeness: 'details',
+    });
+  });
+
+  it('returns sufficient stored items without touching an open Details circuit', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const itemStore = new CatalogItemStore();
+    itemStore.upsert(animeWithId(jikanAnime, 1, 'Stored details'), {
+      source: 'jikan',
+      completeness: 'details',
+    });
+    itemStore.upsert(animeWithId(malAnime, 2, 'Stored summary'), {
+      source: 'mal',
+      completeness: 'summary',
+    });
+    const circuitRegistry = new CatalogCircuitBreakerRegistry();
+    circuitRegistry.get('details').recordFailure();
+    circuitRegistry.get('details').recordFailure();
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      itemStore,
+      circuitRegistry,
+    });
+
+    await expect(repository.getDetailsById(1)).resolves.toMatchObject({
+      title: 'Stored details',
+    });
+    await expect(repository.getManyByIds([2, 1])).resolves.toHaveLength(2);
+    expect(primary.getDetailsById).not.toHaveBeenCalled();
+    expect(fallback.getDetailsById).not.toHaveBeenCalled();
+    expect(repository.getCircuitState('details')).toBe('open');
   });
 
   it('logs one compact development summary for batch resolution', async () => {
@@ -521,18 +691,23 @@ describe('resilient anime catalog repository', () => {
         animeWithId(jikanAnime, 1),
         animeWithId(jikanAnime, 2),
       ]);
+      primary.getDetailsById.mockResolvedValueOnce(
+        animeWithId(jikanAnime, 2, 'Full details'),
+      );
       const repository = new ResilientAnimeCatalogRepository({
         primary,
         fallback,
       });
       await repository.getPopular();
+      await repository.getDetailsById(2);
       info.mockClear();
 
       await repository.getManyByIds([2, 1, 2]);
       expect(info).toHaveBeenCalledTimes(1);
       expect(info).toHaveBeenCalledWith('[Catalog] getManyByIds completed', {
         requested: 2,
-        itemStoreHits: 2,
+        summaryHits: 1,
+        detailHits: 1,
         networkMissing: 0,
         detailResolutions: 0,
         jikanSkippedAfterCircuit: false,
@@ -720,8 +895,14 @@ describe('resilient anime catalog repository', () => {
     expect(primary.getDetailsById).not.toHaveBeenCalled();
 
     repository.clearCache();
+    await repository.getPopular();
+    expect(primary.getPopular).toHaveBeenCalledTimes(2);
+
+    repository.clearCache();
     await repository.getManyByIds([1]);
     expect(primary.getDetailsById).toHaveBeenCalledTimes(1);
+    expect(primary.clearCache).toHaveBeenCalledTimes(2);
+    expect(fallback.clearCache).toHaveBeenCalledTimes(2);
   });
 
   it('refreshes discovery families independently and falls back only for the failed family', async () => {

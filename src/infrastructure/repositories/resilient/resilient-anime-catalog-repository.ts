@@ -16,6 +16,8 @@ import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/res
 import {
   CatalogItemStore,
   normalizeCatalogItemIds,
+  type CatalogItemCompleteness,
+  type CatalogItemMetadata,
   type CatalogItemSource,
 } from '@/infrastructure/repositories/resilient/catalog-item-store';
 import {
@@ -62,6 +64,7 @@ interface FamilyRefreshableCatalogRepository extends AnimeCatalogRepository {
 
 interface OperationOptions {
   requireNonEmpty?: boolean;
+  completeness?: CatalogItemCompleteness;
 }
 
 class EmptyCatalogResultError extends JikanResponseFormatError {
@@ -256,11 +259,16 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {
     const normalizedIds = normalizeCatalogItemIds(ids);
-    const resolved = new Map<number, AnimeCatalogItem>(
-      this.itemStore
-        .getMany(normalizedIds)
-        .map((item): [number, AnimeCatalogItem] => [item.id, item]),
-    );
+    const resolved = new Map<number, AnimeCatalogItem>();
+    let summaryHits = 0;
+    let detailHits = 0;
+    normalizedIds.forEach((id) => {
+      const stored = this.itemStore.get(id);
+      if (!stored) return;
+      resolved.set(id, stored.item);
+      if (stored.completeness === 'details') detailHits += 1;
+      else summaryHits += 1;
+    });
     const missingIds = normalizedIds.filter((id) => !resolved.has(id));
     let jikanSkippedAfterCircuit = false;
     let jikanSkippedAfterRateLimit = false;
@@ -276,12 +284,13 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     }
 
     const result = normalizedIds.flatMap((id) => {
-      const item = this.itemStore.get(id) ?? resolved.get(id);
+      const item = this.itemStore.getItem(id, 'summary') ?? resolved.get(id);
       return item ? [item] : [];
     });
     this.logManyResolution({
       requested: normalizedIds.length,
-      itemStoreHits: normalizedIds.length - missingIds.length,
+      summaryHits,
+      detailHits,
       networkMissing: missingIds.length,
       detailResolutions: missingIds.length,
       jikanSkippedAfterCircuit,
@@ -291,11 +300,14 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   }
 
   getDetailsById(id: number): Promise<AnimeCatalogItem | null> {
+    const storedDetails = this.itemStore.getItem(id, 'details');
+    if (storedDetails) return Promise.resolve(storedDetails);
     return this.execute(
       `details:${id}`,
       'details',
       () => this.primary.getDetailsById(id),
       () => this.fallback.getDetailsById(id),
+      { completeness: 'details' },
     );
   }
 
@@ -362,6 +374,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     options: OperationOptions = {},
   ): Promise<T> {
     const startedAt = this.now();
+    const completeness = options.completeness ?? 'summary';
     const primaryAttempt = this.beginPrimaryAttempt(family);
     let primaryError: unknown;
 
@@ -371,7 +384,10 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
         this.ensureUsable(value, options);
         this.circuitRegistry.get(family).recordSuccess();
         this.cache.set(operation, value);
-        this.ingestCatalogValue(value, 'jikan');
+        this.ingestCatalogValue(value, {
+          source: 'jikan',
+          completeness,
+        });
         this.sourceUsed(family, 'jikan');
         this.log({
           family,
@@ -400,7 +416,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
         const value = await fallback();
         this.ensureUsable(value, options, true);
         this.cache.set(operation, value);
-        this.ingestCatalogValue(value, 'mal');
+        this.ingestCatalogValue(value, { source: 'mal', completeness });
         this.sourceUsed(family, 'mal');
         this.log({
           family,
@@ -416,7 +432,10 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       } catch (fallbackError: unknown) {
         const cached = this.cached<T>(operation);
         if (cached.found) {
-          this.ingestCatalogValue(cached.value, 'cache');
+          this.ingestCatalogValue(cached.value, {
+            source: 'cache',
+            completeness,
+          });
           this.sourceUsed(family, 'cache');
           this.log({
             family,
@@ -440,7 +459,10 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
 
     const cached = this.cached<T>(operation);
     if (cached.found) {
-      this.ingestCatalogValue(cached.value, 'cache');
+      this.ingestCatalogValue(cached.value, {
+        source: 'cache',
+        completeness,
+      });
       this.sourceUsed(family, 'cache');
       this.log({
         family,
@@ -610,17 +632,21 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     this.onRuntimeStatusChange?.(this.getRuntimeSnapshot());
   }
 
-  private ingestCatalogValue(value: unknown, source: CatalogItemSource): void {
+  private ingestCatalogValue(
+    value: unknown,
+    metadata: CatalogItemMetadata,
+  ): void {
     if (Array.isArray(value)) {
-      this.itemStore.upsertMany(value.filter(isAnimeCatalogItem), source);
+      this.itemStore.upsertMany(value.filter(isAnimeCatalogItem), metadata);
       return;
     }
-    if (isAnimeCatalogItem(value)) this.itemStore.upsert(value, source);
+    if (isAnimeCatalogItem(value)) this.itemStore.upsert(value, metadata);
   }
 
   private logManyResolution(summary: {
     requested: number;
-    itemStoreHits: number;
+    summaryHits: number;
+    detailHits: number;
     networkMissing: number;
     detailResolutions: number;
     jikanSkippedAfterCircuit: boolean;

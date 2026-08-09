@@ -12,7 +12,9 @@ export class JikanCatalogCache {
 
   setCollection(key: string, items: AnimeCatalogItem[]): void {
     this.collections.set(key, items);
-    items.forEach((item) => this.summaries.set(item.id, item));
+    items.forEach((item) =>
+      this.summaries.set(item.id, this.details.get(item.id) ?? item),
+    );
   }
 
   replaceCollections(
@@ -38,7 +40,7 @@ export class JikanCatalogCache {
   }
 
   setSummary(item: AnimeCatalogItem): void {
-    this.summaries.set(item.id, item);
+    this.summaries.set(item.id, this.details.get(item.id) ?? item);
   }
 
   getDetail(id: number): AnimeCatalogItem | null | undefined {

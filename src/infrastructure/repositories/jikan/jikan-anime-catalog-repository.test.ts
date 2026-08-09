@@ -87,6 +87,26 @@ describe('JikanAnimeCatalogRepository', () => {
     expect(getAnimeFullById).not.toHaveBeenCalled();
   });
 
+  it('still fetches explicit details after a collection summary and then reuses them', async () => {
+    const { getAnimeFullById, repository } = createRepository();
+    await repository.getPopular();
+    await expect(repository.getDetailsById(1)).resolves.toMatchObject({
+      id: 1,
+      title: 'Detail Anime 1',
+    });
+    await repository.getDetailsById(1);
+    expect(getAnimeFullById).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps details as the best known direct-mode item after a later collection', async () => {
+    const { repository } = createRepository();
+    await repository.getDetailsById(1);
+    await repository.getPopular();
+    await expect(repository.getManyByIds([1])).resolves.toMatchObject([
+      { id: 1, title: 'Detail Anime 1' },
+    ]);
+  });
+
   it('fetches each unique missing ID once through getManyByIds', async () => {
     const { getAnimeFullById, repository } = createRepository();
     const result = await repository.getManyByIds([7, 8, 7]);
