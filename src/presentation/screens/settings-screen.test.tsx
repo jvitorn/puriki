@@ -27,12 +27,19 @@ const malSuccess = {
 };
 
 const jikanSuccess = {
-  ok: true,
   platform: 'android',
-  status: 200,
-  elapsedMs: 210,
-  errorKind: 'none' as const,
-  message: 'Jikan responded successfully through the native transport.',
+  health: 'healthy' as const,
+  endpoints: ['details', 'popular', 'seasonal', 'upcoming', 'search'].map(
+    (operation) => ({
+      operation: operation as
+        'details' | 'popular' | 'seasonal' | 'upcoming' | 'search',
+      ok: true,
+      status: 200,
+      elapsedMs: 210,
+      errorKind: 'none' as const,
+      message: 'Jikan endpoint responded successfully.',
+    }),
+  ),
 };
 
 describe('SettingsScreen', () => {
@@ -86,22 +93,39 @@ describe('SettingsScreen', () => {
 
   it('renders provider-neutral runtime status', async () => {
     const dependencies = createTestDependencies();
+    const resetJikanCircuits = jest.fn();
     dependencies.mode = 'automatic';
     dependencies.malConfigured = true;
+    dependencies.resetJikanCircuits = resetJikanCircuits;
     dependencies.catalogRuntimeStatus = {
       mode: 'automatic',
-      lastSuccessfulSource: 'mal',
-      jikanCircuitState: 'open',
-      lastFallbackAt: '2026-08-06T12:00:00.000Z',
+      jikanHealth: 'degraded',
+      jikanRateLimitedUntil: null,
+      operations: {
+        ...dependencies.catalogRuntimeStatus.operations,
+        popular: {
+          circuitState: 'open',
+          lastSuccessfulSource: 'mal',
+          lastFallbackAt: '2026-08-06T12:00:00.000Z',
+        },
+        seasonal: {
+          circuitState: 'closed',
+          lastSuccessfulSource: 'jikan',
+          lastFallbackAt: null,
+        },
+      },
     };
     await renderWithProviders(<SettingsScreen />, { dependencies });
     expect(screen.queryByText('Mode: Automatic')).not.toBeOnTheScreen();
     await expandDeveloperTools();
     expect(screen.getByText('Mode: Automatic')).toBeVisible();
-    expect(
-      screen.getByText('Last successful source: MyAnimeList'),
-    ).toBeVisible();
-    expect(screen.getByText('Jikan circuit: open')).toBeVisible();
+    expect(screen.getByText('Jikan: Degraded')).toBeVisible();
+    expect(screen.getByText('Popular')).toBeVisible();
+    expect(screen.getByText('Circuit: open')).toBeVisible();
+    expect(screen.getByText('Seasonal')).toBeVisible();
+    expect(screen.getAllByText('Jikan').length).toBeGreaterThan(0);
+    fireEvent.press(screen.getByText('Reset Jikan circuit states'));
+    expect(resetJikanCircuits).toHaveBeenCalledTimes(1);
   });
 
   it('runs MAL directly and renders an accessible success result', async () => {
@@ -175,15 +199,41 @@ describe('SettingsScreen', () => {
     await expandDeveloperTools();
     fireEvent.press(screen.getByLabelText('Test Jikan API'));
     await waitFor(() =>
-      expect(
-        screen.getByText(
-          'Jikan responded successfully through the native transport.',
-        ),
-      ).toBeVisible(),
+      expect(screen.getByText('Jikan: Healthy')).toBeVisible(),
     );
     expect(runJikanConnectivityDiagnostic).toHaveBeenCalledTimes(1);
     expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
-    expect(screen.getByText('HTTP 200 • 210 ms')).toBeVisible();
+    expect(screen.getAllByText('200 • 210 ms')).toHaveLength(5);
+  });
+
+  it('shows partial Jikan endpoint degradation without hiding healthy endpoints', async () => {
+    jest.mocked(runJikanConnectivityDiagnostic).mockResolvedValueOnce({
+      ...jikanSuccess,
+      health: 'degraded',
+      endpoints: jikanSuccess.endpoints.map((endpoint) =>
+        endpoint.operation === 'popular'
+          ? {
+              ...endpoint,
+              ok: false,
+              status: 504,
+              elapsedMs: 420,
+              errorKind: 'service_unavailable' as const,
+              message: 'Jikan is unavailable (HTTP 504).',
+            }
+          : endpoint,
+      ),
+    });
+    await renderWithProviders(<SettingsScreen />);
+    await expandDeveloperTools();
+    fireEvent.press(screen.getByLabelText('Test Jikan API'));
+    await waitFor(() =>
+      expect(screen.getByText('Jikan: Degraded')).toBeVisible(),
+    );
+    expect(screen.getByText('504 • 420 ms')).toBeVisible();
+    expect(screen.getAllByText('200 • 210 ms')).toHaveLength(4);
+    expect(
+      screen.getByText('The service is temporarily unavailable.'),
+    ).toBeVisible();
   });
 
   it('keeps developer diagnostics collapsed until requested', async () => {

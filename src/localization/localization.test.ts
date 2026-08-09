@@ -42,6 +42,27 @@ describe('localization resources', () => {
     expect(appI18n.t('common.episodes', { count: 3 })).toBe('3 episodios');
   });
 
+  it('localizes Jikan health, operation, and fallback diagnostics', async () => {
+    await appI18n.changeLanguage('en');
+    expect(appI18n.t('settings.healthHealthy')).toBe('Healthy');
+    expect(appI18n.t('settings.healthDegraded')).toBe('Degraded');
+    expect(appI18n.t('settings.operation.popular')).toBe('Popular');
+    expect(appI18n.t('settings.operation.details')).toBe('Details');
+    expect(appI18n.t('settings.usingMalFallback')).toContain('MyAnimeList');
+
+    await appI18n.changeLanguage('pt-BR');
+    expect(appI18n.t('settings.healthHealthy')).toBe('Saudável');
+    expect(appI18n.t('settings.healthDegraded')).toBe('Degradado');
+    expect(appI18n.t('settings.operation.popular')).toBe('Populares');
+    expect(appI18n.t('settings.operation.details')).toBe('Detalhes');
+
+    await appI18n.changeLanguage('es');
+    expect(appI18n.t('settings.healthHealthy')).toBe('Saludable');
+    expect(appI18n.t('settings.healthDegraded')).toBe('Degradado');
+    expect(appI18n.t('settings.operation.popular')).toBe('Popular');
+    expect(appI18n.t('settings.operation.details')).toBe('Detalles');
+  });
+
   it('normalizes supported system locales and safely falls back to English', () => {
     expect(normalizeAppLanguage('pt-PT')).toBe('pt-BR');
     expect(normalizeAppLanguage('es-MX')).toBe('es');

@@ -143,7 +143,7 @@ describe('JikanAnimeCatalogRepository', () => {
     expect(getAnimeFullById).toHaveBeenCalledTimes(2);
   });
 
-  it('atomically replaces discovery collections after a successful refresh', async () => {
+  it('replaces every discovery collection after a successful refresh', async () => {
     const { getSeasonNow, getSeasonUpcoming, getTopAnime, repository } =
       createRepository();
     const original = await repository.getPopular();
@@ -175,6 +175,29 @@ describe('JikanAnimeCatalogRepository', () => {
     );
     await expect(repository.getPopular()).resolves.toEqual(original);
     expect(getTopAnime).toHaveBeenCalledTimes(4);
+  });
+
+  it('commits healthy family refreshes when another discovery family fails', async () => {
+    const { getSeasonNow, getTopAnime, repository } = createRepository();
+    const originalSeasonal = await repository.getSeasonal();
+    const refreshedSeasonal = {
+      ...animeCollectionFixture,
+      data: animeCollectionFixture.data.map((anime, index) => ({
+        ...anime,
+        mal_id: 700 + index,
+        title: `Fresh seasonal ${index}`,
+      })),
+    };
+    getTopAnime.mockRejectedValue(new JikanServiceUnavailableError(504, null));
+    getSeasonNow.mockResolvedValueOnce(refreshedSeasonal);
+    await expect(repository.refresh()).rejects.toBeInstanceOf(
+      JikanServiceUnavailableError,
+    );
+    const seasonal = await repository.getSeasonal();
+    expect(seasonal.map((item) => item.id).sort()).toEqual([700, 701, 702]);
+    expect(seasonal.map((item) => item.id)).not.toEqual(
+      originalSeasonal.map((item) => item.id),
+    );
   });
 
   it('accepts a shorter injected retry policy for automatic fallback mode', async () => {

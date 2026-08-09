@@ -82,9 +82,18 @@ describe('repository dependency creation', () => {
     await dependencies.catalogRepository.getPopular();
     expect(dependencies.catalogRuntimeStatus).toMatchObject({
       mode: 'automatic',
-      lastSuccessfulSource: 'mal',
-      jikanCircuitState: 'closed',
-      lastFallbackAt: expect.any(String),
+      jikanHealth: 'healthy',
+      operations: {
+        popular: {
+          lastSuccessfulSource: 'mal',
+          circuitState: 'closed',
+          lastFallbackAt: expect.any(String),
+        },
+        details: {
+          lastSuccessfulSource: null,
+          circuitState: 'closed',
+        },
+      },
     });
     expect(listener).toHaveBeenCalled();
     unsubscribe();

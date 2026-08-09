@@ -16,9 +16,16 @@ import { Pressable, View } from 'react-native';
 import { useResetSessionData } from '@/application/mutations/anime-mutations';
 import { queryKeys } from '@/application/queries/query-keys';
 import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
-import type { JikanConnectivityResult } from '@/infrastructure/api/jikan/jikan-diagnostics';
+import type {
+  JikanDiagnosticErrorKind,
+  JikanServiceDiagnosticResult,
+} from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
 import type { MalConnectivityResult } from '@/infrastructure/api/mal/mal-diagnostics';
+import type {
+  JikanHealth,
+  JikanOperationFamily,
+} from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import type { LanguagePreference } from '@/localization/languages';
 import { useAppLanguage } from '@/localization/localization-provider';
 import { formatDateTime, formatNumber } from '@/localization/localized-values';
@@ -82,6 +89,14 @@ const LANGUAGE_OPTIONS: readonly {
   { value: 'es', labelKey: 'settings.languageSpanish' },
 ];
 
+const RUNTIME_OPERATION_FAMILIES = [
+  'popular',
+  'seasonal',
+  'upcoming',
+  'search',
+  'details',
+] as const satisfies readonly JikanOperationFamily[];
+
 function readableSource(
   source: string | null,
   t: (key: string) => string,
@@ -112,15 +127,28 @@ function readableCircuitState(
   return t('settings.circuitHalfOpen');
 }
 
-function diagnosticMessage(
-  result: MalConnectivityResult | JikanConnectivityResult,
-  service: 'mal' | 'jikan',
+function readableHealth(
+  health: JikanHealth,
   t: (key: string) => string,
 ): string {
-  if (result.ok)
-    return t(
-      service === 'mal' ? 'settings.malSuccess' : 'settings.jikanSuccess',
-    );
+  if (health === 'healthy') return t('settings.healthHealthy');
+  if (health === 'degraded') return t('settings.healthDegraded');
+  if (health === 'rate_limited') return t('settings.healthRateLimited');
+  return t('settings.healthUnavailable');
+}
+
+function readableOperation(
+  family: JikanOperationFamily,
+  t: (key: string) => string,
+): string {
+  return t(`settings.operation.${family}`);
+}
+
+function diagnosticMessage(
+  result: MalConnectivityResult,
+  t: (key: string) => string,
+): string {
+  if (result.ok) return t('settings.malSuccess');
   if (result.errorKind === 'not_configured')
     return t('settings.diagnosticNotConfigured');
   if (result.errorKind === 'unauthorized')
@@ -129,6 +157,21 @@ function diagnosticMessage(
   if (result.errorKind === 'network') return t('settings.diagnosticNetwork');
   if (result.errorKind === 'service_unavailable')
     return t('settings.diagnosticUnavailable');
+  return t('settings.diagnosticFailed');
+}
+
+function jikanEndpointMessage(
+  errorKind: JikanDiagnosticErrorKind,
+  t: (key: string) => string,
+): string {
+  if (errorKind === 'timeout') return t('settings.diagnosticTimeout');
+  if (errorKind === 'network') return t('settings.diagnosticNetwork');
+  if (errorKind === 'service_unavailable')
+    return t('settings.diagnosticUnavailable');
+  if (errorKind === 'rate_limit') return t('settings.healthRateLimited');
+  if (errorKind === 'format') return t('settings.diagnosticInvalidResponse');
+  if (errorKind === 'configuration')
+    return t('settings.diagnosticConfiguration');
   return t('settings.diagnosticFailed');
 }
 
@@ -164,6 +207,7 @@ export function SettingsScreen() {
     malConfigured,
     mode,
     refreshCurrentSample,
+    resetJikanCircuits,
     mockDevelopmentControls,
     selectDataSourceMode,
     setDelayMode,
@@ -192,7 +236,7 @@ export function SettingsScreen() {
   const [malDiagnostic, setMalDiagnostic] =
     useState<MalConnectivityResult | null>(null);
   const [jikanDiagnostic, setJikanDiagnostic] =
-    useState<JikanConnectivityResult | null>(null);
+    useState<JikanServiceDiagnosticResult | null>(null);
   const diagnosticPending = pendingDiagnostic !== null;
 
   const testMal = async () => {
@@ -227,12 +271,9 @@ export function SettingsScreen() {
       setJikanDiagnostic(await runJikanConnectivityDiagnostic());
     } catch {
       setJikanDiagnostic({
-        ok: false,
         platform: 'unknown',
-        status: null,
-        elapsedMs: 0,
-        errorKind: 'http',
-        message: 'The Jikan connectivity request failed.',
+        health: 'unavailable',
+        endpoints: [],
       });
     } finally {
       diagnosticLock.current = false;
@@ -457,47 +498,88 @@ export function SettingsScreen() {
                     mode: readableMode(catalogRuntimeStatus.mode, t),
                   })}
                 </Text>
-                <Text>
-                  {t('settings.lastSource', {
-                    source: readableSource(
-                      catalogRuntimeStatus.lastSuccessfulSource,
-                      t,
-                    ),
-                  })}
-                </Text>
-                {catalogRuntimeStatus.jikanCircuitState ? (
+                {catalogRuntimeStatus.jikanHealth ? (
                   <Text>
-                    {t('settings.jikanCircuit', {
-                      state: readableCircuitState(
-                        catalogRuntimeStatus.jikanCircuitState,
+                    {t('settings.jikanHealth', {
+                      health: readableHealth(
+                        catalogRuntimeStatus.jikanHealth,
                         t,
                       ),
                     })}
                   </Text>
                 ) : null}
-                {catalogRuntimeStatus.lastFallbackAt ? (
+                {catalogRuntimeStatus.jikanRateLimitedUntil ? (
                   <Text variant="caption" muted>
-                    {t('settings.lastFallback', {
+                    {t('settings.rateLimitedUntil', {
                       date: formatDateTime(
-                        catalogRuntimeStatus.lastFallbackAt,
+                        catalogRuntimeStatus.jikanRateLimitedUntil,
                         language,
                       ),
                     })}
                   </Text>
                 ) : null}
-                {catalogRuntimeStatus.mode === 'automatic' &&
-                catalogRuntimeStatus.lastSuccessfulSource === 'mal' ? (
-                  <Text variant="caption" className="text-warning">
-                    {t('settings.usingMalFallback')}
-                  </Text>
-                ) : null}
-                {catalogRuntimeStatus.mode === 'automatic' &&
-                catalogRuntimeStatus.lastSuccessfulSource === 'cache' ? (
-                  <Text variant="caption" className="text-warning">
-                    {t('settings.usingCache')}
-                  </Text>
-                ) : null}
+                {catalogRuntimeStatus.mode !== 'mock'
+                  ? RUNTIME_OPERATION_FAMILIES.map((family) => {
+                      const operation = catalogRuntimeStatus.operations[family];
+                      return (
+                        <View
+                          key={family}
+                          className="gap-1 border-t border-border/60 pt-2"
+                        >
+                          <View className="flex-row items-center justify-between gap-3">
+                            <Text className="font-bold">
+                              {readableOperation(family, t)}
+                            </Text>
+                            <Text variant="caption" muted>
+                              {readableSource(
+                                operation.lastSuccessfulSource,
+                                t,
+                              )}
+                            </Text>
+                          </View>
+                          {operation.circuitState ? (
+                            <Text variant="caption" muted>
+                              {t('settings.operationCircuit', {
+                                state: readableCircuitState(
+                                  operation.circuitState,
+                                  t,
+                                ),
+                              })}
+                            </Text>
+                          ) : null}
+                          {operation.lastFallbackAt ? (
+                            <Text variant="caption" muted>
+                              {t('settings.lastFallback', {
+                                date: formatDateTime(
+                                  operation.lastFallbackAt,
+                                  language,
+                                ),
+                              })}
+                            </Text>
+                          ) : null}
+                          {catalogRuntimeStatus.mode === 'automatic' &&
+                          operation.lastSuccessfulSource === 'mal' ? (
+                            <Text variant="caption" className="text-warning">
+                              {t('settings.usingMalFallback')}
+                            </Text>
+                          ) : null}
+                          {catalogRuntimeStatus.mode === 'automatic' &&
+                          operation.lastSuccessfulSource === 'cache' ? (
+                            <Text variant="caption" className="text-warning">
+                              {t('settings.usingCache')}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })
+                  : null}
               </View>
+              {catalogRuntimeStatus.mode === 'automatic' ? (
+                <Button variant="outline" onPress={resetJikanCircuits}>
+                  <Icon as={RotateCcw} className="size-4" />
+                  <Text>{t('settings.resetJikanCircuits')}</Text>
+                </Button>
+              ) : null}
             </View>
 
             {mode === 'mock' ? (
@@ -601,7 +683,7 @@ export function SettingsScreen() {
                       malDiagnostic.ok ? 'text-success' : 'text-destructive'
                     }
                   >
-                    {diagnosticMessage(malDiagnostic, 'mal', t)}
+                    {diagnosticMessage(malDiagnostic, t)}
                   </Text>
                   {malDiagnostic.status !== null ? (
                     <Text variant="caption" muted>
@@ -649,23 +731,45 @@ export function SettingsScreen() {
                   className="gap-1 rounded-xl bg-background/50 p-3"
                 >
                   <Text
-                    className={
-                      jikanDiagnostic.ok ? 'text-success' : 'text-destructive'
-                    }
+                    className={cn(
+                      jikanDiagnostic.health === 'healthy' && 'text-success',
+                      (jikanDiagnostic.health === 'degraded' ||
+                        jikanDiagnostic.health === 'rate_limited') &&
+                        'text-warning',
+                      jikanDiagnostic.health === 'unavailable' &&
+                        'text-destructive',
+                    )}
                   >
-                    {diagnosticMessage(jikanDiagnostic, 'jikan', t)}
+                    {t('settings.jikanHealth', {
+                      health: readableHealth(jikanDiagnostic.health, t),
+                    })}
                   </Text>
-                  {jikanDiagnostic.status !== null ? (
-                    <Text variant="caption" muted>
-                      {t('settings.httpResult', {
-                        status: jikanDiagnostic.status,
-                        elapsed: formatNumber(
-                          jikanDiagnostic.elapsedMs,
-                          language,
-                        ),
-                      })}
-                    </Text>
-                  ) : null}
+                  {jikanDiagnostic.endpoints.map((endpoint) => (
+                    <View
+                      key={endpoint.operation}
+                      className="gap-1 border-t border-border/60 pt-2"
+                    >
+                      <View className="flex-row items-center justify-between gap-3">
+                        <Text>{readableOperation(endpoint.operation, t)}</Text>
+                        <Text variant="caption" muted>
+                          {endpoint.status === null
+                            ? '—'
+                            : t('settings.endpointResult', {
+                                elapsed: formatNumber(
+                                  endpoint.elapsedMs,
+                                  language,
+                                ),
+                                status: endpoint.status,
+                              })}
+                        </Text>
+                      </View>
+                      {!endpoint.ok ? (
+                        <Text variant="caption" className="text-destructive">
+                          {jikanEndpointMessage(endpoint.errorKind, t)}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ))}
                 </View>
               ) : null}
             </View>

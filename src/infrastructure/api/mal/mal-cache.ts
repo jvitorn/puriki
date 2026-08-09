@@ -28,6 +28,11 @@ export class MalCatalogCache {
     });
   }
 
+  replaceCollection(key: string, items: AnimeCatalogItem[]): void {
+    this.collections.set(key, items);
+    this.rebuildSummaries();
+  }
+
   getSummary(id: number): AnimeCatalogItem | undefined {
     return this.summaries.get(id);
   }
@@ -62,6 +67,16 @@ export class MalCatalogCache {
     this.summaries.clear();
     this.details.clear();
     this.inFlight.clear();
+  }
+
+  private rebuildSummaries(): void {
+    this.summaries.clear();
+    this.collections.forEach((items) =>
+      items.forEach((item) => this.summaries.set(item.id, item)),
+    );
+    this.details.forEach((item) => {
+      if (item) this.summaries.set(item.id, item);
+    });
   }
 
   private deleteIfCurrent(key: string, request: Promise<unknown>): void {

@@ -25,6 +25,13 @@ describe('catalog circuit breaker', () => {
     breaker.recordFailure();
     expect(breaker.getState()).toBe('open');
     expect(breaker.allowRequest()).toBe(false);
+    expect(breaker.getSnapshot()).toEqual({
+      state: 'open',
+      consecutiveFailures: 2,
+      openUntil: 301_000,
+      lastFailureAt: 1_000,
+      lastSuccessAt: null,
+    });
   });
 
   it('enters half-open after the injected cooldown and allows one probe', () => {
@@ -48,6 +55,11 @@ describe('catalog circuit breaker', () => {
     breaker.recordSuccess();
     expect(breaker.getState()).toBe('closed');
     expect(breaker.allowRequest()).toBe(true);
+    expect(breaker.getSnapshot()).toMatchObject({
+      consecutiveFailures: 0,
+      lastSuccessAt: 301_000,
+      openUntil: null,
+    });
   });
 
   it('reopens for the full cooldown after a failed half-open probe', () => {
@@ -79,7 +91,13 @@ describe('catalog circuit breaker', () => {
     breaker.recordFailure();
     breaker.recordFailure();
     breaker.reset();
-    expect(breaker.getState()).toBe('closed');
+    expect(breaker.getSnapshot()).toEqual({
+      state: 'closed',
+      consecutiveFailures: 0,
+      openUntil: null,
+      lastFailureAt: null,
+      lastSuccessAt: null,
+    });
     breaker.recordFailure();
     expect(breaker.getState()).toBe('closed');
   });

@@ -8,7 +8,7 @@ Jikan remains the primary catalog provider. The official public MyAnimeList API 
 
 Settings exposes four session-only data-source modes:
 
-- **Automatic** is the non-test default. It uses Jikan first, then public MAL for eligible failures, then a previously normalized valid cache.
+- **Automatic** is the non-test default. It uses Jikan first per operation family, then public MAL for that operation's eligible failures, then a previously normalized valid cache.
 - **Jikan only** uses the public Jikan v4 catalog without MAL fallback and retains Jikan's full retry policy.
 - **MyAnimeList only** uses the official public MAL v2 catalog directly. This option is disabled until a Client ID is configured.
 - **Mock** uses the existing deterministic local development catalog and remains the automated-test default.
@@ -76,9 +76,13 @@ Automatic mode gives Jikan at most two total attempts so a failing primary does 
 
 MAL fallback is eligible after a Jikan network failure, timeout, rate limit, supported 5xx response, malformed response, or unexpectedly empty required discovery collection. Invalid arguments, programming errors, and legitimate detail 404 results do not trigger fallback. Mock data is never substituted when live providers fail.
 
-The Jikan circuit breaker opens after two consecutive eligible failures and remains open for five minutes. While open, automatic mode skips Jikan and goes directly to MAL. After cooldown it permits one half-open Jikan probe: success closes the circuit, while an eligible failure reopens it. Application errors and legitimate 404 results do not count as provider-health failures.
+Jikan resilience is isolated into `featured`, `popular`, `seasonal`, `upcoming`, `search`, and `details` operation families. Each family has its own circuit breaker, which opens after two consecutive eligible final-operation failures and remains open for five minutes. While one family is open, Automatic mode skips only that Jikan capability and uses MAL for it; healthy families continue using Jikan. `getDetailsById` and `getManyByIds` share the Details family, while all normalized search queries share the Search family. After cooldown, one request per family becomes the half-open probe. Success closes that family circuit, while an eligible failure reopens it. Application errors and legitimate 404 results do not count as provider-health failures.
 
-Successful normalized results are cached by logical operation. If Jikan and MAL both fail, automatic mode returns the previous valid result when one exists and records `cache` as the source. Failed manual refreshes do not erase valid catalog data. **Clear all catalog caches** intentionally removes provider and resilient caches and resets the circuit breaker.
+Jikan HTTP 429 responses are handled separately from endpoint health. `Retry-After` activates one provider-wide rate-limit gate; when the header is missing, the gate uses a bounded 15-second default. Requests that begin while the gate is active use MAL without opening otherwise healthy family circuits. After the window expires, the next operation may use Jikan normally.
+
+Developer runtime status shows compact Popular, Seasonal, Upcoming, Search, and Details rows with independent circuit and source state. Featured still has an isolated circuit internally, but its row is omitted because it is a composite selection derived from discovery collections rather than a direct Jikan endpoint. A separate development-only action resets Jikan circuit state; clearing catalog data does not reset provider health.
+
+Successful normalized results are cached by logical operation. If Jikan and MAL both fail, Automatic mode returns the previous valid result for that same operation when one exists and records `cache` for that family. Popular, Seasonal, and Upcoming refresh independently, replacing each family only after a fresh usable result; a Popular failure can therefore use MAL without discarding healthy Jikan Seasonal or Upcoming refreshes. **Clear active catalog cache** and **Clear all catalog caches** remove data caches without pretending provider health recovered or resetting circuit state.
 
 Provider caches remain in memory only. Collection responses populate the ID summary cache, details enrich it, and identical in-flight requests are coalesced. `getManyByIds` resolves known collection IDs without one detail request per list entry. Discovery order and Featured selection remain stable for the application session.
 
@@ -101,9 +105,9 @@ API structure and attribution: [Jikan REST API v4 documentation](https://docs.ap
 Settings → **Service diagnostics** compares providers independently:
 
 - **Test MyAnimeList API** directly requests one `bypopularity` ranking result with `id,title,main_picture`. It bypasses Jikan, the resilient repository, React Query, and catalog caches. A successful result shows HTTP status, elapsed time, and one sample title.
-- **Test Jikan API** directly checks the Jikan native transport in a separate request.
+- **Test Jikan API** sequentially checks raw Jikan Details (`/anime/1/full`), Popular (`/top/anime?limit=1&sfw=true`), Seasonal (`/seasons/now?limit=1&sfw=true`), Upcoming (`/seasons/upcoming?limit=1&sfw=true`), and Search (`/anime?q=Naruto&limit=1&sfw=true`). It uses the existing 500 ms request scheduler and bypasses catalog repositories, caches, fallback, and circuit breakers. The result is Healthy, Degraded, Unavailable, or Rate limited and includes one compact row per endpoint.
 
-Only one diagnostic can run at a time. Results are accessible alerts and are not persisted. The MAL diagnostic reports missing configuration, rejected Client IDs, rate limiting, service failures, network failures, timeouts, and invalid payloads without exposing credentials or upstream response bodies.
+Only one diagnostic can run at a time. Results are accessible alerts and are not persisted. Diagnostics report configuration, authorization, rate limiting, service, network, timeout, and invalid-payload failures without exposing credentials or large upstream response bodies. A failing Popular endpoint no longer makes healthy Jikan Details or Seasons appear unavailable.
 
 ## Session-only personal list
 
@@ -206,7 +210,7 @@ npm run test:ci
 
 ### Jikan is unavailable
 
-Use Settings → **Test Jikan API** to test Jikan directly. In Automatic mode, eligible failures use MAL when configured; after two consecutive failures the circuit skips Jikan for five minutes. Runtime catalog status shows the latest source and circuit state. A real Jikan 5xx response can reflect an upstream failure and does not imply Android cleartext or CORS configuration trouble.
+Use Settings → **Test Jikan API** to test five Jikan endpoint families directly. In Automatic mode, eligible failures use MAL when configured; after two consecutive final-operation failures only that family's circuit skips Jikan for five minutes. Runtime catalog status shows app-observed Jikan health plus independent source and circuit rows. A real Jikan 5xx response can reflect an upstream failure and does not imply Android cleartext or CORS configuration trouble.
 
 ### Test MyAnimeList API fails
 

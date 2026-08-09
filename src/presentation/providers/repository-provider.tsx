@@ -14,20 +14,36 @@ import { MalAnimeCatalogRepository } from '@/infrastructure/repositories/mal/mal
 import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
 import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
 import { MockUserAnimeListRepository } from '@/infrastructure/repositories/mock/mock-user-anime-list-repository';
-import { CatalogCircuitBreaker } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
+import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
+import {
+  JIKAN_OPERATION_FAMILIES,
+  type JikanHealth,
+  type JikanOperationFamily,
+} from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
-import type { CatalogSuccessfulSource } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
+import type {
+  CatalogSuccessfulSource,
+  ResilientCatalogRuntimeSnapshot,
+} from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
 import { createGeneratedListDataset } from '@/mocks/factories/generated-list-dataset';
 
 export type DataSourceMode = 'automatic' | 'jikan' | 'mal' | 'mock';
 
+export type CatalogRuntimeSource = CatalogSuccessfulSource | 'mock';
+
+export interface CatalogOperationRuntimeStatus {
+  circuitState: CircuitState | null;
+  lastSuccessfulSource: CatalogRuntimeSource | null;
+  lastFallbackAt: string | null;
+}
+
 export interface CatalogRuntimeStatus {
   mode: DataSourceMode;
-  lastSuccessfulSource: 'jikan' | 'mal' | 'cache' | 'mock' | null;
-  jikanCircuitState: CircuitState | null;
-  lastFallbackAt: string | null;
+  jikanHealth: JikanHealth | null;
+  jikanRateLimitedUntil: string | null;
+  operations: Record<JikanOperationFamily, CatalogOperationRuntimeStatus>;
 }
 
 export interface MockDevelopmentControls {
@@ -49,6 +65,7 @@ export interface RepositoryDependencies {
   selectDataSourceMode(mode: DataSourceMode): void;
   clearCatalogCache(): void;
   clearAllCatalogCaches(): void;
+  resetJikanCircuits(): void;
   refreshCurrentSample(): Promise<void>;
   mockDevelopmentControls: MockDevelopmentControls | null;
 }
@@ -59,14 +76,18 @@ interface RepositoryProviderProps extends PropsWithChildren {
 
 interface StatusChannel {
   get(): CatalogRuntimeStatus;
-  update(patch: Partial<CatalogRuntimeStatus>): void;
+  update(
+    updater:
+      | Partial<CatalogRuntimeStatus>
+      | ((current: CatalogRuntimeStatus) => CatalogRuntimeStatus),
+  ): void;
   subscribe(listener: (status: CatalogRuntimeStatus) => void): () => void;
 }
 
 export interface AutomaticDependenciesOptions {
   jikanRepository?: AnimeCatalogRepository;
   malRepository?: AnimeCatalogRepository;
-  circuitBreaker?: CatalogCircuitBreaker;
+  circuitRegistry?: CatalogCircuitBreakerRegistry;
   malConfigured?: boolean;
 }
 
@@ -82,16 +103,12 @@ function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
   const listeners = new Set<(value: CatalogRuntimeStatus) => void>();
   return {
     get: () => status,
-    update: (patch) => {
-      const next = { ...status, ...patch };
-      if (
-        next.mode === status.mode &&
-        next.lastSuccessfulSource === status.lastSuccessfulSource &&
-        next.jikanCircuitState === status.jikanCircuitState &&
-        next.lastFallbackAt === status.lastFallbackAt
-      ) {
-        return;
-      }
+    update: (updater) => {
+      const next =
+        typeof updater === 'function'
+          ? updater(status)
+          : { ...status, ...updater };
+      if (next === status) return;
       status = next;
       listeners.forEach((listener) => listener(status));
     },
@@ -102,24 +119,85 @@ function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
   };
 }
 
+function createOperationStatuses(
+  source: CatalogRuntimeSource | null,
+  circuitState: CircuitState | null,
+): Record<JikanOperationFamily, CatalogOperationRuntimeStatus> {
+  return Object.fromEntries(
+    JIKAN_OPERATION_FAMILIES.map((family) => [
+      family,
+      { circuitState, lastSuccessfulSource: source, lastFallbackAt: null },
+    ]),
+  ) as Record<JikanOperationFamily, CatalogOperationRuntimeStatus>;
+}
+
+function updateOperationSource(
+  channel: StatusChannel,
+  family: JikanOperationFamily,
+  source: CatalogRuntimeSource,
+): void {
+  channel.update((current) => ({
+    ...current,
+    operations: {
+      ...current.operations,
+      [family]: {
+        ...current.operations[family],
+        lastSuccessfulSource: source,
+      },
+    },
+  }));
+}
+
+function runtimeStatusFromSnapshot(
+  snapshot: ResilientCatalogRuntimeSnapshot,
+): CatalogRuntimeStatus {
+  return {
+    mode: 'automatic',
+    jikanHealth: snapshot.jikanHealth,
+    jikanRateLimitedUntil:
+      snapshot.jikanRateLimitedUntil === null
+        ? null
+        : new Date(snapshot.jikanRateLimitedUntil).toISOString(),
+    operations: Object.fromEntries(
+      JIKAN_OPERATION_FAMILIES.map((family) => {
+        const operation = snapshot.operations[family];
+        return [
+          family,
+          {
+            circuitState: operation.circuitState,
+            lastSuccessfulSource: operation.lastSuccessfulSource,
+            lastFallbackAt:
+              operation.lastFallbackAt === null
+                ? null
+                : new Date(operation.lastFallbackAt).toISOString(),
+          },
+        ];
+      }),
+    ) as Record<JikanOperationFamily, CatalogOperationRuntimeStatus>,
+  };
+}
+
 function createSourceTrackedRepository(
   repository: AnimeCatalogRepository,
   source: 'jikan' | 'mal',
   channel: StatusChannel,
 ): AnimeCatalogRepository {
-  const track = async <T,>(operation: Promise<T>): Promise<T> => {
+  const track = async <T,>(
+    family: JikanOperationFamily,
+    operation: Promise<T>,
+  ): Promise<T> => {
     const value = await operation;
-    channel.update({ lastSuccessfulSource: source });
+    updateOperationSource(channel, family, source);
     return value;
   };
   return {
-    getFeatured: () => track(repository.getFeatured()),
-    getPopular: () => track(repository.getPopular()),
-    getSeasonal: () => track(repository.getSeasonal()),
-    getUpcoming: () => track(repository.getUpcoming()),
-    search: (query) => track(repository.search(query)),
-    getManyByIds: (ids) => track(repository.getManyByIds(ids)),
-    getDetailsById: (id) => track(repository.getDetailsById(id)),
+    getFeatured: () => track('featured', repository.getFeatured()),
+    getPopular: () => track('popular', repository.getPopular()),
+    getSeasonal: () => track('seasonal', repository.getSeasonal()),
+    getUpcoming: () => track('upcoming', repository.getUpcoming()),
+    search: (query) => track('search', repository.search(query)),
+    getManyByIds: (ids) => track('details', repository.getManyByIds(ids)),
+    getDetailsById: (id) => track('details', repository.getDetailsById(id)),
     clearCache: () => repository.clearCache(),
   };
 }
@@ -130,6 +208,7 @@ function createLiveDependencies(
   refreshCatalog: () => Promise<void>,
   channel: StatusChannel,
   malConfigured: boolean,
+  resetJikanCircuits: () => void = () => undefined,
 ): RepositoryDependencies {
   const userListRepository = new SessionUserAnimeListRepository(
     catalogRepository,
@@ -149,6 +228,7 @@ function createLiveDependencies(
     selectDataSourceMode: () => undefined,
     clearCatalogCache: () => catalogRepository.clearCache(),
     clearAllCatalogCaches: () => catalogRepository.clearCache(),
+    resetJikanCircuits,
     refreshCurrentSample: async () => {
       await refreshCatalog();
       await userListRepository.generateNewSample();
@@ -163,9 +243,9 @@ export function createMockDependencies(): RepositoryDependencies {
   const userListRepository = new MockUserAnimeListRepository(runtime);
   const channel = createStatusChannel({
     mode: 'mock',
-    lastSuccessfulSource: 'mock',
-    jikanCircuitState: null,
-    lastFallbackAt: null,
+    jikanHealth: null,
+    jikanRateLimitedUntil: null,
+    operations: createOperationStatuses('mock', null),
   });
   const dependencies: RepositoryDependencies = {
     catalogRepository,
@@ -188,6 +268,7 @@ export function createMockDependencies(): RepositoryDependencies {
     selectDataSourceMode: () => undefined,
     clearCatalogCache: () => catalogRepository.clearCache(),
     clearAllCatalogCaches: () => catalogRepository.clearCache(),
+    resetJikanCircuits: () => undefined,
     refreshCurrentSample: () => userListRepository.reset(),
     mockDevelopmentControls: {
       generateTestList: () =>
@@ -203,9 +284,9 @@ export function createJikanDependencies(): RepositoryDependencies {
   const jikanRepository = new JikanAnimeCatalogRepository();
   const channel = createStatusChannel({
     mode: 'jikan',
-    lastSuccessfulSource: null,
-    jikanCircuitState: null,
-    lastFallbackAt: null,
+    jikanHealth: null,
+    jikanRateLimitedUntil: null,
+    operations: createOperationStatuses(null, null),
   });
   const catalogRepository = createSourceTrackedRepository(
     jikanRepository,
@@ -217,7 +298,9 @@ export function createJikanDependencies(): RepositoryDependencies {
     catalogRepository,
     async () => {
       await jikanRepository.refresh();
-      channel.update({ lastSuccessfulSource: 'jikan' });
+      (['popular', 'seasonal', 'upcoming'] as const).forEach((family) =>
+        updateOperationSource(channel, family, 'jikan'),
+      );
     },
     channel,
     isMalConfigured,
@@ -228,9 +311,9 @@ export function createMalDependencies(): RepositoryDependencies {
   const malRepository = new MalAnimeCatalogRepository();
   const channel = createStatusChannel({
     mode: 'mal',
-    lastSuccessfulSource: null,
-    jikanCircuitState: null,
-    lastFallbackAt: null,
+    jikanHealth: null,
+    jikanRateLimitedUntil: null,
+    operations: createOperationStatuses(null, null),
   });
   const catalogRepository = createSourceTrackedRepository(
     malRepository,
@@ -242,7 +325,9 @@ export function createMalDependencies(): RepositoryDependencies {
     catalogRepository,
     async () => {
       await malRepository.refresh();
-      channel.update({ lastSuccessfulSource: 'mal' });
+      (['popular', 'seasonal', 'upcoming'] as const).forEach((family) =>
+        updateOperationSource(channel, family, 'mal'),
+      );
     },
     channel,
     isMalConfigured,
@@ -258,38 +343,27 @@ export function createAutomaticDependencies(
     new JikanAnimeCatalogRepository({ maximumAttempts: 2 });
   const malRepository =
     options.malRepository ?? new MalAnimeCatalogRepository();
-  const circuitBreaker = options.circuitBreaker ?? new CatalogCircuitBreaker();
-  const channel = createStatusChannel({
-    mode: 'automatic',
-    lastSuccessfulSource: null,
-    jikanCircuitState: circuitBreaker.getState(),
-    lastFallbackAt: null,
-  });
-  const sourceUsed = (source: CatalogSuccessfulSource) => {
-    const current = channel.get();
-    channel.update({
-      lastSuccessfulSource: source,
-      jikanCircuitState: circuitBreaker.getState(),
-      ...(source === 'mal' && current.lastSuccessfulSource !== 'mal'
-        ? { lastFallbackAt: new Date().toISOString() }
-        : {}),
-    });
-  };
+  const circuitRegistry =
+    options.circuitRegistry ?? new CatalogCircuitBreakerRegistry();
+  let channel: StatusChannel;
   const catalogRepository = new ResilientAnimeCatalogRepository({
     primary: jikanRepository,
     fallback: malRepository,
-    circuitBreaker,
+    circuitRegistry,
     isFallbackAvailable: () => malAvailable,
-    onSourceUsed: sourceUsed,
-    onCircuitStateChange: (jikanCircuitState) =>
-      channel.update({ jikanCircuitState }),
+    onRuntimeStatusChange: (snapshot) =>
+      channel.update(runtimeStatusFromSnapshot(snapshot)),
   });
+  channel = createStatusChannel(
+    runtimeStatusFromSnapshot(catalogRepository.getRuntimeSnapshot()),
+  );
   return createLiveDependencies(
     'automatic',
     catalogRepository,
     () => catalogRepository.refresh(),
     channel,
     malAvailable,
+    () => catalogRepository.resetCircuits(),
   );
 }
 

@@ -155,7 +155,7 @@ describe('MAL anime catalog repository', () => {
     expect(getDetails).toHaveBeenCalledTimes(2);
   });
 
-  it('atomically replaces discovery collections after a successful refresh', async () => {
+  it('replaces every discovery collection after a successful refresh', async () => {
     const { getRanking, getSeason, repository } = createRepository();
     const original = await repository.getPopular();
     const refreshed = {

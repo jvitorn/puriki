@@ -11,8 +11,15 @@ import {
   JikanTimeoutError,
 } from '@/infrastructure/api/jikan/jikan-errors';
 import { MalNetworkError } from '@/infrastructure/api/mal/mal-errors';
-import { CatalogCircuitBreaker } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
-import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
+import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
+import {
+  JIKAN_OPERATION_FAMILIES,
+  type JikanDiscoveryOperationFamily,
+} from '@/infrastructure/repositories/resilient/catalog-operation-family';
+import {
+  ResilientAnimeCatalogRepository,
+  type ResilientCatalogRuntimeSnapshot,
+} from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 
 const jikanAnime: AnimeCatalogItem = {
   id: 1,
@@ -58,79 +65,70 @@ const OPERATIONS = [
   {
     name: 'featured',
     invoke: (repository: AnimeCatalogRepository) => repository.getFeatured(),
-    fallbackCall: (repository: MockCatalogRepository) => repository.getFeatured,
+    call: (repository: MockCatalogRepository) => repository.getFeatured,
   },
   {
     name: 'popular',
     invoke: (repository: AnimeCatalogRepository) => repository.getPopular(),
-    fallbackCall: (repository: MockCatalogRepository) => repository.getPopular,
+    call: (repository: MockCatalogRepository) => repository.getPopular,
   },
   {
     name: 'seasonal',
     invoke: (repository: AnimeCatalogRepository) => repository.getSeasonal(),
-    fallbackCall: (repository: MockCatalogRepository) => repository.getSeasonal,
+    call: (repository: MockCatalogRepository) => repository.getSeasonal,
   },
   {
     name: 'upcoming',
     invoke: (repository: AnimeCatalogRepository) => repository.getUpcoming(),
-    fallbackCall: (repository: MockCatalogRepository) => repository.getUpcoming,
+    call: (repository: MockCatalogRepository) => repository.getUpcoming,
   },
   {
     name: 'search',
     invoke: (repository: AnimeCatalogRepository) =>
       repository.search('  FRIEREN '),
-    fallbackCall: (repository: MockCatalogRepository) => repository.search,
+    call: (repository: MockCatalogRepository) => repository.search,
   },
   {
     name: 'many',
     invoke: (repository: AnimeCatalogRepository) =>
       repository.getManyByIds([2, 1, 2]),
-    fallbackCall: (repository: MockCatalogRepository) =>
-      repository.getManyByIds,
+    call: (repository: MockCatalogRepository) => repository.getManyByIds,
   },
   {
     name: 'details',
     invoke: (repository: AnimeCatalogRepository) =>
       repository.getDetailsById(1),
-    fallbackCall: (repository: MockCatalogRepository) =>
-      repository.getDetailsById,
+    call: (repository: MockCatalogRepository) => repository.getDetailsById,
   },
 ] as const;
 
 describe('resilient anime catalog repository', () => {
   it.each(OPERATIONS)(
     'uses Jikan for $name and never calls MAL after primary success',
-    async ({ fallbackCall, invoke }) => {
+    async ({ call, invoke }) => {
       const primary = createCatalogMock(jikanAnime);
       const fallback = createCatalogMock(malAnime);
-      const sourceUsed = jest.fn();
       const repository = new ResilientAnimeCatalogRepository({
         primary,
         fallback,
-        onSourceUsed: sourceUsed,
       });
       await invoke(repository);
-      expect(fallbackCall(fallback)).not.toHaveBeenCalled();
-      expect(sourceUsed).toHaveBeenLastCalledWith('jikan');
+      expect(call(fallback)).not.toHaveBeenCalled();
     },
   );
 
   it.each(OPERATIONS)(
     'falls back to MAL independently for $name',
-    async ({ fallbackCall, invoke }) => {
+    async ({ call, invoke }) => {
       const primary = createCatalogMock(jikanAnime);
       const fallback = createCatalogMock(malAnime);
-      const sourceUsed = jest.fn();
-      const primaryCall = fallbackCall(primary);
-      primaryCall.mockRejectedValueOnce(new JikanNetworkError());
+      call(primary).mockRejectedValueOnce(new JikanNetworkError());
       const repository = new ResilientAnimeCatalogRepository({
         primary,
         fallback,
-        onSourceUsed: sourceUsed,
       });
       await invoke(repository);
-      expect(fallbackCall(fallback)).toHaveBeenCalledTimes(1);
-      expect(sourceUsed).toHaveBeenLastCalledWith('mal');
+      expect(call(fallback)).toHaveBeenCalledTimes(1);
     },
   );
 
@@ -166,7 +164,7 @@ describe('resilient anime catalog repository', () => {
     await expect(repository.getPopular()).resolves.toEqual([malAnime]);
   });
 
-  it('does not use fallback or open the circuit for application and legitimate 404 cases', async () => {
+  it('does not use fallback or open circuits for application errors and legitimate 404 results', async () => {
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
     const badArgument = new JikanHttpError(400);
@@ -180,7 +178,8 @@ describe('resilient anime catalog repository', () => {
     await expect(repository.getDetailsById(404)).resolves.toBeNull();
     expect(fallback.search).not.toHaveBeenCalled();
     expect(fallback.getDetailsById).not.toHaveBeenCalled();
-    expect(repository.getCircuitState()).toBe('closed');
+    expect(repository.getCircuitState('search')).toBe('closed');
+    expect(repository.getCircuitState('details')).toBe('closed');
   });
 
   it('does not translate a thrown Jikan not-found error into fallback data', async () => {
@@ -194,23 +193,26 @@ describe('resilient anime catalog repository', () => {
     });
     await expect(repository.getDetailsById(404)).rejects.toBe(notFound);
     expect(fallback.getDetailsById).not.toHaveBeenCalled();
-    expect(repository.getCircuitState()).toBe('closed');
   });
 
-  it('returns previous normalized cache when both live providers fail', async () => {
+  it('returns the operation-correct normalized cache when both providers fail', async () => {
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
-    const sources: string[] = [];
     const repository = new ResilientAnimeCatalogRepository({
       primary,
       fallback,
-      onSourceUsed: (source) => sources.push(source),
     });
     await expect(repository.getPopular()).resolves.toEqual([jikanAnime]);
+    await expect(repository.getSeasonal()).resolves.toEqual([jikanAnime]);
     primary.getPopular.mockRejectedValueOnce(new JikanTimeoutError());
     fallback.getPopular.mockRejectedValueOnce(new MalNetworkError());
     await expect(repository.getPopular()).resolves.toEqual([jikanAnime]);
-    expect(sources).toEqual(['jikan', 'cache']);
+    expect(repository.getRuntimeSnapshot().operations.popular).toMatchObject({
+      lastSuccessfulSource: 'cache',
+    });
+    expect(
+      repository.getRuntimeSnapshot().operations.seasonal.lastSuccessfulSource,
+    ).toBe('jikan');
   });
 
   it('throws a recoverable catalog error when both providers fail without cache', async () => {
@@ -242,7 +244,7 @@ describe('resilient anime catalog repository', () => {
     expect(fallback.getPopular).not.toHaveBeenCalled();
   });
 
-  it('opens after two failures, skips Jikan, and uses MAL while open', async () => {
+  it('opens only Popular and keeps Seasonal, Upcoming, Search, and Details on Jikan', async () => {
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
     primary.getPopular.mockRejectedValue(new JikanNetworkError());
@@ -250,56 +252,206 @@ describe('resilient anime catalog repository', () => {
       primary,
       fallback,
     });
+
     await repository.getPopular();
     await repository.getPopular();
-    expect(repository.getCircuitState()).toBe('open');
     await repository.getPopular();
+    await repository.getSeasonal();
+    await repository.getUpcoming();
+    await repository.search('Naruto');
+    await repository.getDetailsById(1);
+
     expect(primary.getPopular).toHaveBeenCalledTimes(2);
     expect(fallback.getPopular).toHaveBeenCalledTimes(3);
+    expect(primary.getSeasonal).toHaveBeenCalledTimes(1);
+    expect(primary.getUpcoming).toHaveBeenCalledTimes(1);
+    expect(primary.search).toHaveBeenCalledTimes(1);
+    expect(primary.getDetailsById).toHaveBeenCalledTimes(1);
+    expect(repository.getRuntimeSnapshot()).toMatchObject({
+      jikanHealth: 'degraded',
+      operations: {
+        popular: {
+          circuitState: 'open',
+          lastSuccessfulSource: 'mal',
+        },
+        seasonal: {
+          circuitState: 'closed',
+          lastSuccessfulSource: 'jikan',
+        },
+        upcoming: {
+          circuitState: 'closed',
+          lastSuccessfulSource: 'jikan',
+        },
+        search: {
+          circuitState: 'closed',
+          lastSuccessfulSource: 'jikan',
+        },
+        details: {
+          circuitState: 'closed',
+          lastSuccessfulSource: 'jikan',
+        },
+      },
+    });
   });
 
-  it('resets consecutive Jikan failures after a successful request', async () => {
+  it('keeps the composite Featured boundary isolated from Popular', async () => {
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
-    primary.getPopular
-      .mockRejectedValueOnce(new JikanNetworkError())
-      .mockResolvedValueOnce([jikanAnime])
-      .mockRejectedValueOnce(new JikanNetworkError());
+    primary.getFeatured.mockRejectedValue(new JikanNetworkError());
     const repository = new ResilientAnimeCatalogRepository({
       primary,
       fallback,
     });
-    await repository.getPopular();
-    await repository.getPopular();
-    await repository.getPopular();
-    expect(repository.getCircuitState()).toBe('closed');
+    await repository.getFeatured();
+    await repository.getFeatured();
+    await repository.getFeatured();
+    await expect(repository.getPopular()).resolves.toEqual([jikanAnime]);
+    expect(primary.getFeatured).toHaveBeenCalledTimes(2);
+    expect(primary.getPopular).toHaveBeenCalledTimes(1);
+    expect(repository.getCircuitState('featured')).toBe('open');
+    expect(repository.getCircuitState('popular')).toBe('closed');
   });
 
-  it('allows one half-open Jikan probe and closes after it succeeds', async () => {
+  it('shares Details state between getDetailsById and getManyByIds without affecting Search', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    primary.getDetailsById.mockRejectedValue(new JikanNetworkError());
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+    await repository.getDetailsById(1);
+    await repository.getDetailsById(2);
+    await repository.getManyByIds([1, 2]);
+    await repository.search('healthy');
+    expect(primary.getDetailsById).toHaveBeenCalledTimes(2);
+    expect(primary.getManyByIds).not.toHaveBeenCalled();
+    expect(fallback.getManyByIds).toHaveBeenCalledTimes(1);
+    expect(primary.search).toHaveBeenCalledTimes(1);
+    expect(repository.getCircuitState('details')).toBe('open');
+    expect(repository.getCircuitState('search')).toBe('closed');
+  });
+
+  it('shares one Search circuit across normalized query keys', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    primary.search.mockRejectedValue(
+      new JikanServiceUnavailableError(504, null),
+    );
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+    await repository.search('Naruto');
+    await repository.search('Bleach');
+    await repository.search('One Piece');
+    expect(primary.search).toHaveBeenCalledTimes(2);
+    expect(fallback.search).toHaveBeenCalledTimes(3);
+    expect(repository.getCircuitState('search')).toBe('open');
+    expect(repository.getCircuitState('popular')).toBe('closed');
+  });
+
+  it('allows one half-open probe per family while concurrent calls use fallback', async () => {
     let now = 0;
+    let resolveProbe: ((value: AnimeCatalogItem[]) => void) | undefined;
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
     primary.getPopular
       .mockRejectedValueOnce(new JikanNetworkError())
       .mockRejectedValueOnce(new JikanNetworkError())
-      .mockResolvedValueOnce([jikanAnime]);
-    const breaker = new CatalogCircuitBreaker({
-      openDurationMs: 100,
-      now: () => now,
-    });
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveProbe = resolve;
+          }),
+      );
     const repository = new ResilientAnimeCatalogRepository({
       primary,
       fallback,
-      circuitBreaker: breaker,
+      circuitRegistry: new CatalogCircuitBreakerRegistry({
+        openDurationMs: 100,
+        now: () => now,
+      }),
+      now: () => now,
     });
     await repository.getPopular();
     await repository.getPopular();
     now = 100;
-    await expect(repository.getPopular()).resolves.toEqual([jikanAnime]);
-    expect(repository.getCircuitState()).toBe('closed');
+    const probe = repository.getPopular();
+    const concurrent = repository.getPopular();
+    await expect(concurrent).resolves.toEqual([malAnime]);
+    resolveProbe?.([jikanAnime]);
+    await expect(probe).resolves.toEqual([jikanAnime]);
+    expect(primary.getPopular).toHaveBeenCalledTimes(3);
+    expect(repository.getCircuitState('popular')).toBe('closed');
   });
 
-  it('clears both provider caches, stale cache, and circuit state', async () => {
+  it('activates a provider-wide Retry-After gate without poisoning family circuits', async () => {
+    let now = 1_000;
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    primary.getPopular.mockRejectedValueOnce(new JikanRateLimitError(2_000));
+    const snapshots: ResilientCatalogRuntimeSnapshot[] = [];
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      now: () => now,
+      onRuntimeStatusChange: (snapshot) => snapshots.push(snapshot),
+    });
+
+    await expect(repository.getPopular()).resolves.toEqual([malAnime]);
+    await expect(repository.getSeasonal()).resolves.toEqual([malAnime]);
+    expect(primary.getSeasonal).not.toHaveBeenCalled();
+    expect(repository.getRuntimeSnapshot()).toMatchObject({
+      jikanHealth: 'rate_limited',
+      jikanRateLimitedUntil: 3_000,
+      operations: {
+        popular: { circuitState: 'closed' },
+        seasonal: { circuitState: 'closed' },
+      },
+    });
+    expect(snapshots.length).toBeGreaterThan(0);
+    repository.clearCache();
+    expect(repository.getRuntimeSnapshot().jikanHealth).toBe('rate_limited');
+
+    now = 3_001;
+    await expect(repository.getDetailsById(1)).resolves.toEqual(jikanAnime);
+    expect(primary.getDetailsById).toHaveBeenCalledTimes(1);
+    expect(repository.getRuntimeSnapshot().jikanHealth).toBe('healthy');
+  });
+
+  it('uses a bounded default gate when Retry-After is missing', async () => {
+    let now = 0;
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    primary.getPopular.mockRejectedValueOnce(new JikanRateLimitError(null));
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      now: () => now,
+    });
+    await repository.getPopular();
+    expect(repository.getRuntimeSnapshot().jikanRateLimitedUntil).toBe(15_000);
+    now = 15_001;
+    await repository.getSeasonal();
+    expect(primary.getSeasonal).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports app-observed Jikan health as unavailable when every family is open', () => {
+    const registry = new CatalogCircuitBreakerRegistry();
+    JIKAN_OPERATION_FAMILIES.forEach((family) => {
+      registry.get(family).recordFailure();
+      registry.get(family).recordFailure();
+    });
+    const repository = new ResilientAnimeCatalogRepository({
+      primary: createCatalogMock(jikanAnime),
+      fallback: createCatalogMock(malAnime),
+      circuitRegistry: registry,
+    });
+    expect(repository.getRuntimeSnapshot().jikanHealth).toBe('unavailable');
+  });
+
+  it('clears data caches without resetting provider health and resets circuits explicitly', async () => {
     const primary = createCatalogMock(jikanAnime);
     const fallback = createCatalogMock(malAnime);
     primary.getPopular.mockRejectedValue(new JikanNetworkError());
@@ -309,55 +461,42 @@ describe('resilient anime catalog repository', () => {
     });
     await repository.getPopular();
     await repository.getPopular();
-    expect(repository.getCircuitState()).toBe('open');
     repository.clearCache();
     expect(primary.clearCache).toHaveBeenCalledTimes(1);
     expect(fallback.clearCache).toHaveBeenCalledTimes(1);
-    expect(repository.getCircuitState()).toBe('closed');
+    expect(repository.getCircuitState('popular')).toBe('open');
+    repository.resetCircuits('popular');
+    expect(repository.getCircuitState('popular')).toBe('closed');
   });
 
-  it('falls back independently during a manual catalog refresh', async () => {
-    const primary = Object.assign(createCatalogMock(jikanAnime), {
-      refresh: jest.fn(async () => {
-        throw new JikanServiceUnavailableError(504, null);
-      }),
-    });
-    const fallback = Object.assign(createCatalogMock(malAnime), {
-      refresh: jest.fn(async () => undefined),
-    });
-    const sourceUsed = jest.fn();
-    const repository = new ResilientAnimeCatalogRepository({
-      primary,
-      fallback,
-      onSourceUsed: sourceUsed,
-    });
-    await expect(repository.refresh()).resolves.toBeUndefined();
-    expect(primary.refresh).toHaveBeenCalledTimes(1);
-    expect(fallback.refresh).toHaveBeenCalledTimes(1);
-    expect(sourceUsed).toHaveBeenLastCalledWith('mal');
-  });
-
-  it('preserves stale normalized data when a manual refresh and both later providers fail', async () => {
-    const primary = Object.assign(createCatalogMock(jikanAnime), {
-      refresh: jest.fn(async () => {
-        throw new JikanNetworkError();
-      }),
-    });
-    const fallback = Object.assign(createCatalogMock(malAnime), {
-      refresh: jest.fn(async () => {
-        throw new MalNetworkError();
-      }),
-    });
-    const repository = new ResilientAnimeCatalogRepository({
-      primary,
-      fallback,
-    });
-    await repository.getPopular();
-    await expect(repository.refresh()).rejects.toBeInstanceOf(
-      CatalogUnavailableError,
+  it('refreshes discovery families independently and falls back only for the failed family', async () => {
+    const primary = createCatalogMock(jikanAnime);
+    const fallback = createCatalogMock(malAnime);
+    const primaryRefreshFamily = jest.fn(
+      async (family: JikanDiscoveryOperationFamily) => {
+        if (family === 'popular') {
+          throw new JikanServiceUnavailableError(504, null);
+        }
+      },
     );
-    primary.getPopular.mockRejectedValueOnce(new JikanNetworkError());
-    fallback.getPopular.mockRejectedValueOnce(new MalNetworkError());
-    await expect(repository.getPopular()).resolves.toEqual([jikanAnime]);
+    const fallbackRefreshFamily = jest.fn(
+      async (_family: JikanDiscoveryOperationFamily) => undefined,
+    );
+    Object.assign(primary, { refreshFamily: primaryRefreshFamily });
+    Object.assign(fallback, { refreshFamily: fallbackRefreshFamily });
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+
+    await expect(repository.refresh()).resolves.toBeUndefined();
+    expect(primaryRefreshFamily).toHaveBeenCalledTimes(3);
+    expect(fallbackRefreshFamily).toHaveBeenCalledTimes(1);
+    expect(fallbackRefreshFamily).toHaveBeenCalledWith('popular');
+    expect(repository.getRuntimeSnapshot().operations).toMatchObject({
+      popular: { lastSuccessfulSource: 'mal' },
+      seasonal: { lastSuccessfulSource: 'jikan' },
+      upcoming: { lastSuccessfulSource: 'jikan' },
+    });
   });
 });

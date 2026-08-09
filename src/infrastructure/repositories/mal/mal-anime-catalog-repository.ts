@@ -16,6 +16,10 @@ import {
 } from '@/infrastructure/api/mal/mal-errors';
 import { MAL_ANIME_FIELDS } from '@/infrastructure/api/mal/mal-fields';
 import { mapMalAnime } from '@/infrastructure/api/mal/mal-mapper';
+import {
+  JIKAN_DISCOVERY_OPERATION_FAMILIES,
+  type JikanDiscoveryOperationFamily,
+} from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { normalizeSearchText } from '@/shared/utils/search';
 
 export type MalRandomGenerator = () => number;
@@ -27,7 +31,7 @@ export interface MalAnimeCatalogRepositoryOptions {
   now?: () => Date;
 }
 
-type CollectionName = 'popular' | 'seasonal' | 'upcoming';
+type CollectionName = JikanDiscoveryOperationFamily;
 type CollectionRequest = () => Promise<unknown>;
 
 function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
@@ -70,6 +74,7 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
   private sessionPool: AnimeCatalogItem[] | null = null;
   private featured: AnimeCatalogItem | null = null;
   private refreshInFlight: Promise<void> | null = null;
+  private readonly familyRefreshes = new Map<CollectionName, Promise<void>>();
   private generation = 0;
 
   constructor(options: MalAnimeCatalogRepositoryOptions = {}) {
@@ -201,6 +206,18 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
     return refresh;
   }
 
+  refreshFamily(family: CollectionName): Promise<void> {
+    const existing = this.familyRefreshes.get(family);
+    if (existing) return existing;
+    const refresh = this.refreshCollection(family, this.generation);
+    this.familyRefreshes.set(family, refresh);
+    void refresh.then(
+      () => this.clearFamilyRefreshIfCurrent(family, refresh),
+      () => this.clearFamilyRefreshIfCurrent(family, refresh),
+    );
+    return refresh;
+  }
+
   clearCache(): void {
     this.generation += 1;
     this.cache.clear();
@@ -279,50 +296,50 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
   }
 
   private async refreshCollections(generation: number): Promise<void> {
-    const { year, season } = currentMalSeason(this.now());
-    const [popular, seasonal, upcoming] = await Promise.allSettled([
-      this.fetchFreshCollection(() =>
-        this.client.anime.getRanking({
-          ranking_type: 'bypopularity',
-          limit: 25,
-          fields: MAL_ANIME_FIELDS,
-        }),
+    const results = await Promise.allSettled(
+      JIKAN_DISCOVERY_OPERATION_FAMILIES.map((family) =>
+        this.refreshFamily(family),
       ),
-      this.fetchFreshCollection(() =>
-        this.client.anime.getSeason(year, season, {
-          limit: 25,
-          sort: 'anime_num_list_users',
-          fields: MAL_ANIME_FIELDS,
-        }),
-      ),
-      this.fetchFreshCollection(() =>
-        this.client.anime.getRanking({
-          ranking_type: 'upcoming',
-          limit: 25,
-          fields: MAL_ANIME_FIELDS,
-        }),
-      ),
-    ]);
-    const failed = [popular, seasonal, upcoming].find(
-      (result) => result.status === 'rejected',
     );
+    const failed = results.find((result) => result.status === 'rejected');
     if (failed?.status === 'rejected') throw failed.reason;
-    if (
-      popular.status !== 'fulfilled' ||
-      seasonal.status !== 'fulfilled' ||
-      upcoming.status !== 'fulfilled'
-    ) {
-      throw new Error('MyAnimeList refresh did not finish.');
+    if (generation !== this.generation) {
+      throw new Error(
+        'The MAL catalog cache changed while refresh was running.',
+      );
     }
-    const freshCollections: (readonly [CollectionName, AnimeCatalogItem[]])[] =
-      [
-        ['popular', popular.value],
-        ['seasonal', seasonal.value],
-        ['upcoming', upcoming.value],
-      ];
-    if (freshCollections.every(([, items]) => items.length === 0)) {
+  }
+
+  private async refreshCollection(
+    family: CollectionName,
+    generation: number,
+  ): Promise<void> {
+    const { year, season } = currentMalSeason(this.now());
+    const request =
+      family === 'popular'
+        ? () =>
+            this.client.anime.getRanking({
+              ranking_type: 'bypopularity',
+              limit: 25,
+              fields: MAL_ANIME_FIELDS,
+            })
+        : family === 'seasonal'
+          ? () =>
+              this.client.anime.getSeason(year, season, {
+                limit: 25,
+                sort: 'anime_num_list_users',
+                fields: MAL_ANIME_FIELDS,
+              })
+          : () =>
+              this.client.anime.getRanking({
+                ranking_type: 'upcoming',
+                limit: 25,
+                fields: MAL_ANIME_FIELDS,
+              });
+    const items = await this.fetchFreshCollection(request);
+    if (items.length === 0) {
       throw new MalResponseFormatError(
-        'MyAnimeList returned an empty discovery catalog during refresh.',
+        `MyAnimeList returned an empty ${family} collection during refresh.`,
       );
     }
     if (generation !== this.generation) {
@@ -330,20 +347,22 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
         'The MAL catalog cache changed while refresh was running.',
       );
     }
-    this.cache.replaceCollections(
-      freshCollections.map(([name, items]) => [`collection:${name}`, items]),
-    );
-    freshCollections.forEach(([name, items]) =>
-      this.sessionCollections.set(name, shuffled(items, this.random)),
-    );
-    this.sessionPool = shuffled(
-      deduplicate(freshCollections.flatMap(([, items]) => items)),
-      this.random,
-    );
+    this.cache.replaceCollection(`collection:${family}`, items);
+    this.sessionCollections.set(family, shuffled(items, this.random));
+    this.sessionPool = null;
     this.featured = null;
   }
 
   private clearRefreshIfCurrent(refresh: Promise<void>): void {
     if (this.refreshInFlight === refresh) this.refreshInFlight = null;
+  }
+
+  private clearFamilyRefreshIfCurrent(
+    family: CollectionName,
+    refresh: Promise<void>,
+  ): void {
+    if (this.familyRefreshes.get(family) === refresh) {
+      this.familyRefreshes.delete(family);
+    }
   }
 }
