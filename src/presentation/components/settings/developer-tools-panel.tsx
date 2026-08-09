@@ -3,15 +3,14 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, View } from 'react-native';
 
+import type { AniListRunAllResult } from '@/infrastructure/api/anilist/anilist-diagnostics';
+import {
+  runMalConnectivityDiagnostic,
+  type MalConnectivityResult,
+} from '@/infrastructure/api/mal/mal-diagnostics';
 import type {
-  JikanDiagnosticErrorKind,
-  JikanServiceDiagnosticResult,
-} from '@/infrastructure/api/jikan/jikan-diagnostics';
-import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
-import type { MalConnectivityResult } from '@/infrastructure/api/mal/mal-diagnostics';
-import type {
-  JikanHealth,
-  JikanOperationFamily,
+  CatalogOperationFamily,
+  PrimaryCatalogHealth,
 } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { useAppLanguage } from '@/localization/localization-provider';
 import { formatDateTime, formatNumber } from '@/localization/localized-values';
@@ -24,7 +23,6 @@ import {
   useCatalogRuntimeStatus,
   useRepositories,
 } from '@/presentation/providers/repository-provider';
-import { cn } from '@/shared/rnr/utils';
 
 const RUNTIME_OPERATION_FAMILIES = [
   'popular',
@@ -32,14 +30,14 @@ const RUNTIME_OPERATION_FAMILIES = [
   'upcoming',
   'search',
   'details',
-] as const satisfies readonly JikanOperationFamily[];
+] as const satisfies readonly CatalogOperationFamily[];
 
 function readableSource(
   source: string | null,
   t: (key: string) => string,
 ): string {
+  if (source === 'anilist') return 'AniList';
   if (source === 'mal') return 'MyAnimeList';
-  if (source === 'jikan') return 'Jikan';
   if (source === 'cache') return t('settings.sourceCache');
   return t('settings.sourceNone');
 }
@@ -54,44 +52,13 @@ function readableCircuitState(
 }
 
 function readableHealth(
-  health: JikanHealth,
+  health: PrimaryCatalogHealth,
   t: (key: string) => string,
 ): string {
   if (health === 'healthy') return t('settings.healthHealthy');
   if (health === 'degraded') return t('settings.healthDegraded');
   if (health === 'rate_limited') return t('settings.healthRateLimited');
   return t('settings.healthUnavailable');
-}
-
-function diagnosticMessage(
-  result: MalConnectivityResult,
-  t: (key: string) => string,
-): string {
-  if (result.ok) return t('settings.malSuccess');
-  if (result.errorKind === 'not_configured')
-    return t('settings.diagnosticNotConfigured');
-  if (result.errorKind === 'unauthorized')
-    return t('settings.diagnosticUnauthorized');
-  if (result.errorKind === 'timeout') return t('settings.diagnosticTimeout');
-  if (result.errorKind === 'network') return t('settings.diagnosticNetwork');
-  if (result.errorKind === 'service_unavailable')
-    return t('settings.diagnosticUnavailable');
-  return t('settings.diagnosticFailed');
-}
-
-function jikanEndpointMessage(
-  errorKind: JikanDiagnosticErrorKind,
-  t: (key: string) => string,
-): string {
-  if (errorKind === 'timeout') return t('settings.diagnosticTimeout');
-  if (errorKind === 'network') return t('settings.diagnosticNetwork');
-  if (errorKind === 'service_unavailable')
-    return t('settings.diagnosticUnavailable');
-  if (errorKind === 'rate_limit') return t('settings.healthRateLimited');
-  if (errorKind === 'format') return t('settings.diagnosticInvalidResponse');
-  if (errorKind === 'configuration')
-    return t('settings.diagnosticConfiguration');
-  return t('settings.diagnosticFailed');
 }
 
 export function DeveloperToolsPanel({
@@ -104,57 +71,51 @@ export function DeveloperToolsPanel({
   const { t } = useTranslation();
   const { language } = useAppLanguage();
   const runtimeStatus = useCatalogRuntimeStatus();
-  const { clearCatalogCache, resetJikanCircuits, runJikanDiagnostic } =
+  const { clearCatalogCache, resetPrimaryCircuits, runAniListDiagnostic } =
     useRepositories();
   const diagnosticLock = useRef(false);
   const [pendingDiagnostic, setPendingDiagnostic] = useState<
-    'mal' | 'jikan' | null
+    'mal' | 'anilist' | null
+  >(null);
+  const [anilistDiagnostic, setAniListDiagnostic] = useState<
+    AniListRunAllResult | 'failed' | null
   >(null);
   const [malDiagnostic, setMalDiagnostic] =
     useState<MalConnectivityResult | null>(null);
-  const [jikanDiagnostic, setJikanDiagnostic] =
-    useState<JikanServiceDiagnosticResult | null>(null);
   const diagnosticPending = pendingDiagnostic !== null;
 
-  const testMal = async () => {
+  const runExclusive = async <T,>(
+    source: 'mal' | 'anilist',
+    operation: () => Promise<T>,
+  ): Promise<T | undefined> => {
     if (diagnosticLock.current) return;
     diagnosticLock.current = true;
-    setPendingDiagnostic('mal');
-    setMalDiagnostic(null);
+    setPendingDiagnostic(source);
     try {
-      setMalDiagnostic(await runMalConnectivityDiagnostic());
-    } catch {
-      setMalDiagnostic({
-        ok: false,
-        platform: 'unknown',
-        status: null,
-        elapsedMs: 0,
-        errorKind: 'http',
-        message: 'The MyAnimeList API request failed.',
-        sampleAnimeTitle: null,
-      });
+      return await operation();
     } finally {
       diagnosticLock.current = false;
       setPendingDiagnostic(null);
     }
   };
 
-  const testJikan = async () => {
-    if (diagnosticLock.current) return;
-    diagnosticLock.current = true;
-    setPendingDiagnostic('jikan');
-    setJikanDiagnostic(null);
+  const testAniList = async () => {
+    setAniListDiagnostic(null);
     try {
-      setJikanDiagnostic(await runJikanDiagnostic());
+      const result = await runExclusive('anilist', runAniListDiagnostic);
+      if (result) setAniListDiagnostic(result);
     } catch {
-      setJikanDiagnostic({
-        platform: 'unknown',
-        health: 'unavailable',
-        endpoints: [],
-      });
-    } finally {
-      diagnosticLock.current = false;
-      setPendingDiagnostic(null);
+      setAniListDiagnostic('failed');
+    }
+  };
+
+  const testMal = async () => {
+    setMalDiagnostic(null);
+    try {
+      const result = await runExclusive('mal', runMalConnectivityDiagnostic);
+      if (result) setMalDiagnostic(result);
+    } catch {
+      setMalDiagnostic(null);
     }
   };
 
@@ -169,64 +130,51 @@ export function DeveloperToolsPanel({
           <Text className="font-bold">{t('settings.serviceDiagnostics')}</Text>
           <Button
             accessibilityLabel={
-              pendingDiagnostic === 'jikan'
-                ? t('settings.testingJikan')
-                : t('settings.testJikan')
+              pendingDiagnostic === 'anilist'
+                ? t('settings.testingAniList')
+                : t('settings.testAniList')
             }
             disabled={diagnosticPending}
             variant="outline"
-            onPress={() => void testJikan()}
+            onPress={() => void testAniList()}
           >
             <Icon as={Activity} className="size-4" />
             <Text>
-              {pendingDiagnostic === 'jikan'
-                ? t('settings.testingJikan')
-                : t('settings.testJikan')}
+              {pendingDiagnostic === 'anilist'
+                ? t('settings.testingAniList')
+                : t('settings.testAniList')}
             </Text>
           </Button>
-          {jikanDiagnostic ? (
+          {anilistDiagnostic === 'failed' ? (
+            <Text accessibilityRole="alert" className="text-destructive">
+              {t('settings.diagnosticFailed')}
+            </Text>
+          ) : anilistDiagnostic ? (
             <View
               accessible
               accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
               className="gap-2 rounded-xl bg-background/50 p-3"
             >
               <Text
-                className={cn(
-                  jikanDiagnostic.health === 'healthy' && 'text-success',
-                  (jikanDiagnostic.health === 'degraded' ||
-                    jikanDiagnostic.health === 'rate_limited') &&
-                    'text-warning',
-                  jikanDiagnostic.health === 'unavailable' &&
-                    'text-destructive',
-                )}
+                className={
+                  anilistDiagnostic.summary.passed ===
+                  anilistDiagnostic.summary.total
+                    ? 'text-success'
+                    : 'text-warning'
+                }
               >
-                {t('settings.jikanHealth', {
-                  health: readableHealth(jikanDiagnostic.health, t),
+                {t('settings.anilistDiagnosticResult', {
+                  passed: anilistDiagnostic.summary.passed,
+                  total: anilistDiagnostic.summary.total,
                 })}
               </Text>
-              {jikanDiagnostic.endpoints.map((endpoint) => (
-                <View
-                  key={endpoint.operation}
-                  className="gap-1 border-t border-border/60 pt-2"
-                >
-                  <View className="flex-row items-center justify-between gap-3">
-                    <Text>{t(`settings.operation.${endpoint.operation}`)}</Text>
-                    <Text variant="caption" muted>
-                      {endpoint.status === null
-                        ? '—'
-                        : t('settings.endpointResult', {
-                            elapsed: formatNumber(endpoint.elapsedMs, language),
-                            status: endpoint.status,
-                          })}
-                    </Text>
-                  </View>
-                  {!endpoint.ok ? (
-                    <Text variant="caption" className="text-destructive">
-                      {jikanEndpointMessage(endpoint.errorKind, t)}
-                    </Text>
-                  ) : null}
-                </View>
+              {anilistDiagnostic.results.map((result) => (
+                <Text key={result.testName} variant="caption" muted>
+                  {t(`settings.operation.${result.testName}`)}:{' '}
+                  {result.status ?? '—'} •{' '}
+                  {formatNumber(result.elapsedMs, language)} ms •{' '}
+                  {result.rateLimit.remaining ?? '—'}
+                </Text>
               ))}
             </View>
           ) : null}
@@ -248,22 +196,16 @@ export function DeveloperToolsPanel({
                 : t('settings.testMal')}
             </Text>
           </Button>
-          <Text variant="caption" muted>
-            {t('settings.malDiagnosticDescription')}
-          </Text>
           {malDiagnostic ? (
-            <View
-              accessible
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-              className="gap-1 rounded-xl bg-background/50 p-3"
-            >
+            <View accessible accessibilityRole="alert" className="gap-1">
               <Text
                 className={
                   malDiagnostic.ok ? 'text-success' : 'text-destructive'
                 }
               >
-                {diagnosticMessage(malDiagnostic, t)}
+                {malDiagnostic.ok
+                  ? t('settings.malSuccess')
+                  : malDiagnostic.message}
               </Text>
               {malDiagnostic.status !== null ? (
                 <Text variant="caption" muted>
@@ -290,15 +232,15 @@ export function DeveloperToolsPanel({
           <Text className="font-bold">{t('settings.catalogDiagnostics')}</Text>
           <View className="gap-2 rounded-xl bg-background/50 p-3">
             <Text>
-              {t('settings.jikanHealth', {
-                health: readableHealth(runtimeStatus.jikanHealth, t),
+              {t('settings.anilistHealth', {
+                health: readableHealth(runtimeStatus.primaryHealth, t),
               })}
             </Text>
-            {runtimeStatus.jikanRateLimitedUntil ? (
+            {runtimeStatus.primaryRateLimitedUntil ? (
               <Text variant="caption" muted>
                 {t('settings.rateLimitedUntil', {
                   date: formatDateTime(
-                    runtimeStatus.jikanRateLimitedUntil,
+                    runtimeStatus.primaryRateLimitedUntil,
                     language,
                   ),
                 })}
@@ -348,9 +290,9 @@ export function DeveloperToolsPanel({
               );
             })}
           </View>
-          <Button variant="outline" onPress={resetJikanCircuits}>
+          <Button variant="outline" onPress={resetPrimaryCircuits}>
             <Icon as={RotateCcw} className="size-4" />
-            <Text>{t('settings.resetJikanCircuits')}</Text>
+            <Text>{t('settings.resetPrimaryCircuits')}</Text>
           </Button>
           <Button variant="outline" onPress={clearCatalogCache}>
             <Icon as={Trash2} className="size-4" />

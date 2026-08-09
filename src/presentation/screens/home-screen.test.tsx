@@ -1,9 +1,9 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import {
-  JikanNetworkError,
-  JikanServiceUnavailableError,
-} from '@/infrastructure/api/jikan/jikan-errors';
+  AniListNetworkError,
+  AniListServiceUnavailableError,
+} from '@/infrastructure/api/anilist/anilist-errors';
 import { HomeScreen } from '@/presentation/screens/home-screen';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
 import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
@@ -31,7 +31,7 @@ describe('HomeScreen partial failures', () => {
   it('keeps successful rails visible when an optional rail fails', async () => {
     const dependencies = createTestDependencies();
     dependencies.catalogRepository.getPopular = jest.fn(async () =>
-      Promise.reject(new JikanNetworkError()),
+      Promise.reject(new AniListNetworkError()),
     );
     const { queryClient } = await renderWithProviders(<HomeScreen />, {
       dependencies,
@@ -57,7 +57,7 @@ describe('HomeScreen partial failures', () => {
     }).anime;
     dependencies.catalogRepository.getPopular = jest
       .fn()
-      .mockRejectedValueOnce(new JikanNetworkError())
+      .mockRejectedValueOnce(new AniListNetworkError())
       .mockResolvedValueOnce([recovered]);
     const { queryClient } = await renderWithProviders(<HomeScreen />, {
       dependencies,
@@ -82,7 +82,7 @@ describe('HomeScreen partial failures', () => {
       title: 'Rail Fallback',
     }).anime;
     dependencies.catalogRepository.getFeatured = jest.fn(async () =>
-      Promise.reject(new JikanServiceUnavailableError(504, null)),
+      Promise.reject(new AniListServiceUnavailableError(504)),
     );
     dependencies.catalogRepository.getPopular = jest.fn(async () => [fallback]);
     const { queryClient } = await renderWithProviders(<HomeScreen />, {
@@ -97,7 +97,7 @@ describe('HomeScreen partial failures', () => {
 
   it('shows the global error only when no usable catalog content exists', async () => {
     const dependencies = createTestDependencies();
-    const unavailable = new JikanServiceUnavailableError(504, null);
+    const unavailable = new AniListServiceUnavailableError(504);
     dependencies.catalogRepository.getFeatured = jest.fn(async () =>
       Promise.reject(unavailable),
     );

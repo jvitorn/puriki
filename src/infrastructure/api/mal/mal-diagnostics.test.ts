@@ -41,7 +41,6 @@ describe('direct MAL connectivity diagnostic', () => {
     expect(String(fetchImpl.mock.calls[0]?.[0])).toBe(
       'https://mal.example.test/v2/anime/ranking?fields=id%2Ctitle%2Cmain_picture&limit=1&ranking_type=bypopularity',
     );
-    expect(String(fetchImpl.mock.calls[0]?.[0])).not.toContain('jikan');
   });
 
   it('returns not configured without starting fetch', async () => {

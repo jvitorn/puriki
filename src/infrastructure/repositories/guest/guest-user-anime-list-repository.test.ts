@@ -99,7 +99,7 @@ describe('GuestUserAnimeListRepository', () => {
     expect(repository.getDetailsById).not.toHaveBeenCalled();
   });
 
-  it('initializes from successful collections when one Jikan rail fails', async () => {
+  it('initializes from successful collections when one provider rail fails', async () => {
     const { repository, session } = createSession();
     repository.getUpcoming.mockRejectedValueOnce(new Error('Unavailable'));
     const entries = await getSessionEntries(session);

@@ -52,8 +52,8 @@ describe('CatalogItemStore', () => {
 
   it('promotes a summary to details even when the detail source has lower priority', () => {
     const store = new CatalogItemStore();
-    store.upsert(anime(1, 'Jikan summary'), {
-      source: 'jikan',
+    store.upsert(anime(1, 'AniList summary'), {
+      source: 'anilist',
       completeness: 'summary',
     });
     store.upsert(anime(1, 'Cached details'), {
@@ -67,7 +67,7 @@ describe('CatalogItemStore', () => {
     });
   });
 
-  it.each(['jikan', 'mal', 'cache'] as const)(
+  it.each(['anilist', 'mal', 'cache'] as const)(
     'never downgrades known details with a %s summary',
     (source) => {
       const store = new CatalogItemStore();
@@ -97,8 +97,8 @@ describe('CatalogItemStore', () => {
       source: 'mal',
       completeness: 'summary',
     });
-    store.upsert(anime(1, 'Jikan summary'), {
-      source: 'jikan',
+    store.upsert(anime(1, 'AniList summary'), {
+      source: 'anilist',
       completeness: 'summary',
     });
     store.upsert(anime(1, 'Later MAL summary'), {
@@ -106,25 +106,25 @@ describe('CatalogItemStore', () => {
       completeness: 'summary',
     });
     expect(store.get(1)).toMatchObject({
-      item: { title: 'Jikan summary' },
-      source: 'jikan',
+      item: { title: 'AniList summary' },
+      source: 'anilist',
       completeness: 'summary',
     });
   });
 
-  it('prefers Jikan over MAL when both entries contain details', () => {
+  it('prefers AniList over MAL when both entries contain details', () => {
     const store = new CatalogItemStore();
     store.upsert(anime(1, 'MAL details'), {
       source: 'mal',
       completeness: 'details',
     });
-    store.upsert(anime(1, 'Jikan details'), {
-      source: 'jikan',
+    store.upsert(anime(1, 'AniList details'), {
+      source: 'anilist',
       completeness: 'details',
     });
     expect(store.get(1)).toMatchObject({
-      item: { title: 'Jikan details' },
-      source: 'jikan',
+      item: { title: 'AniList details' },
+      source: 'anilist',
       completeness: 'details',
     });
   });
@@ -132,7 +132,7 @@ describe('CatalogItemStore', () => {
   it('returns only items that satisfy the requested minimum completeness', () => {
     const store = new CatalogItemStore();
     store.upsert(anime(1, 'Summary'), {
-      source: 'jikan',
+      source: 'anilist',
       completeness: 'summary',
     });
     store.upsert(anime(2, 'Details'), {
@@ -150,7 +150,7 @@ describe('CatalogItemStore', () => {
   it('returns mutation-safe clones and clears all session items', () => {
     const store = new CatalogItemStore();
     store.upsert(anime(1, 'Original'), {
-      source: 'jikan',
+      source: 'anilist',
       completeness: 'details',
     });
     const first = store.get(1);
@@ -159,7 +159,7 @@ describe('CatalogItemStore', () => {
     first.item.genres.push('Mutation');
     expect(store.get(1)).toMatchObject({
       item: { title: 'Original', genres: ['Action'] },
-      source: 'jikan',
+      source: 'anilist',
       completeness: 'details',
     });
     store.clear();

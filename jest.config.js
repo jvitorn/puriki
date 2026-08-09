@@ -10,10 +10,11 @@ module.exports = {
   ],
   collectCoverageFrom: [
     'src/domain/rules/**/*.ts',
-    'src/infrastructure/api/jikan/**/*.ts',
     'src/infrastructure/api/mal/**/*.ts',
+    'src/infrastructure/api/anilist/**/*.ts',
+    'src/infrastructure/repositories/anilist/**/*.ts',
+    'src/infrastructure/repositories/catalog/**/*.ts',
     'src/infrastructure/repositories/guest/**/*.ts',
-    'src/infrastructure/repositories/jikan/**/*.ts',
     'src/infrastructure/repositories/mal/**/*.ts',
     'src/infrastructure/repositories/resilient/**/*.ts',
     'src/shared/utils/**/*.ts',

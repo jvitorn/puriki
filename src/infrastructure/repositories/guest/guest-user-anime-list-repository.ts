@@ -14,7 +14,7 @@ import type {
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
-import type { RandomGenerator } from '@/infrastructure/repositories/jikan/jikan-anime-catalog-repository';
+import type { RandomGenerator } from '@/infrastructure/repositories/catalog/catalog-utils';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 
 export interface GuestUserAnimeListRepositoryOptions {
@@ -174,7 +174,10 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
     );
     if (collections.length === 0) {
       const failure = results.find((result) => result.status === 'rejected');
-      throw failure?.reason ?? new Error('Jikan returned no collections.');
+      throw (
+        failure?.reason ??
+        new Error('The catalog returned no usable discovery collections.')
+      );
     }
     const candidates = shuffled(deduplicate(collections.flat()), this.random);
     const targetSize = Math.min(

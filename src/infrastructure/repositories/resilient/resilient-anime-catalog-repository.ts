@@ -3,13 +3,6 @@ import { Platform } from 'react-native';
 import { CatalogUnavailableError } from '@/domain/errors/catalog-error';
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
-import {
-  JikanNetworkError,
-  JikanRateLimitError,
-  JikanResponseFormatError,
-  JikanServiceUnavailableError,
-  JikanTimeoutError,
-} from '@/infrastructure/api/jikan/jikan-errors';
 import { MalResponseFormatError } from '@/infrastructure/api/mal/mal-errors';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
@@ -21,18 +14,23 @@ import {
   type CatalogItemSource,
 } from '@/infrastructure/repositories/resilient/catalog-item-store';
 import {
-  JIKAN_DISCOVERY_OPERATION_FAMILIES,
-  JIKAN_OPERATION_FAMILIES,
-  type JikanDiscoveryOperationFamily,
-  type JikanHealth,
-  type JikanOperationFamily,
+  CATALOG_DISCOVERY_OPERATION_FAMILIES,
+  CATALOG_OPERATION_FAMILIES,
+  type CatalogDiscoveryOperationFamily,
+  type CatalogOperationFamily,
+  type PrimaryCatalogHealth,
 } from '@/infrastructure/repositories/resilient/catalog-operation-family';
-import { JikanRateLimitGate } from '@/infrastructure/repositories/resilient/jikan-rate-limit-gate';
+import {
+  classifyPrimaryFailure,
+  PrimaryProviderError,
+} from '@/infrastructure/repositories/resilient/primary-provider-error';
+import { PrimaryProviderRateLimitGate } from '@/infrastructure/repositories/resilient/primary-provider-rate-limit-gate';
 import { normalizeSearchText } from '@/shared/utils/search';
 
 export type CatalogSuccessfulSource = CatalogItemSource;
-export type { JikanHealth } from '@/infrastructure/repositories/resilient/catalog-operation-family';
-export type JikanSkipReason = 'family_circuit_open' | 'provider_rate_limited';
+export type { PrimaryCatalogHealth } from '@/infrastructure/repositories/resilient/catalog-operation-family';
+export type PrimaryProviderSkipReason =
+  'family_circuit_open' | 'provider_rate_limited';
 
 export interface CatalogOperationRuntimeStatus {
   circuitState: CircuitState;
@@ -41,16 +39,17 @@ export interface CatalogOperationRuntimeStatus {
 }
 
 export interface ResilientCatalogRuntimeSnapshot {
-  jikanHealth: JikanHealth;
-  jikanRateLimitedUntil: number | null;
-  operations: Record<JikanOperationFamily, CatalogOperationRuntimeStatus>;
+  primaryProvider: 'anilist';
+  primaryHealth: PrimaryCatalogHealth;
+  primaryRateLimitedUntil: number | null;
+  operations: Record<CatalogOperationFamily, CatalogOperationRuntimeStatus>;
 }
 
 export interface ResilientCatalogOptions {
   primary: AnimeCatalogRepository;
   fallback: AnimeCatalogRepository;
   circuitRegistry?: CatalogCircuitBreakerRegistry;
-  rateLimitGate?: JikanRateLimitGate;
+  rateLimitGate?: PrimaryProviderRateLimitGate;
   cache?: ResilientCatalogCache;
   itemStore?: CatalogItemStore;
   isFallbackAvailable?: () => boolean;
@@ -59,17 +58,25 @@ export interface ResilientCatalogOptions {
 }
 
 interface FamilyRefreshableCatalogRepository extends AnimeCatalogRepository {
-  refreshFamily(family: JikanDiscoveryOperationFamily): Promise<void>;
+  refreshFamily(family: CatalogDiscoveryOperationFamily): Promise<void>;
 }
 
 interface OperationOptions {
   requireNonEmpty?: boolean;
   completeness?: CatalogItemCompleteness;
+  fallbackOnNull?: boolean;
 }
 
-class EmptyCatalogResultError extends JikanResponseFormatError {
+class EmptyCatalogResultError extends PrimaryProviderError {
   constructor() {
-    super('Jikan returned an unexpectedly empty required collection.');
+    super(
+      'invalid_response',
+      'The primary catalog returned an empty collection.',
+      {
+        fallbackEligible: true,
+        circuitFailure: true,
+      },
+    );
     this.name = 'EmptyCatalogResultError';
   }
 }
@@ -106,39 +113,16 @@ function supportsFamilyRefresh(
 
 function refreshFamily(
   repository: AnimeCatalogRepository,
-  family: JikanDiscoveryOperationFamily,
+  family: CatalogDiscoveryOperationFamily,
 ): Promise<void> {
   if (supportsFamilyRefresh(repository))
     return repository.refreshFamily(family);
   if (family === 'popular')
     return repository.getPopular().then(() => undefined);
-  if (family === 'seasonal')
+  if (family === 'seasonal') {
     return repository.getSeasonal().then(() => undefined);
-  return repository.getUpcoming().then(() => undefined);
-}
-
-function isFallbackEligible(error: unknown): boolean {
-  return isCircuitFailure(error) || error instanceof JikanRateLimitError;
-}
-
-function isCircuitFailure(error: unknown): boolean {
-  return (
-    error instanceof JikanNetworkError ||
-    error instanceof JikanTimeoutError ||
-    error instanceof JikanServiceUnavailableError ||
-    error instanceof JikanResponseFormatError
-  );
-}
-
-function failureKind(error: unknown): string | null {
-  if (error instanceof JikanNetworkError) return 'network';
-  if (error instanceof JikanTimeoutError) return 'timeout';
-  if (error instanceof JikanRateLimitError) return 'rate_limit';
-  if (error instanceof JikanServiceUnavailableError) {
-    return 'service_unavailable';
   }
-  if (error instanceof JikanResponseFormatError) return 'invalid_response';
-  return null;
+  return repository.getUpcoming().then(() => undefined);
 }
 
 function isAnimeCatalogItem(value: unknown): value is AnimeCatalogItem {
@@ -161,19 +145,19 @@ function isAnimeCatalogItem(value: unknown): value is AnimeCatalogItem {
 }
 
 function emptyOperationSources(): Record<
-  JikanOperationFamily,
+  CatalogOperationFamily,
   {
     lastSuccessfulSource: CatalogSuccessfulSource | null;
     lastFallbackAt: number | null;
   }
 > {
   return Object.fromEntries(
-    JIKAN_OPERATION_FAMILIES.map((family) => [
+    CATALOG_OPERATION_FAMILIES.map((family) => [
       family,
       { lastSuccessfulSource: null, lastFallbackAt: null },
     ]),
   ) as Record<
-    JikanOperationFamily,
+    CatalogOperationFamily,
     {
       lastSuccessfulSource: CatalogSuccessfulSource | null;
       lastFallbackAt: number | null;
@@ -185,7 +169,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   private readonly primary: AnimeCatalogRepository;
   private readonly fallback: AnimeCatalogRepository;
   private readonly circuitRegistry: CatalogCircuitBreakerRegistry;
-  private readonly rateLimitGate: JikanRateLimitGate;
+  private readonly rateLimitGate: PrimaryProviderRateLimitGate;
   private readonly cache: ResilientCatalogCache;
   private readonly itemStore: CatalogItemStore;
   private readonly isFallbackAvailable: () => boolean;
@@ -203,7 +187,8 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       options.circuitRegistry ??
       new CatalogCircuitBreakerRegistry({ now: this.now });
     this.rateLimitGate =
-      options.rateLimitGate ?? new JikanRateLimitGate({ now: this.now });
+      options.rateLimitGate ??
+      new PrimaryProviderRateLimitGate({ now: this.now });
     this.cache = options.cache ?? new ResilientCatalogCache();
     this.itemStore = options.itemStore ?? new CatalogItemStore();
     this.isFallbackAvailable = options.isFallbackAvailable ?? (() => true);
@@ -272,14 +257,14 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       else summaryHits += 1;
     });
     const missingIds = normalizedIds.filter((id) => !resolved.has(id));
-    let jikanSkippedAfterCircuit = false;
-    let jikanSkippedAfterRateLimit = false;
+    let primarySkippedAfterCircuit = false;
+    let primarySkippedAfterRateLimit = false;
 
     for (const id of missingIds) {
       if (this.rateLimitGate.isBlocked()) {
-        jikanSkippedAfterRateLimit = true;
+        primarySkippedAfterRateLimit = true;
       } else if (this.circuitRegistry.get('details').getState() === 'open') {
-        jikanSkippedAfterCircuit = true;
+        primarySkippedAfterCircuit = true;
       }
       const item = await this.getDetailsById(id);
       if (item) resolved.set(item.id, item);
@@ -295,8 +280,8 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       detailHits,
       networkMissing: missingIds.length,
       detailResolutions: missingIds.length,
-      jikanSkippedAfterCircuit,
-      jikanSkippedAfterRateLimit,
+      primarySkippedAfterCircuit,
+      primarySkippedAfterRateLimit,
     });
     return result;
   }
@@ -309,7 +294,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       'details',
       () => this.primary.getDetailsById(id),
       () => this.fallback.getDetailsById(id),
-      { completeness: 'details' },
+      { completeness: 'details', fallbackOnNull: true },
     );
   }
 
@@ -319,7 +304,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
 
   async refresh(): Promise<void> {
     const results = await Promise.allSettled(
-      JIKAN_DISCOVERY_OPERATION_FAMILIES.map((family) =>
+      CATALOG_DISCOVERY_OPERATION_FAMILIES.map((family) =>
         this.refreshOperationFamily(family),
       ),
     );
@@ -335,22 +320,22 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     this.emitRuntimeStatus();
   }
 
-  resetCircuits(family?: JikanOperationFamily): void {
+  resetPrimaryCircuits(family?: CatalogOperationFamily): void {
     this.circuitRegistry.reset(family);
     this.emitRuntimeStatus();
   }
 
-  getCircuitState(family: JikanOperationFamily): CircuitState {
+  getCircuitState(family: CatalogOperationFamily): CircuitState {
     return this.circuitRegistry.get(family).getState();
   }
 
   getRuntimeSnapshot(): ResilientCatalogRuntimeSnapshot {
     const circuitSnapshots = this.circuitRegistry.getSnapshot();
     const rateLimitedUntil = this.rateLimitGate.getBlockedUntil();
-    const states = JIKAN_OPERATION_FAMILIES.map(
+    const states = CATALOG_OPERATION_FAMILIES.map(
       (family) => circuitSnapshots[family].state,
     );
-    const jikanHealth: JikanHealth = rateLimitedUntil
+    const primaryHealth: PrimaryCatalogHealth = rateLimitedUntil
       ? 'rate_limited'
       : states.every((state) => state === 'open')
         ? 'unavailable'
@@ -358,23 +343,24 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
           ? 'degraded'
           : 'healthy';
     return {
-      jikanHealth,
-      jikanRateLimitedUntil: rateLimitedUntil,
+      primaryProvider: 'anilist',
+      primaryHealth,
+      primaryRateLimitedUntil: rateLimitedUntil,
       operations: Object.fromEntries(
-        JIKAN_OPERATION_FAMILIES.map((family) => [
+        CATALOG_OPERATION_FAMILIES.map((family) => [
           family,
           {
             circuitState: circuitSnapshots[family].state,
             ...this.operationSources[family],
           },
         ]),
-      ) as Record<JikanOperationFamily, CatalogOperationRuntimeStatus>,
+      ) as Record<CatalogOperationFamily, CatalogOperationRuntimeStatus>,
     };
   }
 
   private async execute<T>(
     operation: string,
-    family: JikanOperationFamily,
+    family: CatalogOperationFamily,
     primary: () => Promise<T>,
     fallback: () => Promise<T>,
     options: OperationOptions = {},
@@ -387,27 +373,35 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     if (primaryAttempt.allowed) {
       try {
         const value = await primary();
-        this.ensureUsable(value, options);
-        this.circuitRegistry.get(family).recordSuccess();
-        this.cache.set(operation, value);
-        this.ingestCatalogValue(value, {
-          source: 'jikan',
-          completeness,
-        });
-        this.sourceUsed(family, 'jikan');
-        this.log({
-          family,
-          fallbackUsed: false,
-          jikanAttempted: true,
-          jikanSkipReason: null,
-          operation,
-          primaryError: undefined,
-          startedAt,
-          successfulSource: 'jikan',
-        });
-        return value;
+        if (options.fallbackOnNull && value === null) {
+          this.circuitRegistry.get(family).recordIgnoredFailure();
+          primaryError = new PrimaryProviderError(
+            'not_found',
+            'The primary catalog returned no item for this MAL ID.',
+            { fallbackEligible: true },
+          );
+          this.emitRuntimeStatus();
+        } else {
+          this.ensureUsable(value, options);
+          this.circuitRegistry.get(family).recordSuccess();
+          this.cache.set(operation, value);
+          this.ingestCatalogValue(value, { source: 'anilist', completeness });
+          this.sourceUsed(family, 'anilist');
+          this.log({
+            family,
+            fallbackUsed: false,
+            primaryAttempted: true,
+            primarySkipReason: null,
+            operation,
+            primaryError: undefined,
+            startedAt,
+            successfulSource: 'anilist',
+          });
+          return value;
+        }
       } catch (error: unknown) {
-        if (!isFallbackEligible(error)) {
+        const classification = classifyPrimaryFailure(error);
+        if (!classification?.fallbackEligible) {
           this.circuitRegistry.get(family).recordIgnoredFailure();
           this.emitRuntimeStatus();
           throw error;
@@ -427,8 +421,8 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
         this.log({
           family,
           fallbackUsed: true,
-          jikanAttempted: primaryAttempt.attempted,
-          jikanSkipReason: primaryAttempt.skipReason,
+          primaryAttempted: primaryAttempt.attempted,
+          primarySkipReason: primaryAttempt.skipReason,
           operation,
           primaryError,
           startedAt,
@@ -446,8 +440,8 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
           this.log({
             family,
             fallbackUsed: true,
-            jikanAttempted: primaryAttempt.attempted,
-            jikanSkipReason: primaryAttempt.skipReason,
+            primaryAttempted: primaryAttempt.attempted,
+            primarySkipReason: primaryAttempt.skipReason,
             operation,
             primaryError,
             startedAt,
@@ -465,33 +459,20 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
 
     const cached = this.cached<T>(operation);
     if (cached.found) {
-      this.ingestCatalogValue(cached.value, {
-        source: 'cache',
-        completeness,
-      });
+      this.ingestCatalogValue(cached.value, { source: 'cache', completeness });
       this.sourceUsed(family, 'cache');
-      this.log({
-        family,
-        fallbackUsed: true,
-        jikanAttempted: primaryAttempt.attempted,
-        jikanSkipReason: primaryAttempt.skipReason,
-        operation,
-        primaryError,
-        startedAt,
-        successfulSource: 'cache',
-      });
       return cached.value;
     }
     throw (
       primaryError ??
       new CatalogUnavailableError(
-        'Jikan is unavailable and the MyAnimeList fallback is not configured.',
+        'The primary catalog is unavailable and the MyAnimeList fallback is not configured.',
       )
     );
   }
 
   private async refreshOperationFamily(
-    family: JikanDiscoveryOperationFamily,
+    family: CatalogDiscoveryOperationFamily,
   ): Promise<void> {
     const operation = `refresh:${family}`;
     const startedAt = this.now();
@@ -502,20 +483,21 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       try {
         await refreshFamily(this.primary, family);
         this.circuitRegistry.get(family).recordSuccess();
-        this.sourceUsed(family, 'jikan');
+        this.sourceUsed(family, 'anilist');
         this.log({
           family,
           fallbackUsed: false,
-          jikanAttempted: true,
-          jikanSkipReason: null,
+          primaryAttempted: true,
+          primarySkipReason: null,
           operation,
           primaryError: undefined,
           startedAt,
-          successfulSource: 'jikan',
+          successfulSource: 'anilist',
         });
         return;
       } catch (error: unknown) {
-        if (!isFallbackEligible(error)) {
+        const classification = classifyPrimaryFailure(error);
+        if (!classification?.fallbackEligible) {
           this.circuitRegistry.get(family).recordIgnoredFailure();
           this.emitRuntimeStatus();
           throw error;
@@ -529,16 +511,6 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       try {
         await refreshFamily(this.fallback, family);
         this.sourceUsed(family, 'mal');
-        this.log({
-          family,
-          fallbackUsed: true,
-          jikanAttempted: primaryAttempt.attempted,
-          jikanSkipReason: primaryAttempt.skipReason,
-          operation,
-          primaryError,
-          startedAt,
-          successfulSource: 'mal',
-        });
         return;
       } catch (fallbackError: unknown) {
         if (this.cache.has(family)) {
@@ -552,7 +524,6 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
         );
       }
     }
-
     if (this.cache.has(family)) {
       this.sourceUsed(family, 'cache');
       return;
@@ -560,15 +531,15 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     throw (
       primaryError ??
       new CatalogUnavailableError(
-        'Jikan is unavailable and the MyAnimeList fallback is not configured.',
+        'The primary catalog is unavailable and the MyAnimeList fallback is not configured.',
       )
     );
   }
 
-  private beginPrimaryAttempt(family: JikanOperationFamily): {
+  private beginPrimaryAttempt(family: CatalogOperationFamily): {
     allowed: boolean;
     attempted: boolean;
-    skipReason: JikanSkipReason | null;
+    skipReason: PrimaryProviderSkipReason | null;
   } {
     if (this.rateLimitGate.isBlocked()) {
       this.emitRuntimeStatus();
@@ -588,15 +559,20 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   }
 
   private recordPrimaryFailure(
-    family: JikanOperationFamily,
+    family: CatalogOperationFamily,
     error: unknown,
   ): void {
+    const classification = classifyPrimaryFailure(error);
     const breaker = this.circuitRegistry.get(family);
-    if (error instanceof JikanRateLimitError) {
-      this.rateLimitGate.block(error.retryAfterMs);
+    if (classification?.kind === 'rate_limit') {
+      if (!this.rateLimitGate.isBlocked()) {
+        this.rateLimitGate.block(classification.retryAfterMs);
+      }
       breaker.recordIgnoredFailure();
-    } else if (isCircuitFailure(error)) {
+    } else if (classification?.circuitFailure) {
       breaker.recordFailure();
+    } else {
+      breaker.recordIgnoredFailure();
     }
     this.emitRuntimeStatus();
   }
@@ -625,7 +601,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   }
 
   private sourceUsed(
-    family: JikanOperationFamily,
+    family: CatalogOperationFamily,
     source: CatalogSuccessfulSource,
   ): void {
     const operation = this.operationSources[family];
@@ -655,8 +631,8 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     detailHits: number;
     networkMissing: number;
     detailResolutions: number;
-    jikanSkippedAfterCircuit: boolean;
-    jikanSkippedAfterRateLimit: boolean;
+    primarySkippedAfterCircuit: boolean;
+    primarySkippedAfterRateLimit: boolean;
   }): void {
     if (process.env.NODE_ENV !== 'development') return;
     console.info('[Catalog] getManyByIds completed', summary);
@@ -665,17 +641,17 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   private log({
     family,
     fallbackUsed,
-    jikanAttempted,
-    jikanSkipReason,
+    primaryAttempted,
+    primarySkipReason,
     operation,
     primaryError,
     startedAt,
     successfulSource,
   }: {
-    family: JikanOperationFamily;
+    family: CatalogOperationFamily;
     fallbackUsed: boolean;
-    jikanAttempted: boolean;
-    jikanSkipReason: JikanSkipReason | null;
+    primaryAttempted: boolean;
+    primarySkipReason: PrimaryProviderSkipReason | null;
     operation: string;
     primaryError: unknown;
     startedAt: number;
@@ -687,10 +663,11 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       family,
       requestedSource: 'automatic',
       successfulSource,
-      jikanAttempted,
-      jikanSkipReason,
-      jikanFailure: failureKind(primaryError),
-      jikanCircuitState: this.circuitRegistry.get(family).getState(),
+      primaryProvider: 'anilist',
+      primaryAttempted,
+      primarySkipReason,
+      primaryFailure: classifyPrimaryFailure(primaryError)?.kind ?? null,
+      primaryCircuitState: this.circuitRegistry.get(family).getState(),
       fallbackUsed,
       elapsedMs: Math.max(0, this.now() - startedAt),
       platform: Platform.OS,

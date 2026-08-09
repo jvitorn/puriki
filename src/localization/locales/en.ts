@@ -178,7 +178,7 @@ export const en = {
   'settings.catalogDiagnostics': 'Catalog diagnostics',
   'settings.buildInformation': 'Build information',
   'settings.environment': 'Environment: {{environment}}',
-  'settings.jikanHealth': 'Jikan: {{health}}',
+  'settings.anilistHealth': 'AniList: {{health}}',
   'settings.healthHealthy': 'Healthy',
   'settings.healthDegraded': 'Degraded',
   'settings.healthUnavailable': 'Unavailable',
@@ -191,7 +191,7 @@ export const en = {
   'settings.operation.search': 'Search',
   'settings.operation.details': 'Details',
   'settings.operationCircuit': 'Circuit: {{state}}',
-  'settings.resetJikanCircuits': 'Reset Jikan circuit states',
+  'settings.resetPrimaryCircuits': 'Reset AniList circuit states',
   'settings.clearCatalogCache': 'Clear catalog cache',
   'settings.sourceCache': 'Previous valid cache',
   'settings.sourceNone': 'No successful request yet',
@@ -200,15 +200,17 @@ export const en = {
   'settings.circuitHalfOpen': 'half open',
   'settings.lastFallback': 'Last fallback: {{date}}',
   'settings.usingMalFallback':
-    'Jikan failed, so MyAnimeList data is being used.',
+    'AniList failed, so MyAnimeList data is being used.',
   'settings.usingCache':
     'Both catalog providers are currently unavailable. Previously loaded data is still available.',
   'settings.testMal': 'Test MyAnimeList API',
   'settings.testingMal': 'Testing MyAnimeList API…',
   'settings.malDiagnosticDescription':
     'Calls MyAnimeList using the application Client ID. No user account or OAuth token is used.',
-  'settings.testJikan': 'Test Jikan API',
-  'settings.testingJikan': 'Testing Jikan API…',
+  'settings.testAniList': 'Test AniList API',
+  'settings.testingAniList': 'Testing AniList API…',
+  'settings.anilistDiagnosticResult':
+    'AniList: {{passed}} of {{total}} checks operational',
   'settings.httpResult': 'HTTP {{status}} • {{elapsed}} ms',
   'settings.endpointResult': '{{status}} • {{elapsed}} ms',
   'settings.sampleResult': 'Sample result: {{title}}',

@@ -1,6 +1,6 @@
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 
-export class JikanCatalogCache {
+export class AniListCatalogCache {
   private readonly collections = new Map<string, AnimeCatalogItem[]>();
   private readonly summaries = new Map<number, AnimeCatalogItem>();
   private readonly details = new Map<number, AnimeCatalogItem | null>();
@@ -12,22 +12,7 @@ export class JikanCatalogCache {
 
   setCollection(key: string, items: AnimeCatalogItem[]): void {
     this.collections.set(key, items);
-    items.forEach((item) =>
-      this.summaries.set(item.id, this.details.get(item.id) ?? item),
-    );
-  }
-
-  replaceCollections(
-    collections: readonly (readonly [string, AnimeCatalogItem[]])[],
-  ): void {
-    collections.forEach(([key, items]) => this.collections.set(key, items));
-    this.summaries.clear();
-    this.collections.forEach((items) =>
-      items.forEach((item) => this.summaries.set(item.id, item)),
-    );
-    this.details.forEach((item) => {
-      if (item) this.summaries.set(item.id, item);
-    });
+    items.forEach((item) => this.setSummary(item));
   }
 
   replaceCollection(key: string, items: AnimeCatalogItem[]): void {
@@ -43,12 +28,12 @@ export class JikanCatalogCache {
     this.summaries.set(item.id, this.details.get(item.id) ?? item);
   }
 
-  getDetail(id: number): AnimeCatalogItem | null | undefined {
-    return this.details.get(id);
-  }
-
   hasDetail(id: number): boolean {
     return this.details.has(id);
+  }
+
+  getDetail(id: number): AnimeCatalogItem | null | undefined {
+    return this.details.get(id);
   }
 
   setDetail(id: number, item: AnimeCatalogItem | null): void {

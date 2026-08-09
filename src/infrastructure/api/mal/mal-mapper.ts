@@ -4,6 +4,7 @@ import type {
   AnimeContinuityRelation,
 } from '@/domain/models/anime';
 import type { MalAnimeDto } from '@/infrastructure/api/mal/mal-dtos';
+import { createAnimeFallbackSeeds } from '@/infrastructure/repositories/catalog/catalog-utils';
 
 function nonEmpty(value: string | undefined): string | null {
   const normalized = value?.trim();
@@ -49,16 +50,6 @@ function readableSeason(season: string | undefined): string | null {
   return normalized
     ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
     : null;
-}
-
-function fallbackSeeds(id: number): {
-  coverSeed: number;
-  bannerSeed: number;
-} {
-  return {
-    coverSeed: Math.abs(Math.imul(id, 2_654_435_761)) % 10_000,
-    bannerSeed: Math.abs(Math.imul(id ^ 0x9e3779b9, 1_597_334_677)) % 10_000,
-  };
 }
 
 function continuityKind(value: string): AnimeContinuityKind | null {
@@ -126,6 +117,6 @@ export function mapMalAnime(
     largePosterImageUrl: largePicture ?? mediumPicture,
     heroImageUrl: largePicture ?? mediumPicture,
     continuity: payload === 'details' ? continuity(dto) : [],
-    ...fallbackSeeds(dto.id),
+    ...createAnimeFallbackSeeds(dto.id),
   };
 }

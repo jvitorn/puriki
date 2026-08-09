@@ -3,12 +3,11 @@ import { useEffect } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { queryKeys } from '@/application/queries/query-keys';
-import animeCollectionFixture from '@/infrastructure/api/jikan/fixtures/anime-collection.json';
-import { JikanNetworkError } from '@/infrastructure/api/jikan/jikan-errors';
-import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
+import { AniListNetworkError } from '@/infrastructure/api/anilist/anilist-errors';
+import { anilistResponse } from '@/infrastructure/api/anilist/anilist-test-fixtures';
 import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
-import { JIKAN_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
+import { CATALOG_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import {
@@ -36,7 +35,7 @@ function RepositoryProbe({
 }
 
 describe('repository dependency creation', () => {
-  it('always creates the production repository graph, including under tests', () => {
+  it('always creates the production repository graph', () => {
     const dependencies = createDefaultDependencies();
     expect(dependencies.catalogRepository).toBeInstanceOf(
       ResilientAnimeCatalogRepository,
@@ -44,16 +43,20 @@ describe('repository dependency creation', () => {
     expect(dependencies.userListRepository).toBeInstanceOf(
       GuestUserAnimeListRepository,
     );
+    expect(dependencies.getCatalogRuntimeStatus()).toMatchObject({
+      primaryProvider: 'anilist',
+      primaryHealth: 'healthy',
+    });
   });
 
-  it('publishes fallback status without exposing a selectable mode', async () => {
+  it('publishes MAL fallback status without exposing a selectable mode', async () => {
     const primary = createTestDependencies().catalogRepository;
     const fallback = createTestDependencies().catalogRepository;
     jest
       .spyOn(primary, 'getPopular')
-      .mockRejectedValueOnce(new JikanNetworkError());
+      .mockRejectedValueOnce(new AniListNetworkError());
     const dependencies = createProductionDependencies({
-      jikanRepository: primary,
+      anilistRepository: primary,
       malRepository: fallback,
       malConfigured: true,
     });
@@ -63,16 +66,12 @@ describe('repository dependency creation', () => {
     await dependencies.catalogRepository.getPopular();
 
     expect(dependencies.getCatalogRuntimeStatus()).toMatchObject({
-      jikanHealth: 'healthy',
+      primaryProvider: 'anilist',
       operations: {
         popular: {
           lastSuccessfulSource: 'mal',
           circuitState: 'closed',
           lastFallbackAt: expect.any(String),
-        },
-        details: {
-          lastSuccessfulSource: null,
-          circuitState: 'closed',
         },
       },
     });
@@ -81,89 +80,46 @@ describe('repository dependency creation', () => {
     unsubscribe();
   });
 
-  it('shares one request budget between catalog traffic and Jikan diagnostics', async () => {
-    let currentTime = 0;
-    const starts: number[] = [];
-    const scheduler = new JikanRequestScheduler({
-      requestIntervalMs: 0,
-      sustainedRequestLimit: 5,
-      sustainedWindowMs: 1_000,
-      now: () => currentTime,
-      sleep: async (milliseconds) => {
-        currentTime += milliseconds;
-      },
-    });
-    const fetchSpy = jest
-      .spyOn(globalThis, 'fetch')
-      .mockImplementation(async (input) => {
-        starts.push(currentTime);
-        const url = String(input);
-        const body = url.endsWith('/top/anime')
-          ? JSON.stringify(animeCollectionFixture)
-          : url.includes('/anime/1/full')
-            ? '{"data":{}}'
-            : '{"data":[]}';
-        return {
-          ok: true,
-          status: 200,
-          headers: { get: () => null },
-          text: jest.fn(async () => body),
-        } as unknown as Response;
-      });
+  it('shares the AniList rate budget without changing family circuits', async () => {
+    const circuitRegistry = new CatalogCircuitBreakerRegistry();
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      anilistResponse({ errors: [{ message: 'Too many requests' }] }, 429, {
+        'Retry-After': '10',
+        'X-RateLimit-Remaining': '0',
+      }),
+    );
     try {
       const dependencies = createProductionDependencies({
-        jikanScheduler: scheduler,
+        circuitRegistry,
         malConfigured: false,
       });
-      await expect(dependencies.runJikanDiagnostic()).resolves.toMatchObject({
-        health: 'healthy',
+
+      await expect(dependencies.runAniListDiagnostic()).resolves.toMatchObject({
+        summary: { stoppedByRateLimit: true },
       });
-      await expect(
-        dependencies.catalogRepository.getPopular(),
-      ).resolves.toHaveLength(2);
-      expect(starts).toEqual([0, 0, 0, 0, 0, 1_000]);
+      expect(dependencies.getCatalogRuntimeStatus()).toMatchObject({
+        primaryHealth: 'rate_limited',
+        primaryRateLimitedUntil: expect.any(String),
+      });
+      await expect(dependencies.catalogRepository.getPopular()).rejects.toThrow(
+        'primary catalog is unavailable',
+      );
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      CATALOG_OPERATION_FAMILIES.forEach((family) => {
+        expect(circuitRegistry.get(family).getSnapshot()).toMatchObject({
+          state: 'closed',
+          consecutiveFailures: 0,
+          lastFailureAt: null,
+        });
+      });
     } finally {
       fetchSpy.mockRestore();
     }
   });
-
-  it.each([429, 504])(
-    'keeps every runtime circuit unchanged after a failing %s diagnostic',
-    async (status) => {
-      const circuitRegistry = new CatalogCircuitBreakerRegistry();
-      const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-        ok: false,
-        status,
-        headers: { get: () => null },
-        text: jest.fn(async () => JSON.stringify({ status })),
-      } as unknown as Response);
-      try {
-        const dependencies = createProductionDependencies({
-          circuitRegistry,
-          jikanScheduler: new JikanRequestScheduler({ requestIntervalMs: 0 }),
-          malConfigured: false,
-        });
-
-        await expect(dependencies.runJikanDiagnostic()).resolves.toMatchObject({
-          health: status === 429 ? 'rate_limited' : 'unavailable',
-        });
-        JIKAN_OPERATION_FAMILIES.forEach((family) => {
-          expect(circuitRegistry.get(family).getSnapshot()).toMatchObject({
-            state: 'closed',
-            consecutiveFailures: 0,
-            lastFailureAt: null,
-            lastSuccessAt: null,
-          });
-        });
-      } finally {
-        fetchSpy.mockRestore();
-      }
-    },
-  );
 });
 
 describe('RepositoryProvider', () => {
-  it('keeps explicit test dependencies stable and clears repository and query caches together', async () => {
+  it('keeps explicit dependencies stable and clears only catalog queries', async () => {
     const queryClient = createAppQueryClient();
     const dependencies = createTestDependencies();
     const clearCatalogCache = jest.spyOn(dependencies, 'clearCatalogCache');
@@ -179,9 +135,6 @@ describe('RepositoryProvider', () => {
     await fireEvent.press(screen.getByText('Clear catalog'));
 
     expect(observeRepository).toHaveBeenCalledTimes(1);
-    expect(observeRepository).toHaveBeenCalledWith(
-      dependencies.userListRepository,
-    );
     expect(clearCatalogCache).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(queryKeys.popular)).toBeUndefined();
     expect(queryClient.getQueryData(queryKeys.continueWatching)).toBe(

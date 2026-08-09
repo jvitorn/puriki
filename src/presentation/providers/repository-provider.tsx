@@ -11,26 +11,29 @@ import type { PropsWithChildren } from 'react';
 import { queryKeys } from '@/application/queries/query-keys';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
+import { createAniListClient } from '@/infrastructure/api/anilist/anilist-client';
 import {
-  runJikanConnectivityDiagnostic,
-  type JikanServiceDiagnosticResult,
-} from '@/infrastructure/api/jikan/jikan-diagnostics';
-import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
+  createAniListDiagnosticSuite,
+  type AniListDiagnosticSuite,
+  type AniListRunAllResult,
+} from '@/infrastructure/api/anilist/anilist-diagnostics';
+import { AniListRequestCoordinator } from '@/infrastructure/api/anilist/anilist-request-coordinator';
 import { isMalConfigured } from '@/infrastructure/api/mal/mal-config';
+import { AniListAnimeCatalogRepository } from '@/infrastructure/repositories/anilist/anilist-anime-catalog-repository';
 import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
-import { JikanAnimeCatalogRepository } from '@/infrastructure/repositories/jikan/jikan-anime-catalog-repository';
 import { MalAnimeCatalogRepository } from '@/infrastructure/repositories/mal/mal-anime-catalog-repository';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
 import {
-  JIKAN_OPERATION_FAMILIES,
-  type JikanHealth,
-  type JikanOperationFamily,
+  CATALOG_OPERATION_FAMILIES,
+  type CatalogOperationFamily,
+  type PrimaryCatalogHealth,
 } from '@/infrastructure/repositories/resilient/catalog-operation-family';
-import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
-import type {
-  CatalogSuccessfulSource,
-  ResilientCatalogRuntimeSnapshot,
+import { PrimaryProviderRateLimitGate } from '@/infrastructure/repositories/resilient/primary-provider-rate-limit-gate';
+import {
+  ResilientAnimeCatalogRepository,
+  type CatalogSuccessfulSource,
+  type ResilientCatalogRuntimeSnapshot,
 } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 
 export interface CatalogOperationRuntimeStatus {
@@ -40,9 +43,10 @@ export interface CatalogOperationRuntimeStatus {
 }
 
 export interface CatalogRuntimeStatus {
-  jikanHealth: JikanHealth;
-  jikanRateLimitedUntil: string | null;
-  operations: Record<JikanOperationFamily, CatalogOperationRuntimeStatus>;
+  primaryProvider: 'anilist';
+  primaryHealth: PrimaryCatalogHealth;
+  primaryRateLimitedUntil: string | null;
+  operations: Record<CatalogOperationFamily, CatalogOperationRuntimeStatus>;
 }
 
 export interface RepositoryDependencies {
@@ -53,8 +57,8 @@ export interface RepositoryDependencies {
     listener: (status: CatalogRuntimeStatus) => void,
   ): () => void;
   clearCatalogCache(): void;
-  resetJikanCircuits(): void;
-  runJikanDiagnostic(): Promise<JikanServiceDiagnosticResult>;
+  resetPrimaryCircuits(): void;
+  runAniListDiagnostic(): Promise<AniListRunAllResult>;
 }
 
 interface RepositoryProviderProps extends PropsWithChildren {
@@ -68,10 +72,11 @@ interface StatusChannel {
 }
 
 export interface ProductionDependenciesOptions {
-  jikanRepository?: AnimeCatalogRepository;
+  anilistRepository?: AnimeCatalogRepository;
   malRepository?: AnimeCatalogRepository;
   circuitRegistry?: CatalogCircuitBreakerRegistry;
-  jikanScheduler?: JikanRequestScheduler;
+  anilistCoordinator?: AniListRequestCoordinator;
+  anilistDiagnosticSuite?: AniListDiagnosticSuite;
   malConfigured?: boolean;
 }
 
@@ -98,13 +103,14 @@ function runtimeStatusFromSnapshot(
   snapshot: ResilientCatalogRuntimeSnapshot,
 ): CatalogRuntimeStatus {
   return {
-    jikanHealth: snapshot.jikanHealth,
-    jikanRateLimitedUntil:
-      snapshot.jikanRateLimitedUntil === null
+    primaryProvider: snapshot.primaryProvider,
+    primaryHealth: snapshot.primaryHealth,
+    primaryRateLimitedUntil:
+      snapshot.primaryRateLimitedUntil === null
         ? null
-        : new Date(snapshot.jikanRateLimitedUntil).toISOString(),
+        : new Date(snapshot.primaryRateLimitedUntil).toISOString(),
     operations: Object.fromEntries(
-      JIKAN_OPERATION_FAMILIES.map((family) => {
+      CATALOG_OPERATION_FAMILIES.map((family) => {
         const operation = snapshot.operations[family];
         return [
           family,
@@ -118,7 +124,7 @@ function runtimeStatusFromSnapshot(
           },
         ];
       }),
-    ) as Record<JikanOperationFamily, CatalogOperationRuntimeStatus>,
+    ) as Record<CatalogOperationFamily, CatalogOperationRuntimeStatus>,
   };
 }
 
@@ -126,22 +132,31 @@ export function createProductionDependencies(
   options: ProductionDependenciesOptions = {},
 ): RepositoryDependencies {
   const malAvailable = options.malConfigured ?? isMalConfigured;
-  const jikanScheduler = options.jikanScheduler ?? new JikanRequestScheduler();
-  const jikanRepository =
-    options.jikanRepository ??
-    new JikanAnimeCatalogRepository({
+  const coordinator =
+    options.anilistCoordinator ?? new AniListRequestCoordinator();
+  const primaryRateLimitGate = new PrimaryProviderRateLimitGate();
+  coordinator.subscribeRateLimit((retryAfterMs) =>
+    primaryRateLimitGate.block(retryAfterMs),
+  );
+  const anilistRepository =
+    options.anilistRepository ??
+    new AniListAnimeCatalogRepository({
+      client: createAniListClient({ coordinator }),
       maximumAttempts: 2,
-      scheduler: jikanScheduler,
     });
   const malRepository =
     options.malRepository ?? new MalAnimeCatalogRepository();
+  const diagnosticSuite =
+    options.anilistDiagnosticSuite ??
+    createAniListDiagnosticSuite({ clientOptions: { coordinator } });
   const circuitRegistry =
     options.circuitRegistry ?? new CatalogCircuitBreakerRegistry();
   let channel: StatusChannel;
   const catalogRepository = new ResilientAnimeCatalogRepository({
-    primary: jikanRepository,
+    primary: anilistRepository,
     fallback: malRepository,
     circuitRegistry,
+    rateLimitGate: primaryRateLimitGate,
     isFallbackAvailable: () => malAvailable,
     onRuntimeStatusChange: (snapshot) =>
       channel.update(runtimeStatusFromSnapshot(snapshot)),
@@ -155,9 +170,16 @@ export function createProductionDependencies(
     getCatalogRuntimeStatus: () => channel.get(),
     subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
     clearCatalogCache: () => catalogRepository.clearCache(),
-    resetJikanCircuits: () => catalogRepository.resetCircuits(),
-    runJikanDiagnostic: () =>
-      runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
+    resetPrimaryCircuits: () => catalogRepository.resetPrimaryCircuits(),
+    runAniListDiagnostic: async () => {
+      try {
+        return await diagnosticSuite.runAll();
+      } finally {
+        channel.update(
+          runtimeStatusFromSnapshot(catalogRepository.getRuntimeSnapshot()),
+        );
+      }
+    },
   };
 }
 

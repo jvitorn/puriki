@@ -1,5 +1,4 @@
-import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
-import { JIKAN_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
+import { CATALOG_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import type {
   CatalogRuntimeStatus,
   RepositoryDependencies,
@@ -19,10 +18,11 @@ export interface TestRepositoryDependencies extends RepositoryDependencies {
 
 function defaultRuntimeStatus(): CatalogRuntimeStatus {
   return {
-    jikanHealth: 'healthy',
-    jikanRateLimitedUntil: null,
+    primaryProvider: 'anilist',
+    primaryHealth: 'healthy',
+    primaryRateLimitedUntil: null,
     operations: Object.fromEntries(
-      JIKAN_OPERATION_FAMILIES.map((family) => [
+      CATALOG_OPERATION_FAMILIES.map((family) => [
         family,
         {
           circuitState: 'closed' as const,
@@ -53,7 +53,21 @@ export function createTestDependencies(
       listeners.forEach((listener) => listener(status));
     },
     clearCatalogCache: () => catalogRepository.clearCache(),
-    resetJikanCircuits: () => undefined,
-    runJikanDiagnostic: () => runJikanConnectivityDiagnostic(),
+    resetPrimaryCircuits: () => undefined,
+    runAniListDiagnostic: async () => ({
+      results: [],
+      summary: {
+        passed: 0,
+        total: 0,
+        averageLatencyMs: 0,
+        slowestTest: null,
+        totalResponseBytes: 0,
+        requestsMade: 0,
+        startingRemaining: null,
+        endingRemaining: null,
+        rateLimitResponses: 0,
+        stoppedByRateLimit: false,
+      },
+    }),
   };
 }

@@ -20,8 +20,8 @@ import {
 } from '@/infrastructure/api/mal/mal-fields';
 import { mapMalAnime } from '@/infrastructure/api/mal/mal-mapper';
 import {
-  JIKAN_DISCOVERY_OPERATION_FAMILIES,
-  type JikanDiscoveryOperationFamily,
+  CATALOG_DISCOVERY_OPERATION_FAMILIES,
+  type CatalogDiscoveryOperationFamily,
 } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { normalizeSearchText } from '@/shared/utils/search';
 
@@ -34,7 +34,7 @@ export interface MalAnimeCatalogRepositoryOptions {
   now?: () => Date;
 }
 
-type CollectionName = JikanDiscoveryOperationFamily;
+type CollectionName = CatalogDiscoveryOperationFamily;
 type CollectionRequest = () => Promise<unknown>;
 
 function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
@@ -302,7 +302,7 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
 
   private async refreshCollections(generation: number): Promise<void> {
     const results = await Promise.allSettled(
-      JIKAN_DISCOVERY_OPERATION_FAMILIES.map((family) =>
+      CATALOG_DISCOVERY_OPERATION_FAMILIES.map((family) =>
         this.refreshFamily(family),
       ),
     );

@@ -1,4 +1,4 @@
-export const JIKAN_OPERATION_FAMILIES = [
+export const CATALOG_OPERATION_FAMILIES = [
   'featured',
   'popular',
   'seasonal',
@@ -7,16 +7,17 @@ export const JIKAN_OPERATION_FAMILIES = [
   'details',
 ] as const;
 
-export type JikanOperationFamily = (typeof JIKAN_OPERATION_FAMILIES)[number];
+export type CatalogOperationFamily =
+  (typeof CATALOG_OPERATION_FAMILIES)[number];
 
-export type JikanHealth =
+export type PrimaryCatalogHealth =
   'healthy' | 'degraded' | 'unavailable' | 'rate_limited';
 
-export const JIKAN_DISCOVERY_OPERATION_FAMILIES = [
+export const CATALOG_DISCOVERY_OPERATION_FAMILIES = [
   'popular',
   'seasonal',
   'upcoming',
-] as const satisfies readonly JikanOperationFamily[];
+] as const satisfies readonly CatalogOperationFamily[];
 
-export type JikanDiscoveryOperationFamily =
-  (typeof JIKAN_DISCOVERY_OPERATION_FAMILIES)[number];
+export type CatalogDiscoveryOperationFamily =
+  (typeof CATALOG_DISCOVERY_OPERATION_FAMILIES)[number];

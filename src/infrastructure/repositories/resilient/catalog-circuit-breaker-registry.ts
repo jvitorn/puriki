@@ -4,44 +4,44 @@ import {
   type CircuitSnapshot,
 } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import {
-  JIKAN_OPERATION_FAMILIES,
-  type JikanOperationFamily,
+  CATALOG_OPERATION_FAMILIES,
+  type CatalogOperationFamily,
 } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 
 export class CatalogCircuitBreakerRegistry {
   private readonly breakers: Record<
-    JikanOperationFamily,
+    CatalogOperationFamily,
     CatalogCircuitBreaker
   >;
 
   constructor(options: CatalogCircuitBreakerOptions = {}) {
     this.breakers = Object.fromEntries(
-      JIKAN_OPERATION_FAMILIES.map((family) => [
+      CATALOG_OPERATION_FAMILIES.map((family) => [
         family,
         new CatalogCircuitBreaker(options),
       ]),
-    ) as Record<JikanOperationFamily, CatalogCircuitBreaker>;
+    ) as Record<CatalogOperationFamily, CatalogCircuitBreaker>;
   }
 
-  get(family: JikanOperationFamily): CatalogCircuitBreaker {
+  get(family: CatalogOperationFamily): CatalogCircuitBreaker {
     return this.breakers[family];
   }
 
-  getSnapshot(): Record<JikanOperationFamily, CircuitSnapshot> {
+  getSnapshot(): Record<CatalogOperationFamily, CircuitSnapshot> {
     return Object.fromEntries(
-      JIKAN_OPERATION_FAMILIES.map((family) => [
+      CATALOG_OPERATION_FAMILIES.map((family) => [
         family,
         this.breakers[family].getSnapshot(),
       ]),
-    ) as Record<JikanOperationFamily, CircuitSnapshot>;
+    ) as Record<CatalogOperationFamily, CircuitSnapshot>;
   }
 
-  reset(family?: JikanOperationFamily): void {
+  reset(family?: CatalogOperationFamily): void {
     if (family) {
       this.breakers[family].reset();
       return;
     }
-    JIKAN_OPERATION_FAMILIES.forEach((current) =>
+    CATALOG_OPERATION_FAMILIES.forEach((current) =>
       this.breakers[current].reset(),
     );
   }

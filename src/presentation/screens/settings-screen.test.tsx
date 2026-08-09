@@ -24,20 +24,49 @@ const malSuccess = {
   sampleAnimeTitle: 'Sousou no Frieren',
 };
 
-const jikanSuccess = {
-  platform: 'android',
-  health: 'healthy' as const,
-  endpoints: ['details', 'popular', 'seasonal', 'upcoming', 'search'].map(
-    (operation) => ({
-      operation: operation as
-        'details' | 'popular' | 'seasonal' | 'upcoming' | 'search',
+const anilistSuccess = {
+  results: ['details', 'search', 'popular', 'seasonal', 'upcoming'].map(
+    (testName) => ({
+      testName: testName as
+        'details' | 'search' | 'popular' | 'seasonal' | 'upcoming',
       ok: true,
+      skipped: false,
       status: 200,
       elapsedMs: 210,
+      responseBytes: 100,
+      rateLimit: {
+        limit: 30,
+        remaining: 25,
+        retryAfterSeconds: null,
+        resetAt: null,
+      },
       errorKind: 'none' as const,
-      message: 'Jikan endpoint responded successfully.',
+      graphqlErrors: [],
+      message: 'AniList operation responded successfully.',
+      resultCount: 1,
+      sampleTitle: null,
+      sampleAniListId: null,
+      sampleMalId: null,
+      pageInfo: null,
+      media: null,
+      mediaItems: [],
+      sectionCounts: null,
+      compatibility: null,
+      requestCount: 1,
     }),
   ),
+  summary: {
+    passed: 5,
+    total: 5,
+    averageLatencyMs: 210,
+    slowestTest: 'details' as const,
+    totalResponseBytes: 500,
+    requestsMade: 5,
+    startingRemaining: 29,
+    endingRemaining: 25,
+    rateLimitResponses: 0,
+    stoppedByRateLimit: false,
+  },
 };
 
 function createDeveloperStorage(
@@ -57,7 +86,7 @@ function createDeveloperStorage(
 
 function createDiagnosticDependencies() {
   const dependencies = createTestDependencies();
-  dependencies.runJikanDiagnostic = jest.fn(async () => jikanSuccess);
+  dependencies.runAniListDiagnostic = jest.fn(async () => anilistSuccess);
   return dependencies;
 }
 
@@ -96,7 +125,7 @@ describe('SettingsScreen', () => {
     expect(screen.queryByText('Data source')).not.toBeOnTheScreen();
     expect(screen.queryByText('Session / Storage')).not.toBeOnTheScreen();
     expect(screen.queryByText('Developer tools')).not.toBeOnTheScreen();
-    expect(screen.queryByLabelText('Test Jikan API')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('Test AniList API')).not.toBeOnTheScreen();
   });
 
   it('supports System default as the selected language preference', async () => {
@@ -119,7 +148,7 @@ describe('SettingsScreen', () => {
     );
 
     expect(subscribe).not.toHaveBeenCalled();
-    expect(dependencies.runJikanDiagnostic).not.toHaveBeenCalled();
+    expect(dependencies.runAniListDiagnostic).not.toHaveBeenCalled();
     expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
   });
 
@@ -137,7 +166,8 @@ describe('SettingsScreen', () => {
     await tapAbout(1);
 
     expect(screen.getByText('Developer tools')).toBeVisible();
-    expect(screen.getByLabelText('Test Jikan API')).toBeVisible();
+    expect(screen.getByLabelText('Test AniList API')).toBeVisible();
+    expect(screen.getByLabelText('Test MyAnimeList API')).toBeVisible();
     expect(storage.setDeveloperToolsEnabled).toHaveBeenCalledWith(true);
   });
 
@@ -186,7 +216,7 @@ describe('SettingsScreen', () => {
     const dependencies = createDiagnosticDependencies();
     dependencies.emitCatalogRuntimeStatus({
       ...dependencies.getCatalogRuntimeStatus(),
-      jikanHealth: 'degraded',
+      primaryHealth: 'degraded',
       operations: {
         ...dependencies.getCatalogRuntimeStatus().operations,
         popular: {
@@ -196,7 +226,7 @@ describe('SettingsScreen', () => {
         },
       },
     });
-    dependencies.resetJikanCircuits = jest.fn();
+    dependencies.resetPrimaryCircuits = jest.fn();
     dependencies.clearCatalogCache = jest.fn();
     await renderWithProviders(
       <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
@@ -204,15 +234,15 @@ describe('SettingsScreen', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText('Jikan: Degraded')).toBeVisible(),
+      expect(screen.getByText('AniList: Degraded')).toBeVisible(),
     );
     expect(screen.getByText('Circuit: open')).toBeVisible();
     expect(
-      screen.getByText('Jikan failed, so MyAnimeList data is being used.'),
+      screen.getByText('AniList failed, so MyAnimeList data is being used.'),
     ).toBeVisible();
-    await fireEvent.press(screen.getByText('Reset Jikan circuit states'));
+    await fireEvent.press(screen.getByText('Reset AniList circuit states'));
     await fireEvent.press(screen.getByText('Clear catalog cache'));
-    expect(dependencies.resetJikanCircuits).toHaveBeenCalledTimes(1);
+    expect(dependencies.resetPrimaryCircuits).toHaveBeenCalledTimes(1);
     expect(dependencies.clearCatalogCache).toHaveBeenCalledTimes(1);
   });
 
@@ -257,32 +287,34 @@ describe('SettingsScreen', () => {
       expect(screen.getByLabelText('Testing MyAnimeList API…')).toBeDisabled(),
     );
     await fireEvent.press(screen.getByLabelText('Testing MyAnimeList API…'));
-    await fireEvent.press(screen.getByLabelText('Test Jikan API'));
+    await fireEvent.press(screen.getByLabelText('Test AniList API'));
     expect(runMalConnectivityDiagnostic).toHaveBeenCalledTimes(1);
-    expect(dependencies.runJikanDiagnostic).not.toHaveBeenCalled();
+    expect(dependencies.runAniListDiagnostic).not.toHaveBeenCalled();
     resolveDiagnostic?.(malSuccess);
     await waitFor(() =>
       expect(screen.getByText('MyAnimeList API is operational.')).toBeVisible(),
     );
   });
 
-  it('keeps the Jikan direct diagnostic independent from MAL', async () => {
+  it('keeps the AniList direct diagnostic independent from MAL', async () => {
     const dependencies = createDiagnosticDependencies();
     await renderWithProviders(
       <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
       { dependencies },
     );
     await waitFor(() =>
-      expect(screen.getByLabelText('Test Jikan API')).toBeVisible(),
+      expect(screen.getByLabelText('Test AniList API')).toBeVisible(),
     );
-    await fireEvent.press(screen.getByLabelText('Test Jikan API'));
+    await fireEvent.press(screen.getByLabelText('Test AniList API'));
 
     await waitFor(() =>
-      expect(screen.getAllByText('Jikan: Healthy').length).toBeGreaterThan(1),
+      expect(
+        screen.getByText('AniList: 5 of 5 checks operational'),
+      ).toBeVisible(),
     );
-    expect(dependencies.runJikanDiagnostic).toHaveBeenCalledTimes(1);
+    expect(dependencies.runAniListDiagnostic).toHaveBeenCalledTimes(1);
     expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
-    expect(screen.getAllByText('200 • 210 ms')).toHaveLength(5);
+    expect(screen.getAllByText(/200.*210 ms.*25/)).toHaveLength(5);
   });
 
   it('switches and persists language without resetting queries or repositories', async () => {

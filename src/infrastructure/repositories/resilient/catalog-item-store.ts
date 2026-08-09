@@ -1,6 +1,6 @@
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 
-export type CatalogItemSource = 'jikan' | 'mal' | 'cache';
+export type CatalogItemSource = 'anilist' | 'mal' | 'cache';
 export type CatalogItemCompleteness = 'summary' | 'details';
 
 export interface CatalogItemMetadata {
@@ -15,7 +15,7 @@ export interface StoredCatalogItem extends CatalogItemMetadata {
 const SOURCE_PRIORITY: Record<CatalogItemSource, number> = {
   cache: 0,
   mal: 1,
-  jikan: 2,
+  anilist: 2,
 };
 
 const COMPLETENESS_PRIORITY: Record<CatalogItemCompleteness, number> = {

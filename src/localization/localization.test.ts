@@ -42,7 +42,7 @@ describe('localization resources', () => {
     expect(appI18n.t('common.episodes', { count: 3 })).toBe('3 episodios');
   });
 
-  it('localizes Jikan health, operation, and fallback diagnostics', async () => {
+  it('localizes primary health, operation, and fallback diagnostics', async () => {
     await appI18n.changeLanguage('en');
     expect(appI18n.t('settings.healthHealthy')).toBe('Healthy');
     expect(appI18n.t('settings.healthDegraded')).toBe('Degraded');
@@ -61,6 +61,19 @@ describe('localization resources', () => {
     expect(appI18n.t('settings.healthDegraded')).toBe('Degradado');
     expect(appI18n.t('settings.operation.popular')).toBe('Popular');
     expect(appI18n.t('settings.operation.details')).toBe('Detalles');
+  });
+
+  it('localizes the permanent AniList diagnostic controls', async () => {
+    await appI18n.changeLanguage('en');
+    expect(appI18n.t('settings.testAniList')).toBe('Test AniList API');
+    await appI18n.changeLanguage('pt-BR');
+    expect(appI18n.t('settings.testingAniList')).toBe(
+      'Testando API do AniList…',
+    );
+    await appI18n.changeLanguage('es');
+    expect(appI18n.t('settings.resetPrimaryCircuits')).toBe(
+      'Restablecer circuitos de AniList',
+    );
   });
 
   it('normalizes supported system locales and safely falls back to English', () => {
