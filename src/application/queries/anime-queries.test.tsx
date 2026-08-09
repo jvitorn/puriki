@@ -3,6 +3,8 @@ import { QueryClient } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import {
+  useAddToList,
+  useRemoveFromList,
   useResetSessionData,
   useUpdateProgress,
   useUpdateScore,
@@ -44,6 +46,9 @@ function createCatalogMock(
     getManyByIds: jest.fn(async (_ids: number[]) => catalog),
     getDetailsById: jest.fn(
       async (id) => catalog.find((item) => item.id === id) ?? null,
+    ),
+    getKnownById: jest.fn(
+      (id) => catalog.find((item) => item.id === id) ?? null,
     ),
     clearCache: jest.fn(),
   };
@@ -417,6 +422,113 @@ describe('React Query integration', () => {
       queryClient.getQueryData<UnifiedAnime>(queryKeys.details(101))?.userEntry
         ?.watchedEpisodes,
     ).toBe(4);
+  });
+
+  it('optimistically adds real membership with plan-to-watch defaults', async () => {
+    const dependencies = createTestDependencies();
+    const anime = dependencies.catalogRepository.getKnownById(30);
+    if (!anime) throw new Error('Expected catalog anime 30.');
+    const addToList = jest.spyOn(dependencies.userListRepository, 'addToList');
+    const queryClient = createAppQueryClient();
+    queryClient.setQueryData<UnifiedAnime>(queryKeys.details(30), { anime });
+    const { result } = await renderHook(() => useAddToList(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+
+    await act(async () => result.current.mutate({ animeId: 30 }));
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(30))
+          ?.userEntry,
+      ).toMatchObject({
+        animeId: 30,
+        status: 'plan_to_watch',
+        watchedEpisodes: 0,
+        userScore: null,
+      }),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(addToList).toHaveBeenCalledWith(30, undefined);
+  });
+
+  it('restores non-membership when an optimistic add fails', async () => {
+    const dependencies = createTestDependencies();
+    const anime = dependencies.catalogRepository.getKnownById(30);
+    if (!anime) throw new Error('Expected catalog anime 30.');
+    let rejectAdd: (error: Error) => void = () => undefined;
+    dependencies.userListRepository.addToList = jest.fn(
+      () =>
+        new Promise<UserAnimeEntry>((_resolve, reject) => {
+          rejectAdd = reject;
+        }),
+    );
+    const queryClient = createAppQueryClient();
+    const cached: UnifiedAnime = { anime };
+    queryClient.setQueryData(queryKeys.details(30), cached);
+    const { result } = await renderHook(() => useAddToList(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+
+    await act(async () => result.current.mutate({ animeId: 30 }));
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(30))
+          ?.userEntry,
+      ).toBeDefined(),
+    );
+    await act(async () => rejectAdd(new Error('Add failed')));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(queryClient.getQueryData(queryKeys.details(30))).toEqual(cached);
+  });
+
+  it('optimistically removes membership and keeps it removed on success', async () => {
+    const dependencies = createTestDependencies();
+    const queryClient = createAppQueryClient();
+    queryClient.setQueryData(
+      queryKeys.details(1),
+      buildWatchingAnime({ id: 1 }),
+    );
+    const { result } = await renderHook(() => useRemoveFromList(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+
+    await act(async () => result.current.mutate({ animeId: 1 }));
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(1))?.userEntry,
+      ).toBeUndefined(),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await expect(
+      dependencies.userListRepository.getByAnimeId(1),
+    ).resolves.toBeNull();
+  });
+
+  it('restores membership when an optimistic removal fails', async () => {
+    const dependencies = createTestDependencies();
+    let rejectRemoval: (error: Error) => void = () => undefined;
+    dependencies.userListRepository.removeFromList = jest.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectRemoval = reject;
+        }),
+    );
+    const queryClient = createAppQueryClient();
+    const cached = buildWatchingAnime({ id: 1 });
+    queryClient.setQueryData(queryKeys.details(1), cached);
+    const { result } = await renderHook(() => useRemoveFromList(), {
+      wrapper: createTestWrapper(dependencies, queryClient),
+    });
+
+    await act(async () => result.current.mutate({ animeId: 1 }));
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(1))?.userEntry,
+      ).toBeUndefined(),
+    );
+    await act(async () => rejectRemoval(new Error('Remove failed')));
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(queryClient.getQueryData(queryKeys.details(1))).toEqual(cached);
   });
 
   it('updates a later infinite page and restores it after failure', async () => {

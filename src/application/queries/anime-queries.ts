@@ -9,7 +9,11 @@ import { useCallback } from 'react';
 
 import { queryKeys } from '@/application/queries/query-keys';
 import { unifyAnimeList } from '@/application/use-cases/unify-anime';
-import type { AnimeListStatus, UnifiedAnime } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeListStatus,
+  UnifiedAnime,
+} from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
 import { useRepositories } from '@/presentation/providers/repository-provider';
 import {
@@ -86,6 +90,18 @@ export function useAnimeDetails(id: number) {
     },
     enabled: Number.isInteger(id) && id > 0,
   });
+}
+
+export function useKnownAnimeByIds(
+  ids: readonly number[],
+): ReadonlyMap<number, AnimeCatalogItem> {
+  const { catalogRepository } = useRepositories();
+  const known = new Map<number, AnimeCatalogItem>();
+  [...new Set(ids)].forEach((id) => {
+    const item = catalogRepository.getKnownById(id);
+    if (item) known.set(id, item);
+  });
+  return known;
 }
 
 export function useInfiniteUnifiedUserList(status?: AnimeListStatus) {

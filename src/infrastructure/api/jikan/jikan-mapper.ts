@@ -1,4 +1,8 @@
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeContinuityKind,
+  AnimeContinuityRelation,
+} from '@/domain/models/anime';
 import type {
   JikanAnimeDto,
   JikanImageVariantDto,
@@ -54,6 +58,39 @@ function capitalize(value: string | null | undefined): string | null {
     : null;
 }
 
+function continuityKind(value: string): AnimeContinuityKind | null {
+  const normalized = value.trim().toLocaleLowerCase();
+  if (normalized === 'prequel' || normalized === 'sequel') return normalized;
+  return null;
+}
+
+function continuity(dto: JikanAnimeDto): AnimeContinuityRelation[] {
+  const byKind: Record<AnimeContinuityKind, AnimeContinuityRelation[]> = {
+    prequel: [],
+    sequel: [],
+  };
+  const seen = new Set<string>();
+  for (const relation of dto.relations ?? []) {
+    const kind = continuityKind(relation.relation);
+    if (!kind) continue;
+    for (const entry of relation.entry) {
+      const title = nonEmpty(entry.name);
+      if (
+        entry.type.trim().toLocaleLowerCase() !== 'anime' ||
+        entry.mal_id === dto.mal_id ||
+        !title
+      ) {
+        continue;
+      }
+      const key = `${kind}:${entry.mal_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      byKind[kind].push({ animeId: entry.mal_id, title, kind });
+    }
+  }
+  return [...byKind.prequel, ...byKind.sequel];
+}
+
 export function createAnimeFallbackSeeds(id: number): {
   coverSeed: number;
   bannerSeed: number;
@@ -64,7 +101,10 @@ export function createAnimeFallbackSeeds(id: number): {
   return { coverSeed, bannerSeed };
 }
 
-export function mapJikanAnime(dto: JikanAnimeDto): AnimeCatalogItem {
+export function mapJikanAnime(
+  dto: JikanAnimeDto,
+  payload: 'summary' | 'details' = 'summary',
+): AnimeCatalogItem {
   const largePosterImageUrl = firstUrl(
     imageField(dto.images?.webp, 'large_image_url'),
     imageField(dto.images?.jpg, 'large_image_url'),
@@ -112,6 +152,7 @@ export function mapJikanAnime(dto: JikanAnimeDto): AnimeCatalogItem {
     posterImageUrl,
     largePosterImageUrl,
     heroImageUrl,
+    continuity: payload === 'details' ? continuity(dto) : [],
     ...createAnimeFallbackSeeds(dto.mal_id),
   };
 }

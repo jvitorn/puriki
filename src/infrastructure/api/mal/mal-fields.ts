@@ -24,4 +24,6 @@ export const MAL_ANIME_FIELDS = [
   'studios',
 ].join(',');
 
+export const MAL_ANIME_DETAIL_FIELDS = `${MAL_ANIME_FIELDS},related_anime`;
+
 export const MAL_DIAGNOSTIC_FIELDS = 'id,title,main_picture';

@@ -1,3 +1,4 @@
+import { DomainError } from '@/domain/errors/domain-error';
 import type { AnimeListStatus, UserAnimeEntry } from '@/domain/models/anime';
 import { validatePageRequest } from '@/domain/models/pagination';
 import type { PageResult } from '@/domain/models/pagination';
@@ -38,6 +39,40 @@ export class MockUserAnimeListRepository implements UserAnimeListRepository {
     return this.runtime.run(() => {
       const entry = this.findEntry(animeId);
       return entry ? { ...entry } : null;
+    });
+  }
+
+  addToList(
+    animeId: number,
+    status: AnimeListStatus = 'plan_to_watch',
+  ): Promise<UserAnimeEntry> {
+    return this.runtime.run(() => {
+      const existing = this.findEntry(animeId);
+      if (existing) return { ...existing };
+      const anime = this.runtime
+        .getDataset()
+        .catalog.find((item) => item.id === animeId);
+      if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
+      const created = transitionStatus(
+        {
+          animeId,
+          status: 'plan_to_watch',
+          watchedEpisodes: 0,
+          userScore: null,
+          updatedAt: new Date().toISOString(),
+        },
+        status,
+        anime.totalEpisodes,
+      );
+      return this.save({ ...created, updatedAt: new Date().toISOString() });
+    });
+  }
+
+  removeFromList(animeId: number): Promise<void> {
+    return this.runtime.run(() => {
+      const entries = this.runtime.getDataset().userEntries;
+      const index = entries.findIndex((entry) => entry.animeId === animeId);
+      if (index >= 0) entries.splice(index, 1);
     });
   }
 
@@ -90,19 +125,9 @@ export class MockUserAnimeListRepository implements UserAnimeListRepository {
   }
 
   private ensureEntry(animeId: number): UserAnimeEntry {
-    const animeExists = this.runtime
-      .getDataset()
-      .catalog.some((anime) => anime.id === animeId);
-    if (!animeExists) throw new Error(`Anime ${animeId} was not found.`);
-    return (
-      this.findEntry(animeId) ?? {
-        animeId,
-        status: 'plan_to_watch',
-        watchedEpisodes: 0,
-        userScore: null,
-        updatedAt: new Date().toISOString(),
-      }
-    );
+    const entry = this.findEntry(animeId);
+    if (!entry) throw new DomainError(`Anime ${animeId} is not in My List.`);
+    return entry;
   }
 
   private getTotalEpisodes(animeId: number): number | null {

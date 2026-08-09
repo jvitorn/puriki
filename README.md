@@ -58,13 +58,17 @@ The integration implements these official catalog endpoints at `https://api.myan
 - `GET /anime/ranking?ranking_type=upcoming` for Upcoming
 - `GET /anime/season/{year}/{season}` for the current season
 
-The requested fields are:
+Collection and search requests use these summary fields:
 
 ```text
 id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,
 rank,popularity,num_list_users,num_scoring_users,nsfw,genres,media_type,status,
 num_episodes,start_season,broadcast,source,average_episode_duration,rating,studios
 ```
+
+Detail requests add the officially documented `related_anime` field. Purikuki
+maps only `prequel` and `sequel` entries into provider-neutral continuity; the
+same detail request supplies both the anime metadata and its continuity.
 
 Responses are validated at the infrastructure boundary before they are mapped. MAL titles, alternative titles, synopsis, named genres and studios, episode count, score, season, year, readable airing status, and picture fallbacks map into `AnimeCatalogItem`; MAL DTO names do not enter the domain or UI. Artwork falls back from the requested size to the available `main_picture` size, and missing artwork uses deterministic ID-based gradient seeds.
 
@@ -96,6 +100,8 @@ The store permits `summary → details` promotion and forbids `details → summa
 
 `getManyByIds` is a summary-resolution API, not a bulk-enrichment API. Both stored summaries and details satisfy it. It preserves the caller's first-seen ID order, filters invalid/duplicate IDs, returns known items from the normalized index, and resolves only missing IDs. Missing IDs are processed sequentially through `getDetailsById`, so the Details circuit and provider-wide rate-limit gate are checked between items. Neither Automatic mode nor the direct Jikan/MAL repositories use parallel detail fan-out. Legitimate 404s are omitted without failing the valid remainder. `getDetailsById` returns stored details immediately without probing provider health, but a stored summary still follows the resilient detail flow; once promoted, repeated detail calls make no provider request.
 
+`getKnownById` is the synchronous, no-network lookup for presentation-only reuse. Anime Details uses it for continuity posters: an already-known poster is reused, while an unknown related anime gets the deterministic placeholder. Rendering continuity never calls `getManyByIds` or hydrates related details; normal detail resolution begins only after the user taps a Prequel or Sequel card.
+
 Provider caches remain in memory only. Collection responses populate each provider's ID summary cache, details enrich it, and identical in-flight requests are coalesced. **Clear active catalog cache** and **Clear all catalog caches** remove operation data, the normalized item index, and provider data caches without resetting circuit health or Jikan request-budget coordination. Discovery order and Featured selection remain stable for the application session.
 
 ## Jikan catalog
@@ -109,6 +115,8 @@ The native Jikan v4 integration uses:
 - `GET /anime/{id}/full`
 
 Jikan-only mode preserves its scheduler, duplicate-request coalescing, explicit error mapping, 12-second timeout, and maximum three-attempt policy. Automatic mode injects the shorter two-attempt policy into the same client and repository; it does not duplicate the transport.
+
+The existing `/anime/{id}/full` response also supplies relation groups. Purikuki validates them and exposes only anime Prequel/Sequel continuity, with no `/relations` request or related-anime prefetch.
 
 The application-scoped Jikan request coordinator protects both official public budgets: starts are spaced by 500 ms (below 3 requests/second) and a rolling window allows at most 60 starts per minute. A Jikan 429 pauses all future coordinated work for `Retry-After`, or a bounded 15-second fallback when the header is absent. Catalog traffic and manual Jikan diagnostics share the same coordinator for the active repository dependency graph. Clearing anime data does not reset this transport budget; only an explicit coordinator reset does.
 
@@ -126,6 +134,8 @@ Only one diagnostic can run at a time. Results are accessible alerts and are not
 ## Session-only personal list
 
 The personal list remains simulated in every mode. Live catalog modes build a sample directly from already loaded Popular, Seasonal, and Upcoming `AnimeCatalogItem` values; sample generation does not call `getManyByIds` or hydrate the selected IDs again. My List and Continue Watching keep their existing query contracts but normally resolve those rows as normalized item-index hits with zero detail requests. Episode progress, list status, and user score changes use local domain rules and are discarded when the process restarts. No MAL account or authenticated list endpoint is used.
+
+Membership is explicit: `addToList` creates a Plan to Watch entry by default, `updateProgress`, `updateStatus`, and `updateScore` require an existing entry, and `removeFromList` removes it without removing the catalog item. Anime Details consequently shows Add to My List for non-members and Progress, Status, Score, and Remove only for members. A future authenticated MAL repository can map `addToList` to an authenticated add/update, `removeFromList` to an authenticated delete, and the three strict update methods to authenticated list updates without treating a field update as a hidden add operation.
 
 A future authenticated MAL list should populate this same normalized item index from MAL list summaries. A large user list must not imply one Jikan full-detail request per entry; rich Jikan details remain an explicit, selected-item operation.
 

@@ -169,7 +169,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
           () => this.client.anime.getAnimeFullById(id),
           isJikanSingleAnimeResponse,
         );
-        const item = mapJikanAnime(response.data);
+        const item = mapJikanAnime(response.data, 'details');
         if (generation === this.generation) this.cache.setDetail(id, item);
         return item;
       } catch (error: unknown) {
@@ -180,6 +180,10 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
         throw error;
       }
     });
+  }
+
+  getKnownById(id: number): AnimeCatalogItem | null {
+    return this.cache.getSummary(id) ?? null;
   }
 
   refresh(): Promise<void> {
@@ -267,7 +271,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
       const response = await this.executeRequest<
         JikanCollectionResponse<JikanAnimeDto>
       >(name, request, isJikanAnimeCollectionResponse);
-      const items = deduplicate(response.data.map(mapJikanAnime));
+      const items = deduplicate(response.data.map((dto) => mapJikanAnime(dto)));
       if (generation === this.generation) this.cache.setCollection(key, items);
       return items;
     });
@@ -280,7 +284,7 @@ export class JikanAnimeCatalogRepository implements AnimeCatalogRepository {
     const response = await this.executeRequest<
       JikanCollectionResponse<JikanAnimeDto>
     >(name, request, isJikanAnimeCollectionResponse);
-    return deduplicate(response.data.map(mapJikanAnime));
+    return deduplicate(response.data.map((dto) => mapJikanAnime(dto)));
   }
 
   private async refreshDiscoveryCollections(): Promise<void> {

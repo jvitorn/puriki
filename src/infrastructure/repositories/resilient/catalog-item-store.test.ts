@@ -20,6 +20,7 @@ function anime(id: number, title: string): AnimeCatalogItem {
     posterImageUrl: null,
     largePosterImageUrl: null,
     heroImageUrl: null,
+    continuity: [],
     coverSeed: id,
     bannerSeed: id + 1,
   };

@@ -40,6 +40,7 @@ const jikanAnime: AnimeCatalogItem = {
   posterImageUrl: null,
   largePosterImageUrl: null,
   heroImageUrl: null,
+  continuity: [],
   coverSeed: 1,
   bannerSeed: 2,
 };
@@ -69,6 +70,7 @@ function createCatalogMock(item: AnimeCatalogItem): MockCatalogRepository {
     search: jest.fn(async (_query: string) => [item]),
     getManyByIds: jest.fn(async (_ids: number[]) => [item]),
     getDetailsById: jest.fn(async (_id: number) => item),
+    getKnownById: jest.fn((_id: number) => item),
     clearCache: jest.fn(),
   };
 }

@@ -13,6 +13,7 @@ export const ptBR = {
   'nav.settings': 'Configurações',
   'common.tryAgain': 'Tentar novamente',
   'common.retry': 'Tentar novamente',
+  'common.cancel': 'Cancelar',
   'common.unknown': 'Desconhecido',
   'common.yearTbd': 'Ano a definir',
   'common.episodesTbd': 'Episódios a definir',
@@ -92,6 +93,19 @@ export const ptBR = {
   'details.notFound': 'Anime não encontrado',
   'details.notAvailable': 'Este título não está disponível no catálogo ativo.',
   'details.myList': 'Minha Lista',
+  'details.addToList': 'Adicionar à minha lista',
+  'details.adding': 'Adicionando…',
+  'details.addA11y': 'Adicionar {{title}} à Minha Lista',
+  'details.removeFromList': 'Remover da minha lista',
+  'details.removing': 'Removendo…',
+  'details.removeA11y': 'Remover {{title}} da Minha Lista',
+  'details.removeConfirmTitle': 'Remover da Minha Lista?',
+  'details.removeConfirmDescription':
+    'Remover {{title}} e seu progresso de acompanhamento da Minha Lista?',
+  'details.addFailed':
+    'Não foi possível adicionar este anime. Sua lista foi restaurada.',
+  'details.removeFailed':
+    'Não foi possível remover este anime. Sua lista foi restaurada.',
   'details.entrySummary_one': '{{status}} • {{watched}}/{{total}} episódio',
   'details.entrySummary_other': '{{status}} • {{watched}}/{{total}} episódios',
   'details.episodeProgress': 'Progresso dos episódios',
@@ -123,6 +137,10 @@ export const ptBR = {
   'details.synopsisTranslation.googleAttributionAccessibility':
     'Tradução fornecida pelo Google Tradutor',
   'details.information': 'Informações do anime',
+  'details.continuity': 'Continuidade da série',
+  'details.continuityPrequel': 'Prequela',
+  'details.continuitySequel': 'Sequência',
+  'details.continuityRelationA11y': '{{kind}}: {{title}}',
   'details.season': 'Temporada',
   'details.year': 'Ano',
   'details.studio': 'Estúdio',

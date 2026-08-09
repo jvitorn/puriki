@@ -1,6 +1,14 @@
 export type AnimeListStatus =
   'watching' | 'completed' | 'on_hold' | 'dropped' | 'plan_to_watch';
 
+export type AnimeContinuityKind = 'prequel' | 'sequel';
+
+export interface AnimeContinuityRelation {
+  animeId: number;
+  title: string;
+  kind: AnimeContinuityKind;
+}
+
 export interface AnimeCatalogItem {
   id: number;
   title: string;
@@ -16,6 +24,7 @@ export interface AnimeCatalogItem {
   posterImageUrl: string | null;
   largePosterImageUrl: string | null;
   heroImageUrl: string | null;
+  continuity: AnimeContinuityRelation[];
   coverSeed: number;
   bannerSeed: number;
 }

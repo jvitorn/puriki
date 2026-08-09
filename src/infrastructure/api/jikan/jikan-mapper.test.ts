@@ -49,7 +49,7 @@ describe('Jikan anime mapper', () => {
     if (!isJikanSingleAnimeResponse(animeFullFixture)) {
       throw new Error('The static Jikan fixture is invalid.');
     }
-    expect(mapJikanAnime(animeFullFixture.data)).toMatchObject({
+    expect(mapJikanAnime(animeFullFixture.data, 'details')).toMatchObject({
       id: 1,
       title: 'Cowboy Bebop',
       alternativeTitles: ['カウボーイビバップ', 'Space Cowboy'],
@@ -62,7 +62,15 @@ describe('Jikan anime mapper', () => {
       largePosterImageUrl: 'https://example.test/cowboy-large.webp',
       posterImageUrl: 'https://example.test/cowboy.webp',
       heroImageUrl: 'https://example.test/trailer-maximum.jpg',
+      continuity: [
+        { animeId: 400, title: 'Bebop Origins', kind: 'prequel' },
+        { animeId: 5, title: 'Cowboy Bebop: The Movie', kind: 'sequel' },
+      ],
     });
+  });
+
+  it('does not expose continuity from summary payloads', () => {
+    expect(mapJikanAnime(animeFullFixture.data).continuity).toEqual([]);
   });
 
   it('uses safe defaults for nullable metadata and empty arrays', () => {

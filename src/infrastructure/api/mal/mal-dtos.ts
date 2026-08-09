@@ -14,6 +14,16 @@ export interface MalNamedResourceDto {
   name: string;
 }
 
+export interface MalRelatedAnimeDto {
+  node: {
+    id: number;
+    title: string;
+    main_picture?: MalPictureDto;
+  };
+  relation_type: string;
+  relation_type_formatted?: string;
+}
+
 export interface MalAnimeDto {
   id: number;
   title: string;
@@ -29,6 +39,7 @@ export interface MalAnimeDto {
     year?: number;
     season?: string;
   };
+  related_anime?: MalRelatedAnimeDto[] | null;
 }
 
 export interface MalCollectionResponse<T> {
@@ -97,6 +108,25 @@ function isStartSeason(
   );
 }
 
+function isRelatedAnime(value: unknown): value is MalRelatedAnimeDto[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (relation) =>
+        isRecord(relation) &&
+        isRecord(relation.node) &&
+        Number.isInteger(relation.node.id) &&
+        (relation.node.id as number) > 0 &&
+        typeof relation.node.title === 'string' &&
+        relation.node.title.trim().length > 0 &&
+        (relation.node.main_picture === undefined ||
+          isPicture(relation.node.main_picture)) &&
+        typeof relation.relation_type === 'string' &&
+        isOptionalString(relation.relation_type_formatted),
+    )
+  );
+}
+
 export function isMalAnimeDto(value: unknown): value is MalAnimeDto {
   if (!isRecord(value)) return false;
   return (
@@ -115,7 +145,10 @@ export function isMalAnimeDto(value: unknown): value is MalAnimeDto {
       (Number.isInteger(value.num_episodes) &&
         (value.num_episodes as number) >= 0)) &&
     isOptionalString(value.status) &&
-    (value.start_season === undefined || isStartSeason(value.start_season))
+    (value.start_season === undefined || isStartSeason(value.start_season)) &&
+    (value.related_anime === undefined ||
+      value.related_anime === null ||
+      isRelatedAnime(value.related_anime))
   );
 }
 

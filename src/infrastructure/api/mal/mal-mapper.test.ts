@@ -28,7 +28,7 @@ function completeDto(overrides: Partial<MalAnimeDto> = {}): MalAnimeDto {
 
 describe('MAL anime mapper', () => {
   it('maps the complete official-catalog fixture into the provider-neutral model', () => {
-    const mapped = mapMalAnime(animeDetailFixture);
+    const mapped = mapMalAnime(animeDetailFixture, 'details');
     expect(mapped).toMatchObject({
       id: 52991,
       title: 'Sousou no Frieren',
@@ -49,7 +49,19 @@ describe('MAL anime mapper', () => {
       posterImageUrl: 'https://example.test/frieren-medium.jpg',
       largePosterImageUrl: 'https://example.test/frieren-large.jpg',
       heroImageUrl: 'https://example.test/frieren-large.jpg',
+      continuity: [
+        {
+          animeId: 60001,
+          title: 'Frieren: The Journey Before',
+          kind: 'prequel',
+        },
+        { animeId: 60002, title: 'Frieren Season 2', kind: 'sequel' },
+      ],
     });
+  });
+
+  it('does not expose continuity from summary payloads', () => {
+    expect(mapMalAnime(animeDetailFixture).continuity).toEqual([]);
   });
 
   it('uses safe nullable values when optional metadata is missing', () => {

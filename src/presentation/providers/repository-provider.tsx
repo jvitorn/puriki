@@ -205,6 +205,7 @@ function createSourceTrackedRepository(
     search: (query) => track('search', repository.search(query)),
     getManyByIds: (ids) => track('details', repository.getManyByIds(ids)),
     getDetailsById: (id) => track('details', repository.getDetailsById(id)),
+    getKnownById: (id) => repository.getKnownById(id),
     clearCache: () => repository.clearCache(),
   };
 }

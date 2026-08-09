@@ -1,4 +1,4 @@
-import { RepositoryError } from '@/domain/errors/domain-error';
+import { DomainError, RepositoryError } from '@/domain/errors/domain-error';
 import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
 import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
 import { MockUserAnimeListRepository } from '@/infrastructure/repositories/mock/mock-user-anime-list-repository';
@@ -127,12 +127,15 @@ describe('mock repositories', () => {
     });
   });
 
-  it('updates statuses and scores, including new list entries', async () => {
+  it('updates statuses and scores only after explicit membership', async () => {
     await expect(list.updateStatus(1, 'plan_to_watch')).resolves.toMatchObject({
       watchedEpisodes: 0,
       status: 'plan_to_watch',
     });
-    await expect(list.updateStatus(30, 'watching')).resolves.toMatchObject({
+    await expect(list.updateStatus(30, 'watching')).rejects.toBeInstanceOf(
+      DomainError,
+    );
+    await expect(list.addToList(30, 'watching')).resolves.toMatchObject({
       animeId: 30,
       status: 'watching',
     });
@@ -144,8 +147,27 @@ describe('mock repositories', () => {
     });
     await expect(list.updateScore(30, 20)).rejects.toThrow('between 1 and 10');
     await expect(list.updateStatus(999, 'watching')).rejects.toThrow(
-      'was not found',
+      'not in My List',
     );
+  });
+
+  it('adds and removes membership idempotently with deterministic defaults', async () => {
+    const added = await list.addToList(30);
+    expect(added).toMatchObject({
+      animeId: 30,
+      status: 'plan_to_watch',
+      watchedEpisodes: 0,
+      userScore: null,
+    });
+    await expect(list.addToList(30)).resolves.toEqual(added);
+    expect(
+      (await list.getPage({ page: 1, pageSize: 100 })).items.filter(
+        (entry) => entry.animeId === 30,
+      ),
+    ).toHaveLength(1);
+    await list.removeFromList(30);
+    await expect(list.removeFromList(30)).resolves.toBeUndefined();
+    await expect(list.getByAnimeId(30)).resolves.toBeNull();
   });
 
   it('resets all local mutations', async () => {

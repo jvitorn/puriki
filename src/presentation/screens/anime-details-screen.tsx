@@ -1,10 +1,19 @@
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronDown, ChevronUp, Star } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Star,
+  Trash2,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useWindowDimensions, View } from 'react-native';
+import { Alert, useWindowDimensions, View } from 'react-native';
 
 import {
+  useAddToList,
+  useRemoveFromList,
   useUpdateProgress,
   useUpdateScore,
   useUpdateStatus,
@@ -17,6 +26,7 @@ import {
   localizedError,
   localizedStatus,
 } from '@/localization/localized-values';
+import { AnimeContinuitySection } from '@/presentation/components/anime/anime-continuity-section';
 import { AnimeScoreSelector } from '@/presentation/components/anime/anime-score-selector';
 import { AnimeStatusSelector } from '@/presentation/components/anime/anime-status-selector';
 import { AnimeSynopsisSection } from '@/presentation/components/anime/anime-synopsis-section';
@@ -24,6 +34,7 @@ import { BannerPlaceholder } from '@/presentation/components/anime/banner-placeh
 import { EpisodeProgressControl } from '@/presentation/components/anime/episode-progress-control';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
 import { Badge } from '@/presentation/components/ui/badge';
+import { Button } from '@/presentation/components/ui/button';
 import { Card } from '@/presentation/components/ui/card';
 import {
   Collapsible,
@@ -69,6 +80,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   const progress = useUpdateProgress();
   const status = useUpdateStatus();
   const score = useUpdateScore();
+  const addToList = useAddToList();
+  const removeFromList = useRemoveFromList();
   const mutationError = progress.error ?? status.error ?? score.error;
   const heroHeight = Math.max(260, Math.min(width * 0.62, 410));
 
@@ -117,14 +130,27 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   }
 
   const { anime, userEntry } = details.data;
-  const currentEntry = userEntry ?? {
-    animeId,
-    status: 'plan_to_watch' as const,
-    watchedEpisodes: 0,
-    userScore: null,
-    updatedAt: '',
+  const busy =
+    progress.isPending ||
+    status.isPending ||
+    score.isPending ||
+    addToList.isPending ||
+    removeFromList.isPending;
+
+  const confirmRemoval = () => {
+    Alert.alert(
+      t('details.removeConfirmTitle'),
+      t('details.removeConfirmDescription', { title: anime.title }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('details.removeFromList'),
+          style: 'destructive',
+          onPress: () => removeFromList.mutate({ animeId }),
+        },
+      ],
+    );
   };
-  const busy = progress.isPending || status.isPending || score.isPending;
 
   return (
     <Screen scroll padded={false}>
@@ -182,65 +208,109 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           </View>
         </View>
 
-        <Card className="gap-5 border-0 p-4 py-4">
-          <View className="flex-row items-center justify-between gap-3">
-            <View>
-              <Text variant="heading">{t('details.myList')}</Text>
-              <Text variant="caption" muted>
-                {t('details.entrySummary', {
-                  count: anime.totalEpisodes ?? 2,
-                  status: localizedStatus(currentEntry.status, t),
-                  watched: currentEntry.watchedEpisodes,
-                  total: anime.totalEpisodes ?? '?',
-                })}
-              </Text>
-            </View>
-            {currentEntry.userScore !== null ? (
-              <Badge variant="secondary">
-                <Text>
-                  {t('common.score', { score: currentEntry.userScore })}
+        {userEntry ? (
+          <Card className="gap-5 border-0 p-4 py-4">
+            <View className="flex-row items-center justify-between gap-3">
+              <View>
+                <Text variant="heading">{t('details.myList')}</Text>
+                <Text variant="caption" muted>
+                  {t('details.entrySummary', {
+                    count: anime.totalEpisodes ?? 2,
+                    status: localizedStatus(userEntry.status, t),
+                    watched: userEntry.watchedEpisodes,
+                    total: anime.totalEpisodes ?? '?',
+                  })}
                 </Text>
-              </Badge>
-            ) : null}
-          </View>
-          <View className="gap-3">
-            <Text variant="caption" muted>
-              {t('details.episodeProgress')}
-            </Text>
-            <EpisodeProgressControl
-              current={currentEntry.watchedEpisodes}
-              total={anime.totalEpisodes}
-              disabled={busy}
-              onChange={(episodes) => progress.mutate({ animeId, episodes })}
+              </View>
+              {userEntry.userScore !== null ? (
+                <Badge variant="secondary">
+                  <Text>
+                    {t('common.score', { score: userEntry.userScore })}
+                  </Text>
+                </Badge>
+              ) : null}
+            </View>
+            <View className="gap-3">
+              <Text variant="caption" muted>
+                {t('details.episodeProgress')}
+              </Text>
+              <EpisodeProgressControl
+                current={userEntry.watchedEpisodes}
+                total={anime.totalEpisodes}
+                disabled={busy}
+                onChange={(episodes) => progress.mutate({ animeId, episodes })}
+              />
+            </View>
+            <Separator />
+            <View className="gap-3">
+              <Text variant="caption" muted>
+                {t('details.listStatus')}
+              </Text>
+              <AnimeStatusSelector
+                value={userEntry.status}
+                disabled={busy}
+                onChange={(nextStatus) =>
+                  status.mutate({ animeId, status: nextStatus })
+                }
+              />
+            </View>
+            <Separator />
+            <View className="gap-3">
+              <Text variant="caption" muted>
+                {t('details.yourScore')}
+              </Text>
+              <AnimeScoreSelector
+                value={userEntry.userScore}
+                disabled={busy}
+                onChange={(nextScore) =>
+                  score.mutate({ animeId, score: nextScore })
+                }
+              />
+            </View>
+            <Separator />
+            {addToList.isPending ? (
+              <Button disabled accessibilityLabel={t('details.adding')}>
+                <Icon as={Plus} className="size-4 text-primary-foreground" />
+                <Text>{t('details.adding')}</Text>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                disabled={busy}
+                accessibilityLabel={t('details.removeA11y', {
+                  title: anime.title,
+                })}
+                onPress={confirmRemoval}
+              >
+                <Icon as={Trash2} className="size-4 text-destructive" />
+                <Text className="text-destructive">
+                  {t('details.removeFromList')}
+                </Text>
+              </Button>
+            )}
+          </Card>
+        ) : (
+          <Button
+            size="lg"
+            disabled={busy}
+            accessibilityLabel={
+              removeFromList.isPending
+                ? t('details.removing')
+                : t('details.addA11y', { title: anime.title })
+            }
+            onPress={() => addToList.mutate({ animeId })}
+          >
+            <Icon
+              as={removeFromList.isPending ? Trash2 : Plus}
+              className="size-5 text-primary-foreground"
             />
-          </View>
-          <Separator />
-          <View className="gap-3">
-            <Text variant="caption" muted>
-              {t('details.listStatus')}
+            <Text>
+              {removeFromList.isPending
+                ? t('details.removing')
+                : t('details.addToList')}
             </Text>
-            <AnimeStatusSelector
-              value={currentEntry.status}
-              disabled={busy}
-              onChange={(nextStatus) =>
-                status.mutate({ animeId, status: nextStatus })
-              }
-            />
-          </View>
-          <Separator />
-          <View className="gap-3">
-            <Text variant="caption" muted>
-              {t('details.yourScore')}
-            </Text>
-            <AnimeScoreSelector
-              value={currentEntry.userScore}
-              disabled={busy}
-              onChange={(nextScore) =>
-                score.mutate({ animeId, score: nextScore })
-              }
-            />
-          </View>
-        </Card>
+          </Button>
+        )}
 
         {mutationError ? (
           <View
@@ -250,6 +320,28 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           >
             <Text className="text-destructive">
               {t('details.updateFailed')}
+            </Text>
+          </View>
+        ) : null}
+
+        {addToList.error ? (
+          <View
+            accessible
+            accessibilityRole="alert"
+            className="rounded-xl border border-destructive bg-destructive/10 p-4"
+          >
+            <Text className="text-destructive">{t('details.addFailed')}</Text>
+          </View>
+        ) : null}
+
+        {removeFromList.error ? (
+          <View
+            accessible
+            accessibilityRole="alert"
+            className="rounded-xl border border-destructive bg-destructive/10 p-4"
+          >
+            <Text className="text-destructive">
+              {t('details.removeFailed')}
             </Text>
           </View>
         ) : null}
@@ -299,6 +391,16 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             }
           />
         </View>
+
+        <AnimeContinuitySection
+          relations={anime.continuity}
+          onSelect={(relatedAnimeId) =>
+            router.push({
+              pathname: '/anime/[id]',
+              params: { id: String(relatedAnimeId) },
+            })
+          }
+        />
 
         {anime.alternativeTitles.length > 0 ? (
           <Collapsible

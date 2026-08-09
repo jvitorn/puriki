@@ -62,6 +62,13 @@ export class MockAnimeCatalogRepository implements AnimeCatalogRepository {
     });
   }
 
+  getKnownById(id: number): AnimeCatalogItem | null {
+    const anime = this.runtime
+      .getDataset()
+      .catalog.find((item) => item.id === id);
+    return anime ? { ...anime } : null;
+  }
+
   clearCache(): void {}
 
   private cloneRange(start: number, end: number): AnimeCatalogItem[] {

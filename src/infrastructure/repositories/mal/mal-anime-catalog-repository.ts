@@ -14,7 +14,10 @@ import {
   MalNotFoundError,
   MalResponseFormatError,
 } from '@/infrastructure/api/mal/mal-errors';
-import { MAL_ANIME_FIELDS } from '@/infrastructure/api/mal/mal-fields';
+import {
+  MAL_ANIME_DETAIL_FIELDS,
+  MAL_ANIME_FIELDS,
+} from '@/infrastructure/api/mal/mal-fields';
 import { mapMalAnime } from '@/infrastructure/api/mal/mal-mapper';
 import {
   JIKAN_DISCOVERY_OPERATION_FAMILIES,
@@ -177,10 +180,10 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
       try {
         const response = await this.client.anime.getDetails(
           id,
-          MAL_ANIME_FIELDS,
+          MAL_ANIME_DETAIL_FIELDS,
         );
         if (!isMalDetailResponse(response)) throw new MalResponseFormatError();
-        const item = mapMalAnime(response);
+        const item = mapMalAnime(response, 'details');
         if (generation === this.generation) this.cache.setDetail(id, item);
         return item;
       } catch (error: unknown) {
@@ -191,6 +194,10 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
         throw error;
       }
     });
+  }
+
+  getKnownById(id: number): AnimeCatalogItem | null {
+    return this.cache.getSummary(id) ?? null;
   }
 
   refresh(): Promise<void> {

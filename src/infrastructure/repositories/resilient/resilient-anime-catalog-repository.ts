@@ -154,7 +154,9 @@ function isAnimeCatalogItem(value: unknown): value is AnimeCatalogItem {
     'genres' in value &&
     Array.isArray(value.genres) &&
     'studios' in value &&
-    Array.isArray(value.studios)
+    Array.isArray(value.studios) &&
+    'continuity' in value &&
+    Array.isArray(value.continuity)
   );
 }
 
@@ -309,6 +311,10 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       () => this.fallback.getDetailsById(id),
       { completeness: 'details' },
     );
+  }
+
+  getKnownById(id: number): AnimeCatalogItem | null {
+    return this.itemStore.getItem(id, 'summary') ?? null;
   }
 
   async refresh(): Promise<void> {

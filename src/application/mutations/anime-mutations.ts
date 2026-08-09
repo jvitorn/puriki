@@ -129,13 +129,9 @@ function updateCachedEntry(
   );
 }
 
-async function optimisticallyUpdate(
+async function snapshotMembershipCaches(
   queryClient: QueryClient,
   animeId: number,
-  makeEntry: (
-    current: UserAnimeEntry,
-    totalEpisodes: number | null,
-  ) => UserAnimeEntry,
 ): Promise<CacheSnapshot[]> {
   await Promise.all([
     queryClient.cancelQueries({ queryKey: queryKeys.userListRoot }),
@@ -144,24 +140,37 @@ async function optimisticallyUpdate(
       exact: true,
     }),
   ]);
-  const matching = getAnimeCacheEntries(queryClient, animeId);
-  const snapshots: CacheSnapshot[] = matching.map(([queryKey, data]) => ({
+  return getAnimeCacheEntries(queryClient, animeId).map(([queryKey, data]) => ({
     queryKey,
     data,
   }));
+}
+
+function setDetailsMembership(
+  queryClient: QueryClient,
+  animeId: number,
+  userEntry: UserAnimeEntry | undefined,
+): void {
+  queryClient.setQueryData<UnifiedAnime | null>(
+    queryKeys.details(animeId),
+    (current) => (current ? { ...current, userEntry } : current),
+  );
+}
+
+async function optimisticallyUpdate(
+  queryClient: QueryClient,
+  animeId: number,
+  makeEntry: (
+    current: UserAnimeEntry,
+    totalEpisodes: number | null,
+  ) => UserAnimeEntry,
+): Promise<CacheSnapshot[]> {
+  const snapshots = await snapshotMembershipCaches(queryClient, animeId);
+  const matching = getAnimeCacheEntries(queryClient, animeId);
   matching.forEach(([queryKey, data]) => {
     const item = findUnifiedAnime(data, animeId);
-    if (!item) return;
-    const current =
-      item.userEntry ??
-      ({
-        animeId,
-        status: 'plan_to_watch',
-        watchedEpisodes: 0,
-        userScore: null,
-        updatedAt: '',
-      } as const);
-    const nextEntry = makeEntry(current, item.anime.totalEpisodes);
+    if (!item?.userEntry) return;
+    const nextEntry = makeEntry(item.userEntry, item.anime.totalEpisodes);
     queryClient.setQueryData(
       queryKey,
       replaceCachedEntry(data, queryKey, nextEntry),
@@ -195,6 +204,82 @@ function reconcileSuccessfulMutation(
       refetchType: 'none',
     }),
   ]);
+}
+
+function invalidateMembershipCaches(
+  queryClient: QueryClient,
+  animeId: number,
+): Promise<unknown[]> {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.userListRoot,
+      refetchType: 'none',
+    }),
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.details(animeId),
+      exact: true,
+      refetchType: 'none',
+    }),
+  ]);
+}
+
+export function useAddToList() {
+  const queryClient = useQueryClient();
+  const { userListRepository } = useRepositories();
+  return useMutation({
+    mutationFn: ({
+      animeId,
+      status,
+    }: {
+      animeId: number;
+      status?: AnimeListStatus;
+    }) => userListRepository.addToList(animeId, status),
+    onMutate: async ({ animeId, status = 'plan_to_watch' }) => {
+      const snapshots = await snapshotMembershipCaches(queryClient, animeId);
+      const current = queryClient.getQueryData<UnifiedAnime | null>(
+        queryKeys.details(animeId),
+      );
+      if (current && !current.userEntry) {
+        const base: UserAnimeEntry = {
+          animeId,
+          status: 'plan_to_watch',
+          watchedEpisodes: 0,
+          userScore: null,
+          updatedAt: '',
+        };
+        setDetailsMembership(
+          queryClient,
+          animeId,
+          transitionStatus(base, status, current.anime.totalEpisodes),
+        );
+      }
+      return snapshots;
+    },
+    onError: (_error, _variables, snapshots) =>
+      restoreSnapshots(queryClient, snapshots),
+    onSuccess: (nextEntry) =>
+      reconcileSuccessfulMutation(queryClient, nextEntry),
+  });
+}
+
+export function useRemoveFromList() {
+  const queryClient = useQueryClient();
+  const { userListRepository } = useRepositories();
+  return useMutation({
+    mutationFn: ({ animeId }: { animeId: number }) =>
+      userListRepository.removeFromList(animeId),
+    onMutate: async ({ animeId }) => {
+      const snapshots = await snapshotMembershipCaches(queryClient, animeId);
+      setDetailsMembership(queryClient, animeId, undefined);
+      return snapshots;
+    },
+    onError: (_error, _variables, snapshots) =>
+      restoreSnapshots(queryClient, snapshots),
+    onSuccess: (_value, { animeId }) => {
+      setDetailsMembership(queryClient, animeId, undefined);
+      return invalidateMembershipCaches(queryClient, animeId);
+    },
+  });
 }
 
 export function useUpdateProgress() {

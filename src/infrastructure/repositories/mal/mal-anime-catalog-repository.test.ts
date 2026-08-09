@@ -5,14 +5,26 @@ import {
   MalHttpError,
   MalNotFoundError,
 } from '@/infrastructure/api/mal/mal-errors';
-import { MAL_ANIME_FIELDS } from '@/infrastructure/api/mal/mal-fields';
+import {
+  MAL_ANIME_DETAIL_FIELDS,
+  MAL_ANIME_FIELDS,
+} from '@/infrastructure/api/mal/mal-fields';
 import {
   currentMalSeason,
   MalAnimeCatalogRepository,
 } from '@/infrastructure/repositories/mal/mal-anime-catalog-repository';
 
 function detailFor(id: number) {
-  return { ...animeDetailFixture, id, title: `Detail Anime ${id}` };
+  return {
+    ...animeDetailFixture,
+    id,
+    title: `Detail Anime ${id}`,
+    related_anime: animeDetailFixture.related_anime.map((relation) =>
+      relation.node.id === animeDetailFixture.id
+        ? { ...relation, node: { ...relation.node, id } }
+        : relation,
+    ),
+  };
 }
 
 function createRepository() {
@@ -83,10 +95,14 @@ describe('MAL anime catalog repository', () => {
     await expect(repository.getDetailsById(42)).resolves.toMatchObject({
       id: 42,
       title: 'Detail Anime 42',
+      continuity: [
+        { animeId: 60001, kind: 'prequel' },
+        { animeId: 60002, kind: 'sequel' },
+      ],
     });
     await repository.getDetailsById(42);
     expect(getDetails).toHaveBeenCalledTimes(1);
-    expect(getDetails).toHaveBeenCalledWith(42, MAL_ANIME_FIELDS);
+    expect(getDetails).toHaveBeenCalledWith(42, MAL_ANIME_DETAIL_FIELDS);
   });
 
   it('maps and caches a legitimate MAL detail 404 as null', async () => {
@@ -102,6 +118,14 @@ describe('MAL anime catalog repository', () => {
     await repository.getPopular();
     const result = await repository.getManyByIds([1, 52991, 1]);
     expect(result.map((item) => item.id)).toEqual([1, 52991]);
+    expect(getDetails).not.toHaveBeenCalled();
+  });
+
+  it('looks up known items synchronously without resolving unknown IDs', async () => {
+    const { getDetails, repository } = createRepository();
+    await repository.getPopular();
+    expect(repository.getKnownById(1)).toMatchObject({ id: 1 });
+    expect(repository.getKnownById(999)).toBeNull();
     expect(getDetails).not.toHaveBeenCalled();
   });
 
@@ -168,7 +192,7 @@ describe('MAL anime catalog repository', () => {
     getDetails.mockRejectedValueOnce(failure);
     await expect(repository.getManyByIds([7, 8, 9])).rejects.toBe(failure);
     expect(getDetails).toHaveBeenCalledTimes(1);
-    expect(getDetails).toHaveBeenCalledWith(7, MAL_ANIME_FIELDS);
+    expect(getDetails).toHaveBeenCalledWith(7, MAL_ANIME_DETAIL_FIELDS);
   });
 
   it('coalesces concurrent collection and detail requests', async () => {

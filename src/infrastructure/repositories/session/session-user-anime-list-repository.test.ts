@@ -1,3 +1,4 @@
+import { DomainError } from '@/domain/errors/domain-error';
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
@@ -36,6 +37,9 @@ function createCatalog(): {
     }),
     getDetailsById: jest.fn(
       async (id) => catalog.find((anime) => anime.id === id) ?? null,
+    ),
+    getKnownById: jest.fn(
+      (id) => catalog.find((anime) => anime.id === id) ?? null,
     ),
     clearCache: jest.fn(),
   };
@@ -139,6 +143,53 @@ describe('SessionUserAnimeListRepository', () => {
     await expect(session.updateScore(entry.animeId, 9)).resolves.toMatchObject({
       userScore: 9,
     });
+  });
+
+  it('adds and removes real membership idempotently', async () => {
+    const { catalog, session } = createSession();
+    const initial = await getSessionEntries(session);
+    const candidate = catalog.find(
+      (anime) => !initial.some((entry) => entry.animeId === anime.id),
+    );
+    if (!candidate) throw new Error('Expected a non-member catalog item.');
+
+    const added = await session.addToList(candidate.id);
+    expect(added).toMatchObject({
+      animeId: candidate.id,
+      status: 'plan_to_watch',
+      watchedEpisodes: 0,
+      userScore: null,
+    });
+    await expect(session.addToList(candidate.id)).resolves.toEqual(added);
+    expect(
+      (await getSessionEntries(session)).filter(
+        (entry) => entry.animeId === candidate.id,
+      ),
+    ).toHaveLength(1);
+
+    await session.removeFromList(candidate.id);
+    await expect(session.removeFromList(candidate.id)).resolves.toBeUndefined();
+    await expect(session.getByAnimeId(candidate.id)).resolves.toBeNull();
+  });
+
+  it('rejects every update for an anime outside My List', async () => {
+    const { catalog, repository, session } = createSession();
+    const initial = await getSessionEntries(session);
+    const candidate = catalog.find(
+      (anime) => !initial.some((entry) => entry.animeId === anime.id),
+    );
+    if (!candidate) throw new Error('Expected a non-member catalog item.');
+
+    await expect(
+      session.updateProgress(candidate.id, 1),
+    ).rejects.toBeInstanceOf(DomainError);
+    await expect(
+      session.updateStatus(candidate.id, 'watching'),
+    ).rejects.toBeInstanceOf(DomainError);
+    await expect(session.updateScore(candidate.id, 8)).rejects.toBeInstanceOf(
+      DomainError,
+    );
+    expect(repository.getManyByIds).not.toHaveBeenCalled();
   });
 
   it('resets mutations back to the current session sample', async () => {

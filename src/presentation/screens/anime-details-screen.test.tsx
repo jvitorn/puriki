@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
 import { createMockScenario } from '@/mocks/scenarios/mock-scenarios';
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
@@ -54,6 +55,7 @@ describe('AnimeDetailsScreen', () => {
     expect(screen.getByText('Gekko no Senjin • Moon Vanguard')).toBeVisible();
     expect(screen.getByText('Synopsis')).toBeVisible();
     expect(screen.getByText('of 12 episodes')).toBeVisible();
+    expect(screen.queryByText('Series continuity')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
     await waitFor(() =>
@@ -82,6 +84,107 @@ describe('AnimeDetailsScreen', () => {
         screen.getByLabelText('Clear score').props.accessibilityState,
       ).toMatchObject({ selected: true, disabled: false }),
     );
+  });
+
+  it('shows an explicit add action instead of tracking controls for non-members', async () => {
+    await renderWithProviders(<AnimeDetailsScreen animeId={30} />);
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText('Add Spirit Rail Express to My List'),
+      ).toBeVisible(),
+    );
+    expect(screen.queryByText('Episode progress')).not.toBeOnTheScreen();
+    expect(screen.queryByText('List status')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Your score')).not.toBeOnTheScreen();
+  });
+
+  it('adds a non-member optimistically with the default entry values', async () => {
+    const dependencies = createTestDependencies();
+    const addToList = jest.spyOn(dependencies.userListRepository, 'addToList');
+    await renderWithProviders(<AnimeDetailsScreen animeId={30} />, {
+      dependencies,
+    });
+    await fireEvent.press(
+      await screen.findByLabelText('Add Spirit Rail Express to My List'),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText('Episode progress')).toBeVisible(),
+    );
+    expect(screen.getByText('Plan to Watch • 0/13 episodes')).toBeVisible();
+    expect(addToList).toHaveBeenCalledWith(30, undefined);
+  });
+
+  it('restores the non-member action and reports a failed add', async () => {
+    const dependencies = createTestDependencies();
+    await renderWithProviders(<AnimeDetailsScreen animeId={30} />, {
+      dependencies,
+    });
+    const addButton = await screen.findByLabelText(
+      'Add Spirit Rail Express to My List',
+    );
+    dependencies.setForceErrors(true);
+    await fireEvent.press(addButton);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Couldn't add this anime. Your list was restored."),
+      ).toBeVisible(),
+    );
+    expect(
+      screen.getByLabelText('Add Spirit Rail Express to My List'),
+    ).toBeVisible();
+    expect(screen.queryByText('Episode progress')).not.toBeOnTheScreen();
+  });
+
+  it('confirms and removes an existing member', async () => {
+    const dependencies = createTestDependencies();
+    const removeFromList = jest.spyOn(
+      dependencies.userListRepository,
+      'removeFromList',
+    );
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      dependencies,
+    });
+    await fireEvent.press(
+      await screen.findByLabelText('Remove Moonlit Vanguard from My List'),
+    );
+    const destructive = alert.mock.calls[0]?.[2]?.find(
+      (button) => button.style === 'destructive',
+    );
+    destructive?.onPress?.();
+
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText('Add Moonlit Vanguard to My List'),
+      ).toBeVisible(),
+    );
+    expect(removeFromList).toHaveBeenCalledWith(1);
+    alert.mockRestore();
+  });
+
+  it('restores member controls and reports a failed removal', async () => {
+    const dependencies = createTestDependencies();
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      dependencies,
+    });
+    await fireEvent.press(
+      await screen.findByLabelText('Remove Moonlit Vanguard from My List'),
+    );
+    dependencies.setForceErrors(true);
+    alert.mock.calls[0]?.[2]
+      ?.find((button) => button.style === 'destructive')
+      ?.onPress?.();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Couldn't remove this anime. Your list was restored."),
+      ).toBeVisible(),
+    );
+    expect(screen.getByText('Episode progress')).toBeVisible();
+    alert.mockRestore();
   });
 
   it('rolls back and reports mutation errors accessibly', async () => {
@@ -159,6 +262,53 @@ describe('AnimeDetailsScreen', () => {
     expect(screen.queryByLabelText('Alternative titles')).not.toBeOnTheScreen();
     expect(screen.getByText('Episodes TBD')).toBeVisible();
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+  });
+
+  it('renders navigable continuity without hydrating related anime', async () => {
+    const dataset = createMockScenario('default');
+    const current = dataset.catalog[0];
+    const known = dataset.catalog[1];
+    if (!current || !known) throw new Error('Expected seeded anime.');
+    current.continuity = [
+      { animeId: known.id, title: known.title, kind: 'prequel' },
+      { animeId: 999, title: 'Unknown Future', kind: 'sequel' },
+    ];
+    known.posterImageUrl = 'https://example.test/known-poster.jpg';
+    const dependencies = createTestDependencies(dataset);
+    const getDetails = jest.spyOn(
+      dependencies.catalogRepository,
+      'getDetailsById',
+    );
+    const getMany = jest.spyOn(dependencies.catalogRepository, 'getManyByIds');
+    const push = jest.fn();
+    const expoRouter = jest.requireMock<{ useRouter: () => unknown }>(
+      'expo-router',
+    );
+    const router = jest
+      .spyOn(expoRouter, 'useRouter')
+      .mockReturnValue({ push, back: jest.fn(), replace: jest.fn() } as never);
+
+    await renderWithProviders(<AnimeDetailsScreen animeId={current.id} />, {
+      dependencies,
+    });
+    await waitFor(() =>
+      expect(screen.getByText('Series continuity')).toBeVisible(),
+    );
+    expect(screen.getByLabelText(`Prequel: ${known.title}`)).toBeVisible();
+    expect(screen.getByLabelText('Poster for Ember Archive')).toBeVisible();
+    expect(
+      screen.getByLabelText('Poster placeholder for Unknown Future'),
+    ).toBeVisible();
+    expect(getDetails).toHaveBeenCalledTimes(1);
+    expect(getDetails).toHaveBeenCalledWith(current.id);
+    expect(getMany).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByLabelText('Sequel: Unknown Future'));
+    expect(push).toHaveBeenCalledWith({
+      pathname: '/anime/[id]',
+      params: { id: '999' },
+    });
+    router.mockRestore();
   });
 
   it('keeps the English synopsis unchanged without a translation action', async () => {

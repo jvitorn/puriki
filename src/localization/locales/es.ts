@@ -13,6 +13,7 @@ export const es = {
   'nav.settings': 'Configuración',
   'common.tryAgain': 'Intentar de nuevo',
   'common.retry': 'Reintentar',
+  'common.cancel': 'Cancelar',
   'common.unknown': 'Desconocido',
   'common.yearTbd': 'Año por definir',
   'common.episodesTbd': 'Episodios por definir',
@@ -93,6 +94,18 @@ export const es = {
   'details.notAvailable':
     'Este título no está disponible en el catálogo activo.',
   'details.myList': 'Mi lista',
+  'details.addToList': 'Añadir a mi lista',
+  'details.adding': 'Añadiendo…',
+  'details.addA11y': 'Añadir {{title}} a Mi lista',
+  'details.removeFromList': 'Eliminar de mi lista',
+  'details.removing': 'Eliminando…',
+  'details.removeA11y': 'Eliminar {{title}} de Mi lista',
+  'details.removeConfirmTitle': '¿Eliminar de Mi lista?',
+  'details.removeConfirmDescription':
+    '¿Eliminar {{title}} y su progreso de seguimiento de Mi lista?',
+  'details.addFailed': 'No se pudo añadir este anime. Tu lista fue restaurada.',
+  'details.removeFailed':
+    'No se pudo eliminar este anime. Tu lista fue restaurada.',
   'details.entrySummary_one': '{{status}} • {{watched}}/{{total}} episodio',
   'details.entrySummary_other': '{{status}} • {{watched}}/{{total}} episodios',
   'details.episodeProgress': 'Progreso de episodios',
@@ -125,6 +138,10 @@ export const es = {
   'details.synopsisTranslation.googleAttributionAccessibility':
     'Con la tecnología de Google Translate',
   'details.information': 'Información del anime',
+  'details.continuity': 'Continuidad de la serie',
+  'details.continuityPrequel': 'Precuela',
+  'details.continuitySequel': 'Secuela',
+  'details.continuityRelationA11y': '{{kind}}: {{title}}',
   'details.season': 'Temporada',
   'details.year': 'Año',
   'details.studio': 'Estudio',

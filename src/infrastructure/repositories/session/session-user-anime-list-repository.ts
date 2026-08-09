@@ -86,6 +86,36 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
     return entry ? { ...entry } : null;
   }
 
+  async addToList(
+    animeId: number,
+    status: AnimeListStatus = 'plan_to_watch',
+  ): Promise<UserAnimeEntry> {
+    await this.ensureInitialized();
+    const existing = this.findEntry(animeId);
+    if (existing) return { ...existing };
+    const anime = this.catalogRepository.getKnownById(animeId);
+    if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
+    const created = transitionStatus(
+      {
+        animeId,
+        status: 'plan_to_watch',
+        watchedEpisodes: 0,
+        userScore: null,
+        updatedAt: this.now().toISOString(),
+      },
+      status,
+      anime.totalEpisodes,
+    );
+    return this.save({ ...created, updatedAt: this.now().toISOString() });
+  }
+
+  async removeFromList(animeId: number): Promise<void> {
+    await this.ensureInitialized();
+    this.entries = (this.entries ?? []).filter(
+      (entry) => entry.animeId !== animeId,
+    );
+  }
+
   async updateProgress(
     animeId: number,
     episodes: number,
@@ -209,18 +239,17 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
     entry: UserAnimeEntry;
   }> {
     await this.ensureInitialized();
-    const [anime] = await this.catalogRepository.getManyByIds([animeId]);
+    const entry = this.findEntry(animeId);
+    if (!entry) {
+      throw new DomainError(`Anime ${animeId} is not in My List.`);
+    }
+    const known = this.catalogRepository.getKnownById(animeId);
+    const [resolved] = known
+      ? []
+      : await this.catalogRepository.getManyByIds([animeId]);
+    const anime = known ?? resolved;
     if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
-    return {
-      anime,
-      entry: this.findEntry(animeId) ?? {
-        animeId,
-        status: 'plan_to_watch',
-        watchedEpisodes: 0,
-        userScore: null,
-        updatedAt: this.now().toISOString(),
-      },
-    };
+    return { anime, entry };
   }
 
   private findEntry(animeId: number): UserAnimeEntry | undefined {

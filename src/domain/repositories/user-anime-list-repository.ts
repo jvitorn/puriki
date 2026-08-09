@@ -10,6 +10,8 @@ export interface UserAnimeListRepository {
     request: UserAnimeListPageRequest,
   ): Promise<PageResult<UserAnimeEntry>>;
   getByAnimeId(animeId: number): Promise<UserAnimeEntry | null>;
+  addToList(animeId: number, status?: AnimeListStatus): Promise<UserAnimeEntry>;
+  removeFromList(animeId: number): Promise<void>;
   updateProgress(animeId: number, episodes: number): Promise<UserAnimeEntry>;
   updateStatus(
     animeId: number,

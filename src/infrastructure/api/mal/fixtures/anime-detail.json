@@ -19,5 +19,30 @@
   "studios": [{ "id": 11, "name": "Madhouse" }],
   "num_episodes": 28,
   "status": "finished_airing",
-  "start_season": { "year": 2023, "season": "fall" }
+  "start_season": { "year": 2023, "season": "fall" },
+  "related_anime": [
+    {
+      "node": { "id": 60001, "title": "Frieren: The Journey Before" },
+      "relation_type": "prequel",
+      "relation_type_formatted": "Prequel"
+    },
+    {
+      "node": { "id": 60002, "title": "Frieren Season 2" },
+      "relation_type": "sequel",
+      "relation_type_formatted": "Sequel"
+    },
+    {
+      "node": { "id": 60001, "title": "Duplicate prequel" },
+      "relation_type": "prequel"
+    },
+    {
+      "node": { "id": 52991, "title": "Sousou no Frieren" },
+      "relation_type": "sequel"
+    },
+    {
+      "node": { "id": 60003, "title": "Frieren Side Story" },
+      "relation_type": "side_story",
+      "relation_type_formatted": "Side Story"
+    }
+  ]
 }

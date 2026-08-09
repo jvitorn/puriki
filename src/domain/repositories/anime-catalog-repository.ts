@@ -10,5 +10,7 @@ export interface AnimeCatalogRepository {
   getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]>;
   /** Resolves explicit details; a known summary alone does not satisfy this call. */
   getDetailsById(id: number): Promise<AnimeCatalogItem | null>;
+  /** Returns only already-known catalog data and never starts network work. */
+  getKnownById(id: number): AnimeCatalogItem | null;
   clearCache(): void;
 }

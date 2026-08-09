@@ -17,6 +17,18 @@ export interface JikanTrailerImagesDto {
   maximum_image_url?: string | null;
 }
 
+export interface JikanRelationEntryDto {
+  mal_id: number;
+  type: string;
+  name: string;
+  url?: string | null;
+}
+
+export interface JikanRelationDto {
+  relation: string;
+  entry: JikanRelationEntryDto[];
+}
+
 export interface JikanAnimeDto {
   mal_id: number;
   title: string;
@@ -38,6 +50,7 @@ export interface JikanAnimeDto {
   trailer?: {
     images?: JikanTrailerImagesDto | null;
   } | null;
+  relations?: JikanRelationDto[] | null;
 }
 
 export interface JikanPaginationDto {
@@ -117,6 +130,30 @@ function isTrailer(
   );
 }
 
+function isRelationEntry(value: unknown): value is JikanRelationEntryDto {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.mal_id) &&
+    (value.mal_id as number) > 0 &&
+    typeof value.type === 'string' &&
+    typeof value.name === 'string' &&
+    isOptionalNullableString(value.url)
+  );
+}
+
+function isRelations(value: unknown): value is JikanRelationDto[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (relation) =>
+        isRecord(relation) &&
+        typeof relation.relation === 'string' &&
+        Array.isArray(relation.entry) &&
+        relation.entry.every(isRelationEntry),
+    )
+  );
+}
+
 export function isJikanAnimeDto(value: unknown): value is JikanAnimeDto {
   if (!isRecord(value)) return false;
   return (
@@ -145,7 +182,10 @@ export function isJikanAnimeDto(value: unknown): value is JikanAnimeDto {
       isImages(value.images)) &&
     (value.trailer === undefined ||
       value.trailer === null ||
-      isTrailer(value.trailer))
+      isTrailer(value.trailer)) &&
+    (value.relations === undefined ||
+      value.relations === null ||
+      isRelations(value.relations))
   );
 }
 

@@ -61,6 +61,7 @@ export function createAnimeCatalogItem(
     posterImageUrl: null,
     largePosterImageUrl: null,
     heroImageUrl: null,
+    continuity: [],
     coverSeed: faker.number.int({ min: 1, max: 9999 }),
     bannerSeed: faker.number.int({ min: 1, max: 9999 }),
     ...overrides,

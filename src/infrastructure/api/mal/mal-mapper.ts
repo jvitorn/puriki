@@ -1,4 +1,8 @@
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeContinuityKind,
+  AnimeContinuityRelation,
+} from '@/domain/models/anime';
 import type { MalAnimeDto } from '@/infrastructure/api/mal/mal-dtos';
 
 function nonEmpty(value: string | undefined): string | null {
@@ -57,7 +61,34 @@ function fallbackSeeds(id: number): {
   };
 }
 
-export function mapMalAnime(dto: MalAnimeDto): AnimeCatalogItem {
+function continuityKind(value: string): AnimeContinuityKind | null {
+  const normalized = value.trim().toLocaleLowerCase();
+  if (normalized === 'prequel' || normalized === 'sequel') return normalized;
+  return null;
+}
+
+function continuity(dto: MalAnimeDto): AnimeContinuityRelation[] {
+  const byKind: Record<AnimeContinuityKind, AnimeContinuityRelation[]> = {
+    prequel: [],
+    sequel: [],
+  };
+  const seen = new Set<string>();
+  for (const relation of dto.related_anime ?? []) {
+    const kind = continuityKind(relation.relation_type);
+    const title = nonEmpty(relation.node.title);
+    if (!kind || relation.node.id === dto.id || !title) continue;
+    const key = `${kind}:${relation.node.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    byKind[kind].push({ animeId: relation.node.id, title, kind });
+  }
+  return [...byKind.prequel, ...byKind.sequel];
+}
+
+export function mapMalAnime(
+  dto: MalAnimeDto,
+  payload: 'summary' | 'details' = 'summary',
+): AnimeCatalogItem {
   const mediumPicture = firstUrl(dto.main_picture?.medium);
   const largePicture = firstUrl(
     dto.main_picture?.large,
@@ -94,6 +125,7 @@ export function mapMalAnime(dto: MalAnimeDto): AnimeCatalogItem {
     posterImageUrl: mediumPicture ?? largePicture,
     largePosterImageUrl: largePicture ?? mediumPicture,
     heroImageUrl: largePicture ?? mediumPicture,
+    continuity: payload === 'details' ? continuity(dto) : [],
     ...fallbackSeeds(dto.id),
   };
 }

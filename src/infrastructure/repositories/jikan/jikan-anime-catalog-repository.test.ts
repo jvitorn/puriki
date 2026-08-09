@@ -74,6 +74,10 @@ describe('JikanAnimeCatalogRepository', () => {
       id: 1,
       title: 'Detail Anime 1',
       studios: ['Sunrise'],
+      continuity: [
+        { animeId: 400, kind: 'prequel' },
+        { animeId: 5, kind: 'sequel' },
+      ],
     });
     await repository.getDetailsById(1);
     expect(getAnimeFullById).toHaveBeenCalledTimes(1);
@@ -84,6 +88,14 @@ describe('JikanAnimeCatalogRepository', () => {
     const { getAnimeFullById, repository } = createRepository();
     await repository.getPopular();
     await expect(repository.getManyByIds([21, 1, 21])).resolves.toHaveLength(2);
+    expect(getAnimeFullById).not.toHaveBeenCalled();
+  });
+
+  it('looks up known items synchronously without resolving unknown IDs', async () => {
+    const { getAnimeFullById, repository } = createRepository();
+    await repository.getPopular();
+    expect(repository.getKnownById(1)).toMatchObject({ id: 1 });
+    expect(repository.getKnownById(999)).toBeNull();
     expect(getAnimeFullById).not.toHaveBeenCalled();
   });
 
