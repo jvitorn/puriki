@@ -348,18 +348,3 @@ export function useUpdateScore() {
       reconcileSuccessfulMutation(queryClient, nextEntry),
   });
 }
-
-export function useResetSessionData() {
-  const queryClient = useQueryClient();
-  const { userListRepository } = useRepositories();
-  return useMutation({
-    mutationFn: () => userListRepository.reset(),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.resetQueries({ queryKey: queryKeys.userListRoot }),
-        queryClient.resetQueries({ queryKey: queryKeys.detailsRoot }),
-      ]),
-  });
-}
-
-export const useResetMockData = useResetSessionData;

@@ -1,14 +1,16 @@
 import type { InfiniteData } from '@tanstack/react-query';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import { queryKeys } from '@/application/queries/query-keys';
 import type { UnifiedAnime } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
-import { createMockScenario } from '@/mocks/scenarios/mock-scenarios';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
-import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
+import {
+  buildUserListDataset,
+  createTestScenario,
+} from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 describe('MyListScreen', () => {
   const getLoadedPages = (queryClient: {
@@ -38,7 +40,7 @@ describe('MyListScreen', () => {
 
   it('shows an empty state for a status with no entries', async () => {
     const dependencies = createTestDependencies(
-      createMockScenario('watching-only'),
+      createTestScenario('watching-only'),
     );
     await renderWithProviders(<MyListScreen />, {
       dependencies,
@@ -83,8 +85,20 @@ describe('MyListScreen', () => {
     const dependencies = createTestDependencies(
       buildUserListDataset({ size: 53 }),
     );
-    dependencies.setDelayMode('normal');
-    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
+    const originalGetPage = dependencies.userListRepository.getPage.bind(
+      dependencies.userListRepository,
+    );
+    let releaseNextPage: (() => void) | undefined;
+    const getPage = jest
+      .spyOn(dependencies.userListRepository, 'getPage')
+      .mockImplementation(async (options) => {
+        const page = await originalGetPage(options);
+        if (options.page === 1) return page;
+        await new Promise<void>((resolve) => {
+          releaseNextPage = resolve;
+        });
+        return page;
+      });
     const { queryClient, unmount } = await renderWithProviders(
       <MyListScreen />,
       { dependencies },
@@ -98,6 +112,7 @@ describe('MyListScreen', () => {
     expect(screen.getByText('Generated Anime 1')).toBeVisible();
     expect(screen.getAllByLabelText('Loading content')).toHaveLength(8);
 
+    await act(async () => releaseNextPage?.());
     await waitFor(() => expect(getLoadedPages(queryClient)).toHaveLength(2), {
       timeout: 2_000,
     });

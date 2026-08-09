@@ -6,9 +6,7 @@ export class DomainError extends Error {
 }
 
 export class RepositoryError extends Error {
-  constructor(
-    message = 'The mock repository could not complete this request.',
-  ) {
+  constructor(message = 'The repository could not complete this request.') {
     super(message);
     this.name = 'RepositoryError';
   }

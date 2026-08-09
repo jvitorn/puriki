@@ -6,18 +6,16 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@rn-primitives/.*|expo(nent)?|@expo(nent)?/.*|expo-.*|@expo/.*|@react-navigation/.*|react-native-svg|nativewind|react-native-css-interop|@faker-js/faker)/)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@rn-primitives/.*|expo(nent)?|@expo(nent)?/.*|expo-.*|@expo/.*|@react-navigation/.*|react-native-svg|nativewind|react-native-css-interop)/)',
   ],
   collectCoverageFrom: [
     'src/domain/rules/**/*.ts',
     'src/infrastructure/api/jikan/**/*.ts',
     'src/infrastructure/api/mal/**/*.ts',
-    'src/infrastructure/repositories/mock/**/*.ts',
+    'src/infrastructure/repositories/guest/**/*.ts',
     'src/infrastructure/repositories/jikan/**/*.ts',
     'src/infrastructure/repositories/mal/**/*.ts',
     'src/infrastructure/repositories/resilient/**/*.ts',
-    'src/infrastructure/repositories/session/**/*.ts',
-    'src/mocks/factories/**/*.ts',
     'src/shared/utils/**/*.ts',
   ],
   coverageThreshold: {

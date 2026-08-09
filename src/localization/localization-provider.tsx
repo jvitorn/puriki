@@ -14,17 +14,20 @@ import { ActivityIndicator, AppState, View } from 'react-native';
 import { appI18n } from '@/localization/i18n';
 import { languagePreferenceStorage } from '@/localization/language-storage';
 import type { LanguagePreferenceStorage } from '@/localization/language-storage';
-import {
-  normalizeAppLanguage,
-  resolveEffectiveLanguage,
-} from '@/localization/languages';
+import { resolveEffectiveLanguage } from '@/localization/languages';
 import type { AppLanguage, LanguagePreference } from '@/localization/languages';
 import { colors } from '@/presentation/theme/tokens';
 
 interface LocalizationContextValue {
   language: AppLanguage;
   preference: LanguagePreference;
+  isChangingLanguage: boolean;
   setPreference(preference: LanguagePreference): Promise<void>;
+}
+
+interface LocalizationState {
+  language: AppLanguage;
+  preference: LanguagePreference;
 }
 
 interface LocalizationProviderProps extends PropsWithChildren {
@@ -47,70 +50,78 @@ export function LocalizationProvider({
   storage = languagePreferenceStorage,
   getSystemLanguageTag = defaultSystemLanguageTag,
 }: LocalizationProviderProps) {
-  const [preference, setPreferenceState] = useState<LanguagePreference | null>(
-    initialPreference ?? null,
+  const [state, setState] = useState<LocalizationState | null>(() =>
+    initialPreference
+      ? {
+          preference: initialPreference,
+          language: resolveEffectiveLanguage(
+            initialPreference,
+            getSystemLanguageTag(),
+          ),
+        }
+      : null,
   );
-  const [language, setLanguage] = useState<AppLanguage>(() =>
-    initialPreference && initialPreference !== 'system'
-      ? initialPreference
-      : normalizeAppLanguage(getSystemLanguageTag()),
-  );
+  const [isChangingLanguage, setIsChangingLanguage] = useState(false);
 
   const applyPreference = useCallback(
-    async (next: LanguagePreference) => {
+    async (next: LanguagePreference, persist: boolean) => {
       const nextLanguage = resolveEffectiveLanguage(
         next,
         getSystemLanguageTag(),
       );
-      setPreferenceState(next);
-      setLanguage(nextLanguage);
-      await appI18n.changeLanguage(nextLanguage);
+      setIsChangingLanguage(true);
+      try {
+        await appI18n.changeLanguage(nextLanguage);
+        setState({ preference: next, language: nextLanguage });
+        if (persist) {
+          void storage.set(next).catch(() => {
+            // The visible in-memory choice remains authoritative this session.
+          });
+        }
+      } catch {
+        // Bundled resources should make this exceptional; retain the prior UI.
+      } finally {
+        setIsChangingLanguage(false);
+      }
     },
-    [getSystemLanguageTag],
+    [getSystemLanguageTag, storage],
   );
 
   useEffect(() => {
-    if (initialPreference) return;
+    if (initialPreference || state) return;
     let active = true;
     void storage
       .get()
       .then((stored) => {
-        if (active) void applyPreference(stored);
+        if (active) void applyPreference(stored, false);
       })
       .catch(() => {
-        if (active) void applyPreference('system');
+        if (active) void applyPreference('system', false);
       });
     return () => {
       active = false;
     };
-  }, [applyPreference, initialPreference, storage]);
+  }, [applyPreference, initialPreference, state, storage]);
 
   useEffect(
     () =>
-      AppState.addEventListener('change', (state) => {
-        if (state === 'active' && preference === 'system')
-          void applyPreference('system');
+      AppState.addEventListener('change', (nextAppState) => {
+        if (nextAppState === 'active' && state?.preference === 'system')
+          void applyPreference('system', false);
       }).remove,
-    [applyPreference, preference],
+    [applyPreference, state?.preference],
   );
 
   const value = useMemo<LocalizationContextValue | null>(
     () =>
-      preference
+      state
         ? {
-            language,
-            preference,
-            setPreference: async (next) => {
-              await applyPreference(next);
-              try {
-                await storage.set(next);
-              } catch {
-                // Keep the immediate in-memory choice when persistence is unavailable.
-              }
-            },
+            ...state,
+            isChangingLanguage,
+            setPreference: (next) => applyPreference(next, true),
           }
         : null,
-    [applyPreference, language, preference, storage],
+    [applyPreference, isChangingLanguage, state],
   );
 
   if (!value) {

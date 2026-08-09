@@ -1,13 +1,13 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import { createMockScenario } from '@/mocks/scenarios/mock-scenarios';
 import { AnimeDetailsScreen } from '@/presentation/screens/anime-details-screen';
 import { HomeScreen } from '@/presentation/screens/home-screen';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
 import { SearchScreen } from '@/presentation/screens/search-screen';
 import { SettingsScreen } from '@/presentation/screens/settings-screen';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
+import { createTestScenario } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 jest.mock('@/infrastructure/api/jikan/jikan-diagnostics', () => ({
   runJikanConnectivityDiagnostic: jest.fn(),
@@ -36,10 +36,12 @@ describe('localized core UI', () => {
     await waitFor(() =>
       expect(screen.getByText('Configurações')).toBeVisible(),
     );
-    expect(screen.getByText('Fonte de dados')).toBeVisible();
+    expect(screen.getByText('Conta')).toBeVisible();
+    expect(screen.getByText('Idioma')).toBeVisible();
+    expect(screen.getByText('Sobre')).toBeVisible();
     expect(
-      screen.getByLabelText('Ferramentas de desenvolvimento'),
-    ).toBeVisible();
+      screen.queryByText('Ferramentas de desenvolvimento'),
+    ).not.toBeOnTheScreen();
   });
 
   it('renders Spanish UI while preserving catalog titles', async () => {
@@ -88,7 +90,7 @@ describe('localized core UI', () => {
   });
 
   it('translates Details UI but leaves synopsis content untouched', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const anime = dataset.catalog[0];
     if (!anime) throw new Error('Expected a seeded anime.');
     anime.synopsis = 'A young mage begins a journey.';
@@ -98,32 +100,5 @@ describe('localized core UI', () => {
     });
     await waitFor(() => expect(screen.getByText('Sinopse')).toBeVisible());
     expect(screen.getByText('A young mage begins a journey.')).toBeVisible();
-  });
-
-  it('localizes the developer generator without changing its 100-item semantics', async () => {
-    const dependencies = createTestDependencies();
-    await renderWithProviders(<SettingsScreen />, {
-      dependencies,
-      languagePreference: 'pt-BR',
-    });
-    await fireEvent.press(
-      screen.getByLabelText('Ferramentas de desenvolvimento'),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByLabelText('Gerar lista de teste com 100 itens'),
-      ).toBeVisible(),
-    );
-    await fireEvent.press(
-      screen.getByLabelText('Gerar lista de teste com 100 itens'),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByText('Lista de teste com 100 itens criada.'),
-      ).toBeVisible(),
-    );
-    await expect(
-      dependencies.userListRepository.getPage({ page: 1, pageSize: 25 }),
-    ).resolves.toMatchObject({ totalCount: 100 });
   });
 });

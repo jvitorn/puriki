@@ -17,7 +17,7 @@ import { transitionStatus } from '@/domain/rules/anime-status';
 import type { RandomGenerator } from '@/infrastructure/repositories/jikan/jikan-anime-catalog-repository';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 
-export interface SessionUserAnimeListRepositoryOptions {
+export interface GuestUserAnimeListRepositoryOptions {
   random?: RandomGenerator;
   now?: () => Date;
 }
@@ -47,16 +47,15 @@ function shuffled<T>(items: readonly T[], random: RandomGenerator): T[] {
   return result;
 }
 
-export class SessionUserAnimeListRepository implements UserAnimeListRepository {
+export class GuestUserAnimeListRepository implements UserAnimeListRepository {
   private entries: UserAnimeEntry[] | null = null;
-  private initialEntries: UserAnimeEntry[] = [];
   private initialization: Promise<void> | null = null;
   private readonly random: RandomGenerator;
   private readonly now: () => Date;
 
   constructor(
     private readonly catalogRepository: AnimeCatalogRepository,
-    options: SessionUserAnimeListRepositoryOptions = {},
+    options: GuestUserAnimeListRepositoryOptions = {},
   ) {
     this.random = options.random ?? Math.random;
     this.now = options.now ?? (() => new Date());
@@ -150,18 +149,6 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
     });
   }
 
-  async reset(): Promise<void> {
-    await this.ensureInitialized();
-    this.entries = cloneEntries(this.initialEntries);
-  }
-
-  async generateNewSample(): Promise<void> {
-    await this.ensureInitialized();
-    const nextEntries = await this.buildSample();
-    this.entries = nextEntries;
-    this.initialEntries = cloneEntries(nextEntries);
-  }
-
   private ensureInitialized(): Promise<void> {
     if (this.entries) return Promise.resolve();
     if (this.initialization) return this.initialization;
@@ -174,7 +161,6 @@ export class SessionUserAnimeListRepository implements UserAnimeListRepository {
   private async initialize(): Promise<void> {
     const entries = await this.buildSample();
     this.entries = entries;
-    this.initialEntries = cloneEntries(entries);
   }
 
   private async buildSample(): Promise<UserAnimeEntry[]> {

@@ -5,7 +5,6 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import {
   useAddToList,
   useRemoveFromList,
-  useResetSessionData,
   useUpdateProgress,
   useUpdateScore,
   useUpdateStatus,
@@ -26,13 +25,13 @@ import type {
 } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
+import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
-import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
-import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
+import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
 import { createTestWrapper } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 function createCatalogMock(
   catalog: AnimeCatalogItem[],
@@ -75,7 +74,9 @@ describe('React Query integration', () => {
 
   it('exposes repository query errors', async () => {
     const dependencies = createTestDependencies();
-    dependencies.setForceErrors(true);
+    dependencies.catalogRepository.getPopular = jest.fn(async () => {
+      throw new Error('The test repository could not complete this request.');
+    });
     const { result } = await renderHook(() => usePopularAnime(), {
       wrapper: createTestWrapper(dependencies),
     });
@@ -164,7 +165,7 @@ describe('React Query integration', () => {
       fallback,
     });
     dependencies.catalogRepository = catalogRepository;
-    dependencies.userListRepository = new SessionUserAnimeListRepository(
+    dependencies.userListRepository = new GuestUserAnimeListRepository(
       catalogRepository,
       { random: () => 0.25 },
     );
@@ -318,36 +319,6 @@ describe('React Query integration', () => {
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
     expect(getPage).toHaveBeenLastCalledWith({
       page: 2,
-      pageSize: 25,
-      status: undefined,
-    });
-  });
-
-  it('resets active infinite queries to a freshly loaded page 1', async () => {
-    const dependencies = createTestDependencies(
-      buildUserListDataset({ size: 53 }),
-    );
-    const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
-    const queryClient = createAppQueryClient();
-    const listHook = await renderHook(() => useInfiniteUnifiedUserList(), {
-      wrapper: createTestWrapper(dependencies, queryClient),
-    });
-    await waitFor(() => expect(listHook.result.current.isSuccess).toBe(true));
-    await act(async () => listHook.result.current.fetchNextPage());
-    await waitFor(() =>
-      expect(listHook.result.current.data?.pages).toHaveLength(2),
-    );
-    getPage.mockClear();
-    const resetHook = await renderHook(() => useResetSessionData(), {
-      wrapper: createTestWrapper(dependencies, queryClient),
-    });
-
-    await act(async () => resetHook.result.current.mutate());
-    await waitFor(() => expect(resetHook.result.current.isSuccess).toBe(true));
-    expect(listHook.result.current.data?.pages).toHaveLength(1);
-    expect(getPage).toHaveBeenCalledTimes(1);
-    expect(getPage).toHaveBeenCalledWith({
-      page: 1,
       pageSize: 25,
       status: undefined,
     });

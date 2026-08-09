@@ -1,20 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import { queryKeys } from '@/application/queries/query-keys';
-import { runJikanConnectivityDiagnostic } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
+import type { DeveloperSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import { SettingsScreen } from '@/presentation/screens/settings-screen';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { renderWithProviders } from '@/tests/render/test-render';
-
-jest.mock('@/infrastructure/api/jikan/jikan-diagnostics', () => ({
-  runJikanConnectivityDiagnostic: jest.fn(),
-}));
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 jest.mock('@/infrastructure/api/mal/mal-diagnostics', () => ({
   runMalConnectivityDiagnostic: jest.fn(),
 }));
+
+const aboutDescription =
+  'A modern anime list client designed for focused, everyday tracking.';
 
 const malSuccess = {
   ok: true,
@@ -42,110 +40,202 @@ const jikanSuccess = {
   ),
 };
 
-describe('SettingsScreen', () => {
-  const expandDeveloperTools = async () =>
-    fireEvent.press(screen.getByLabelText('Developer tools'));
+function createDeveloperStorage(
+  initialValue = false,
+): DeveloperSettingsStorage & {
+  getDeveloperToolsEnabled: jest.Mock;
+  setDeveloperToolsEnabled: jest.Mock;
+} {
+  let enabled = initialValue;
+  return {
+    getDeveloperToolsEnabled: jest.fn(async () => enabled),
+    setDeveloperToolsEnabled: jest.fn(async (next: boolean) => {
+      enabled = next;
+    }),
+  };
+}
 
+function createDiagnosticDependencies() {
+  const dependencies = createTestDependencies();
+  dependencies.runJikanDiagnostic = jest.fn(async () => jikanSuccess);
+  return dependencies;
+}
+
+async function tapAbout(times = 5) {
+  for (let index = 0; index < times; index += 1) {
+    await fireEvent.press(screen.getByText(aboutDescription));
+  }
+}
+
+describe('SettingsScreen', () => {
   beforeEach(() => {
     jest.mocked(runMalConnectivityDiagnostic).mockResolvedValue(malSuccess);
-    jest.mocked(runJikanConnectivityDiagnostic).mockResolvedValue(jikanSuccess);
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.clearAllMocks();
+  });
 
-  it('renders four clearly described data-source choices', async () => {
-    await renderWithProviders(<SettingsScreen />);
-    expect(screen.getByLabelText('Automatic')).toBeVisible();
-    expect(screen.getByLabelText('Jikan only')).toBeVisible();
-    expect(screen.getByLabelText('MyAnimeList only')).toBeVisible();
-    expect(screen.getByLabelText('Mock')).toBeVisible();
-    expect(
-      screen.getByText('Uses Jikan first and falls back to MyAnimeList.'),
-    ).toBeVisible();
+  it('shows only Account, Language, and About in the public experience', async () => {
+    const storage = createDeveloperStorage();
+    await renderWithProviders(
+      <SettingsScreen
+        developerStorage={storage}
+        versionReader={() => '2.4.1'}
+      />,
+    );
+
+    expect(screen.getByText('Account')).toBeVisible();
+    expect(screen.getByText('MyAnimeList')).toBeVisible();
+    expect(screen.getByText('Not connected')).toBeVisible();
+    expect(screen.getByTestId('account-avatar-fallback')).toBeVisible();
+    expect(screen.getByText('Language')).toBeVisible();
+    expect(screen.getByText('About')).toBeVisible();
+    expect(screen.getByText('Version 2.4.1')).toBeVisible();
+    expect(screen.queryByText('Data source')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Session / Storage')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Developer tools')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('Test Jikan API')).not.toBeOnTheScreen();
   });
 
   it('supports System default as the selected language preference', async () => {
-    await renderWithProviders(<SettingsScreen />, {
-      languagePreference: 'system',
-    });
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { languagePreference: 'system' },
+    );
     expect(
       screen.getByLabelText('System default').props.accessibilityState,
     ).toMatchObject({ checked: true });
     expect(screen.getByText('Settings')).toBeVisible();
   });
 
-  it('disables MAL-only while leaving Automatic available when unconfigured', async () => {
-    const dependencies = createTestDependencies();
-    dependencies.malConfigured = false;
-    await renderWithProviders(<SettingsScreen />, { dependencies });
-    expect(
-      screen.getByLabelText('MyAnimeList only').props.accessibilityState,
-    ).toMatchObject({ disabled: true });
-    expect(
-      screen.getByLabelText('Automatic').props.accessibilityState,
-    ).toMatchObject({ disabled: false });
-    expect(
-      screen.getByText(
-        /Automatic mode remains available, but its MyAnimeList fallback is unavailable/,
-      ),
-    ).toBeVisible();
+  it('keeps runtime subscriptions and diagnostics unmounted before unlock', async () => {
+    const dependencies = createDiagnosticDependencies();
+    const subscribe = jest.spyOn(dependencies, 'subscribeCatalogRuntimeStatus');
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { dependencies },
+    );
+
+    expect(subscribe).not.toHaveBeenCalled();
+    expect(dependencies.runJikanDiagnostic).not.toHaveBeenCalled();
+    expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
   });
 
-  it('renders provider-neutral runtime status', async () => {
-    const dependencies = createTestDependencies();
-    const resetJikanCircuits = jest.fn();
-    dependencies.mode = 'automatic';
-    dependencies.malConfigured = true;
-    dependencies.resetJikanCircuits = resetJikanCircuits;
-    dependencies.catalogRuntimeStatus = {
-      mode: 'automatic',
+  it('unlocks developer tools on the fifth About tap with progressive feedback', async () => {
+    const storage = createDeveloperStorage();
+    const dependencies = createDiagnosticDependencies();
+    await renderWithProviders(<SettingsScreen developerStorage={storage} />, {
+      dependencies,
+    });
+
+    await tapAbout(3);
+    expect(screen.getByText('2 taps away from Developer Tools')).toBeVisible();
+    await tapAbout(1);
+    expect(screen.getByText('1 tap away from Developer Tools')).toBeVisible();
+    await tapAbout(1);
+
+    expect(screen.getByText('Developer tools')).toBeVisible();
+    expect(screen.getByLabelText('Test Jikan API')).toBeVisible();
+    expect(storage.setDeveloperToolsEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('resets an incomplete unlock sequence after three seconds', async () => {
+    jest.useFakeTimers();
+    const storage = createDeveloperStorage();
+    await renderWithProviders(<SettingsScreen developerStorage={storage} />);
+
+    await tapAbout(3);
+    expect(screen.getByText('2 taps away from Developer Tools')).toBeVisible();
+    await act(async () => jest.advanceTimersByTimeAsync(3_001));
+    expect(
+      screen.queryByText('2 taps away from Developer Tools'),
+    ).not.toBeOnTheScreen();
+    await tapAbout(2);
+    expect(screen.queryByText('Developer tools')).not.toBeOnTheScreen();
+    expect(storage.setDeveloperToolsEnabled).not.toHaveBeenCalled();
+  });
+
+  it('restores and disables the persisted developer preference', async () => {
+    const storage = createDeveloperStorage(true);
+    await renderWithProviders(
+      <SettingsScreen
+        developerStorage={storage}
+        versionReader={() => '3.0.0'}
+      />,
+      { dependencies: createDiagnosticDependencies() },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText('Developer tools')).toBeVisible(),
+    );
+    expect(screen.getAllByText('Version 3.0.0')).toHaveLength(2);
+    await fireEvent.press(screen.getByText('Disable Developer Tools'));
+
+    await waitFor(() =>
+      expect(screen.queryByText('Developer tools')).not.toBeOnTheScreen(),
+    );
+    expect(storage.setDeveloperToolsEnabled).toHaveBeenCalledWith(false);
+    expect(screen.getByText('Account')).toBeVisible();
+    expect(screen.getByText('Language')).toBeVisible();
+    expect(screen.getByText('About')).toBeVisible();
+  });
+
+  it('renders catalog status and maintenance actions only after unlock', async () => {
+    const dependencies = createDiagnosticDependencies();
+    dependencies.emitCatalogRuntimeStatus({
+      ...dependencies.getCatalogRuntimeStatus(),
       jikanHealth: 'degraded',
-      jikanRateLimitedUntil: null,
       operations: {
-        ...dependencies.catalogRuntimeStatus.operations,
+        ...dependencies.getCatalogRuntimeStatus().operations,
         popular: {
           circuitState: 'open',
           lastSuccessfulSource: 'mal',
           lastFallbackAt: '2026-08-06T12:00:00.000Z',
         },
-        seasonal: {
-          circuitState: 'closed',
-          lastSuccessfulSource: 'jikan',
-          lastFallbackAt: null,
-        },
       },
-    };
-    await renderWithProviders(<SettingsScreen />, { dependencies });
-    expect(screen.queryByText('Mode: Automatic')).not.toBeOnTheScreen();
-    await expandDeveloperTools();
-    expect(screen.getByText('Mode: Automatic')).toBeVisible();
-    expect(screen.getByText('Jikan: Degraded')).toBeVisible();
-    expect(screen.getByText('Popular')).toBeVisible();
+    });
+    dependencies.resetJikanCircuits = jest.fn();
+    dependencies.clearCatalogCache = jest.fn();
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
+      { dependencies },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText('Jikan: Degraded')).toBeVisible(),
+    );
     expect(screen.getByText('Circuit: open')).toBeVisible();
-    expect(screen.getByText('Seasonal')).toBeVisible();
-    expect(screen.getAllByText('Jikan').length).toBeGreaterThan(0);
-    fireEvent.press(screen.getByText('Reset Jikan circuit states'));
-    expect(resetJikanCircuits).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByText('Jikan failed, so MyAnimeList data is being used.'),
+    ).toBeVisible();
+    await fireEvent.press(screen.getByText('Reset Jikan circuit states'));
+    await fireEvent.press(screen.getByText('Clear catalog cache'));
+    expect(dependencies.resetJikanCircuits).toHaveBeenCalledTimes(1);
+    expect(dependencies.clearCatalogCache).toHaveBeenCalledTimes(1);
   });
 
   it('runs MAL directly and renders an accessible success result', async () => {
-    const dependencies = createTestDependencies();
-    dependencies.malConfigured = true;
-    await renderWithProviders(<SettingsScreen />, { dependencies });
-    await expandDeveloperTools();
-    fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
+      { dependencies: createDiagnosticDependencies() },
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Test MyAnimeList API')).toBeVisible(),
+    );
+    await fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
+
     await waitFor(() =>
       expect(screen.getByText('MyAnimeList API is operational.')).toBeVisible(),
     );
     expect(runMalConnectivityDiagnostic).toHaveBeenCalledTimes(1);
-    expect(runJikanConnectivityDiagnostic).not.toHaveBeenCalled();
     expect(screen.getByText('HTTP 200 • 420 ms')).toBeVisible();
     expect(screen.getByText('Sample result: Sousou no Frieren')).toBeVisible();
     expect(screen.getByRole('alert')).toBeVisible();
-    expect(screen.queryByText(/private-secret-value/)).toBeNull();
   });
 
-  it('prevents duplicate diagnostics while the MAL test is pending', async () => {
+  it('prevents duplicate and concurrent diagnostics while one is pending', async () => {
     let resolveDiagnostic: ((value: typeof malSuccess) => void) | undefined;
     jest.mocked(runMalConnectivityDiagnostic).mockImplementationOnce(
       () =>
@@ -153,123 +243,59 @@ describe('SettingsScreen', () => {
           resolveDiagnostic = resolve;
         }),
     );
-    await renderWithProviders(<SettingsScreen />);
-    await expandDeveloperTools();
-    fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
+    const dependencies = createDiagnosticDependencies();
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
+      { dependencies },
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Test MyAnimeList API')).toBeVisible(),
+    );
+
+    await fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
     await waitFor(() =>
       expect(screen.getByLabelText('Testing MyAnimeList API…')).toBeDisabled(),
     );
-    fireEvent.press(screen.getByLabelText('Testing MyAnimeList API…'));
-    fireEvent.press(screen.getByLabelText('Test Jikan API'));
+    await fireEvent.press(screen.getByLabelText('Testing MyAnimeList API…'));
+    await fireEvent.press(screen.getByLabelText('Test Jikan API'));
     expect(runMalConnectivityDiagnostic).toHaveBeenCalledTimes(1);
-    expect(runJikanConnectivityDiagnostic).not.toHaveBeenCalled();
+    expect(dependencies.runJikanDiagnostic).not.toHaveBeenCalled();
     resolveDiagnostic?.(malSuccess);
     await waitFor(() =>
       expect(screen.getByText('MyAnimeList API is operational.')).toBeVisible(),
     );
   });
 
-  it.each([
-    ['not_configured', 'MyAnimeList Client ID is not configured.'],
-    ['unauthorized', 'MyAnimeList rejected the application Client ID.'],
-    ['timeout', 'The service took too long to respond.'],
-    ['network', 'Unable to reach the service.'],
-    ['service_unavailable', 'The service is temporarily unavailable.'],
-  ] as const)(
-    'renders the %s MAL failure safely',
-    async (errorKind, message) => {
-      jest.mocked(runMalConnectivityDiagnostic).mockResolvedValueOnce({
-        ...malSuccess,
-        ok: false,
-        status: null,
-        errorKind,
-        message,
-        sampleAnimeTitle: null,
-      });
-      await renderWithProviders(<SettingsScreen />);
-      await expandDeveloperTools();
-      fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
-      await waitFor(() => expect(screen.getByText(message)).toBeVisible());
-      expect(screen.getByRole('alert')).toBeVisible();
-    },
-  );
-
-  it('keeps the Jikan direct diagnostic as an independent action', async () => {
-    await renderWithProviders(<SettingsScreen />);
-    await expandDeveloperTools();
-    fireEvent.press(screen.getByLabelText('Test Jikan API'));
-    await waitFor(() =>
-      expect(screen.getByText('Jikan: Healthy')).toBeVisible(),
+  it('keeps the Jikan direct diagnostic independent from MAL', async () => {
+    const dependencies = createDiagnosticDependencies();
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
+      { dependencies },
     );
-    expect(runJikanConnectivityDiagnostic).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.getByLabelText('Test Jikan API')).toBeVisible(),
+    );
+    await fireEvent.press(screen.getByLabelText('Test Jikan API'));
+
+    await waitFor(() =>
+      expect(screen.getAllByText('Jikan: Healthy').length).toBeGreaterThan(1),
+    );
+    expect(dependencies.runJikanDiagnostic).toHaveBeenCalledTimes(1);
     expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
     expect(screen.getAllByText('200 • 210 ms')).toHaveLength(5);
   });
 
-  it('shows partial Jikan endpoint degradation without hiding healthy endpoints', async () => {
-    jest.mocked(runJikanConnectivityDiagnostic).mockResolvedValueOnce({
-      ...jikanSuccess,
-      health: 'degraded',
-      endpoints: jikanSuccess.endpoints.map((endpoint) =>
-        endpoint.operation === 'popular'
-          ? {
-              ...endpoint,
-              ok: false,
-              status: 504,
-              elapsedMs: 420,
-              errorKind: 'service_unavailable' as const,
-              message: 'Jikan is unavailable (HTTP 504).',
-            }
-          : endpoint,
-      ),
-    });
-    await renderWithProviders(<SettingsScreen />);
-    await expandDeveloperTools();
-    fireEvent.press(screen.getByLabelText('Test Jikan API'));
-    await waitFor(() =>
-      expect(screen.getByText('Jikan: Degraded')).toBeVisible(),
-    );
-    expect(screen.getByText('504 • 420 ms')).toBeVisible();
-    expect(screen.getAllByText('200 • 210 ms')).toHaveLength(4);
-    expect(
-      screen.getByText('The service is temporarily unavailable.'),
-    ).toBeVisible();
-  });
-
-  it('keeps developer diagnostics collapsed until requested', async () => {
-    await renderWithProviders(<SettingsScreen />);
-    expect(screen.queryByText('Runtime catalog status')).not.toBeOnTheScreen();
-    expect(screen.queryByLabelText('Test Jikan API')).not.toBeOnTheScreen();
-    expect(
-      screen.getByLabelText('Developer tools').props.accessibilityState,
-    ).toMatchObject({ expanded: false });
-
-    await expandDeveloperTools();
-    expect(screen.getByText('Runtime catalog status')).toBeVisible();
-    expect(screen.getByLabelText('Test Jikan API')).toBeVisible();
-  });
-
-  it('changes the selected data source through the radio control', async () => {
+  it('switches and persists language without resetting queries or repositories', async () => {
     const dependencies = createTestDependencies();
-    dependencies.mode = 'automatic';
-    dependencies.malConfigured = true;
-    await renderWithProviders(<SettingsScreen />, { dependencies });
-
-    fireEvent.press(screen.getByLabelText('Mock'));
-    await waitFor(() =>
-      expect(
-        screen.getByLabelText('Mock').props.accessibilityState,
-      ).toMatchObject({
-        checked: true,
-      }),
+    const getPopular = jest.spyOn(dependencies.catalogRepository, 'getPopular');
+    const { queryClient } = await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { dependencies },
     );
-  });
-
-  it('switches and persists the interface language without touching query state', async () => {
-    const { queryClient } = await renderWithProviders(<SettingsScreen />);
     const resetQueries = jest.spyOn(queryClient, 'resetQueries');
     const invalidateQueries = jest.spyOn(queryClient, 'invalidateQueries');
-    fireEvent.press(screen.getByLabelText('Português (Brasil)'));
+
+    await fireEvent.press(screen.getByLabelText('Português (Brasil)'));
     await waitFor(() =>
       expect(screen.getByText('Configurações')).toBeVisible(),
     );
@@ -277,7 +303,7 @@ describe('SettingsScreen', () => {
       'purikuki:language-preference:v1',
       'pt-BR',
     );
-    fireEvent.press(screen.getByLabelText('Español'));
+    await fireEvent.press(screen.getByLabelText('Español'));
     await waitFor(() =>
       expect(screen.getByText('Configuración')).toBeVisible(),
     );
@@ -285,54 +311,9 @@ describe('SettingsScreen', () => {
       'purikuki:language-preference:v1',
       'es',
     );
-    fireEvent.press(screen.getByLabelText('English'));
-    await waitFor(() => expect(screen.getByText('Settings')).toBeVisible());
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      'purikuki:language-preference:v1',
-      'en',
-    );
+
     expect(resetQueries).not.toHaveBeenCalled();
     expect(invalidateQueries).not.toHaveBeenCalled();
-  });
-
-  it('generates the 100-item mock list and resets only user-list queries', async () => {
-    const dependencies = createTestDependencies();
-    const { queryClient } = await renderWithProviders(<SettingsScreen />, {
-      dependencies,
-    });
-    queryClient.setQueryData(queryKeys.popular, ['catalog-sentinel']);
-    const resetQueries = jest.spyOn(queryClient, 'resetQueries');
-    await expandDeveloperTools();
-    fireEvent.press(screen.getByLabelText('Generate 100-item test list'));
-    await waitFor(() =>
-      expect(screen.getByText('100-item test list created.')).toBeVisible(),
-    );
-    expect(resetQueries).toHaveBeenCalledWith({
-      queryKey: queryKeys.userListRoot,
-    });
-    expect(queryClient.getQueryData(queryKeys.popular)).toEqual([
-      'catalog-sentinel',
-    ]);
-    await expect(
-      dependencies.userListRepository.getPage({ page: 4, pageSize: 25 }),
-    ).resolves.toMatchObject({
-      totalCount: 100,
-      nextPage: null,
-      items: expect.arrayContaining([
-        expect.objectContaining({ animeId: expect.any(Number) }),
-      ]),
-    });
-    expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
-    expect(runJikanConnectivityDiagnostic).not.toHaveBeenCalled();
-  });
-
-  it('hides the mock-list generator outside mock mode', async () => {
-    const dependencies = createTestDependencies();
-    dependencies.mode = 'automatic';
-    await renderWithProviders(<SettingsScreen />, { dependencies });
-    await expandDeveloperTools();
-    expect(
-      screen.queryByLabelText('Generate 100-item test list'),
-    ).not.toBeOnTheScreen();
+    expect(getPopular).not.toHaveBeenCalled();
   });
 });

@@ -18,5 +18,4 @@ export interface UserAnimeListRepository {
     status: AnimeListStatus,
   ): Promise<UserAnimeEntry>;
   updateScore(animeId: number, score: number | null): Promise<UserAnimeEntry>;
-  reset(): Promise<void>;
 }

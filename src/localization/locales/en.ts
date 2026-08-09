@@ -154,10 +154,12 @@ export const en = {
   'notFound.message': 'The requested screen does not exist.',
   'notFound.returnHome': 'Return home',
   'settings.title': 'Settings',
-  'settings.general': 'General',
-  'settings.experienceTitle': 'Purikuki experience',
-  'settings.experienceDescription':
-    'A dark, artwork-first interface designed for quick daily anime tracking.',
+  'settings.account': 'Account',
+  'settings.mal': 'MyAnimeList',
+  'settings.notConnected': 'Not connected',
+  'settings.connected': 'Connected',
+  'settings.accountAvatar': 'Profile picture for {{name}}',
+  'settings.disconnectedAvatar': 'Disconnected account avatar',
   'settings.language': 'Language',
   'settings.languageDescription':
     "Changes Purikuki's interface language. Anime titles remain in their original catalog language; synopsis translation is available on demand.",
@@ -165,43 +167,17 @@ export const en = {
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',
   'settings.languageSpanish': 'Español',
-  'settings.dataSource': 'Data source',
-  'settings.dataSourceDescription':
-    'Choose where Purikuki reads public catalog information.',
-  'settings.sourceAutomatic': 'Automatic',
-  'settings.sourceAutomaticDescription':
-    'Uses Jikan first and falls back to MyAnimeList.',
-  'settings.sourceJikan': 'Jikan only',
-  'settings.sourceJikanDescription':
-    'Uses Jikan without the MyAnimeList fallback.',
-  'settings.sourceMal': 'MyAnimeList only',
-  'settings.sourceMalDescription':
-    'Uses the public MyAnimeList catalog directly.',
-  'settings.sourceMock': 'Mock',
-  'settings.sourceMockDescription':
-    'Uses deterministic local development data.',
-  'settings.malNotConfigured': 'MyAnimeList Client ID is not configured.',
-  'settings.autoFallbackUnavailable':
-    'Automatic mode remains available, but its MyAnimeList fallback is unavailable until the application Client ID is configured.',
-  'settings.session': 'Session / Storage',
-  'settings.sessionDescription':
-    'Personal-list changes and catalog caches remain in memory until the app process restarts.',
-  'settings.resetList': 'Reset current list',
-  'settings.resettingList': 'Resetting current list…',
-  'settings.refreshCatalog': 'Refresh active catalog',
-  'settings.refreshingCatalog': 'Refreshing active catalog…',
-  'settings.clearCatalogCache': 'Clear active catalog cache',
-  'settings.clearAllCaches': 'Clear all catalog caches',
-  'settings.sessionRefreshed': 'Session data refreshed.',
-  'settings.refreshCatalogFailed':
-    'The active catalog could not be refreshed. Previously loaded data is still available.',
-  'settings.refreshFailed':
-    'Refresh failed. Check the active data source and try again.',
+  'settings.applyingLanguage': 'Applying language…',
   'settings.developerTools': 'Developer tools',
-  'settings.developerDescription':
-    'Diagnostics, runtime status, and mock controls',
-  'settings.runtimeStatus': 'Runtime catalog status',
-  'settings.mode': 'Mode: {{mode}}',
+  'settings.developerDescription': 'Diagnostics and build information',
+  'settings.developerEnabled': 'Developer Tools enabled',
+  'settings.developerTwoTapsAway': '2 taps away from Developer Tools',
+  'settings.developerOneTapAway': '1 tap away from Developer Tools',
+  'settings.disableDeveloperTools': 'Disable Developer Tools',
+  'settings.serviceDiagnostics': 'Service diagnostics',
+  'settings.catalogDiagnostics': 'Catalog diagnostics',
+  'settings.buildInformation': 'Build information',
+  'settings.environment': 'Environment: {{environment}}',
   'settings.jikanHealth': 'Jikan: {{health}}',
   'settings.healthHealthy': 'Healthy',
   'settings.healthDegraded': 'Degraded',
@@ -216,10 +192,9 @@ export const en = {
   'settings.operation.details': 'Details',
   'settings.operationCircuit': 'Circuit: {{state}}',
   'settings.resetJikanCircuits': 'Reset Jikan circuit states',
-  'settings.lastSource': 'Last successful source: {{source}}',
+  'settings.clearCatalogCache': 'Clear catalog cache',
   'settings.sourceCache': 'Previous valid cache',
   'settings.sourceNone': 'No successful request yet',
-  'settings.jikanCircuit': 'Jikan circuit: {{state}}',
   'settings.circuitClosed': 'closed',
   'settings.circuitOpen': 'open',
   'settings.circuitHalfOpen': 'half open',
@@ -228,22 +203,6 @@ export const en = {
     'Jikan failed, so MyAnimeList data is being used.',
   'settings.usingCache':
     'Both catalog providers are currently unavailable. Previously loaded data is still available.',
-  'settings.mockEnvironment': 'Mock environment',
-  'settings.generateList': 'Generate 100-item test list',
-  'settings.generatingList': 'Generating test list…',
-  'settings.generateListDescription':
-    'Replaces the current mock list with 100 deterministic entries for pagination and infinite-scroll testing.',
-  'settings.listGenerated': '100-item test list created.',
-  'settings.generateFailed': 'The test list could not be generated.',
-  'settings.simulatedDelay': 'Simulated request delay',
-  'settings.simulatedDelayDescription':
-    'Add a short delay to repository operations.',
-  'settings.forceErrors': 'Force repository errors',
-  'settings.forceErrorsDescription':
-    'Exercise loading recovery and error states.',
-  'settings.diagnostics': 'Service diagnostics',
-  'settings.diagnosticsDescription':
-    'Test each provider directly. These requests bypass catalog caches and automatic fallback behavior.',
   'settings.testMal': 'Test MyAnimeList API',
   'settings.testingMal': 'Testing MyAnimeList API…',
   'settings.malDiagnosticDescription':
@@ -254,8 +213,6 @@ export const en = {
   'settings.endpointResult': '{{status}} • {{elapsed}} ms',
   'settings.sampleResult': 'Sample result: {{title}}',
   'settings.malSuccess': 'MyAnimeList API is operational.',
-  'settings.jikanSuccess':
-    'Jikan responded successfully through the native transport.',
   'settings.diagnosticNotConfigured':
     'MyAnimeList Client ID is not configured.',
   'settings.diagnosticUnauthorized':
@@ -271,8 +228,7 @@ export const en = {
   'settings.about': 'About',
   'settings.version': 'Version {{version}}',
   'settings.aboutDescription':
-    'A read-only public anime catalog with a session-only simulated personal list.',
-  'settings.providers': 'Jikan primary • MyAnimeList fallback',
+    'A modern anime list client designed for focused, everyday tracking.',
 } as const;
 
 export type TranslationResource = { [K in keyof typeof en]: string };

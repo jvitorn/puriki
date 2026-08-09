@@ -1,91 +1,68 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import { useEffect } from 'react';
 import { Pressable, Text } from 'react-native';
 
+import { queryKeys } from '@/application/queries/query-keys';
 import animeCollectionFixture from '@/infrastructure/api/jikan/fixtures/anime-collection.json';
 import { JikanNetworkError } from '@/infrastructure/api/jikan/jikan-errors';
 import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
-import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
+import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
 import { JIKAN_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import {
-  createAutomaticDependencies,
   createDefaultDependencies,
-  createJikanDependencies,
-  createMalDependencies,
-  createMockDependencies,
+  createProductionDependencies,
   useRepositories,
 } from '@/presentation/providers/repository-provider';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
-function DataSourceProbe({
+function RepositoryProbe({
   onRepository,
 }: {
-  onRepository?(repository: unknown): void;
+  onRepository(repository: unknown): void;
 }) {
-  const { mode, selectDataSourceMode, userListRepository } = useRepositories();
+  const dependencies = useRepositories();
   useEffect(() => {
-    onRepository?.(userListRepository);
-  }, [onRepository, userListRepository]);
+    onRepository(dependencies.userListRepository);
+  }, [dependencies.userListRepository, onRepository]);
   return (
-    <>
-      <Text accessibilityLabel="Current source">{mode}</Text>
-      {(['automatic', 'jikan', 'mal', 'mock'] as const).map((source) => (
-        <Pressable
-          key={source}
-          accessibilityRole="button"
-          accessibilityLabel={`Switch to ${source}`}
-          onPress={() => selectDataSourceMode(source)}
-        >
-          <Text>{source}</Text>
-        </Pressable>
-      ))}
-    </>
+    <Pressable onPress={dependencies.clearCatalogCache}>
+      <Text>Clear catalog</Text>
+    </Pressable>
   );
 }
 
 describe('repository dependency creation', () => {
-  it('keeps mock as the default mode under automated tests', () => {
-    expect(createDefaultDependencies().mode).toBe('mock');
-  });
-
-  it('uses automatic as the default mode outside tests', () => {
-    const previousNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-    expect(createDefaultDependencies().mode).toBe('automatic');
-    process.env.NODE_ENV = previousNodeEnv;
-  });
-
-  it('creates the expected catalog implementation for every mode', () => {
-    expect(createAutomaticDependencies().catalogRepository).toBeInstanceOf(
+  it('always creates the production repository graph, including under tests', () => {
+    const dependencies = createDefaultDependencies();
+    expect(dependencies.catalogRepository).toBeInstanceOf(
       ResilientAnimeCatalogRepository,
     );
-    expect(createJikanDependencies().mode).toBe('jikan');
-    expect(createMalDependencies().mode).toBe('mal');
-    expect(createMockDependencies().catalogRepository).toBeInstanceOf(
-      MockAnimeCatalogRepository,
+    expect(dependencies.userListRepository).toBeInstanceOf(
+      GuestUserAnimeListRepository,
     );
   });
 
-  it('publishes automatic runtime source and fallback status without catalog metadata', async () => {
+  it('publishes fallback status without exposing a selectable mode', async () => {
     const primary = createTestDependencies().catalogRepository;
     const fallback = createTestDependencies().catalogRepository;
     jest
       .spyOn(primary, 'getPopular')
       .mockRejectedValueOnce(new JikanNetworkError());
-    const dependencies = createAutomaticDependencies({
+    const dependencies = createProductionDependencies({
       jikanRepository: primary,
       malRepository: fallback,
       malConfigured: true,
     });
     const listener = jest.fn();
     const unsubscribe = dependencies.subscribeCatalogRuntimeStatus(listener);
+
     await dependencies.catalogRepository.getPopular();
-    expect(dependencies.catalogRuntimeStatus).toMatchObject({
-      mode: 'automatic',
+
+    expect(dependencies.getCatalogRuntimeStatus()).toMatchObject({
       jikanHealth: 'healthy',
       operations: {
         popular: {
@@ -99,11 +76,12 @@ describe('repository dependency creation', () => {
         },
       },
     });
+    expect(dependencies).not.toHaveProperty('mode');
     expect(listener).toHaveBeenCalled();
     unsubscribe();
   });
 
-  it('shares one request budget between automatic catalog traffic and Jikan diagnostics', async () => {
+  it('shares one request budget between catalog traffic and Jikan diagnostics', async () => {
     let currentTime = 0;
     const starts: number[] = [];
     const scheduler = new JikanRequestScheduler({
@@ -133,7 +111,7 @@ describe('repository dependency creation', () => {
         } as unknown as Response;
       });
     try {
-      const dependencies = createAutomaticDependencies({
+      const dependencies = createProductionDependencies({
         jikanScheduler: scheduler,
         malConfigured: false,
       });
@@ -160,7 +138,7 @@ describe('repository dependency creation', () => {
         text: jest.fn(async () => JSON.stringify({ status })),
       } as unknown as Response);
       try {
-        const dependencies = createAutomaticDependencies({
+        const dependencies = createProductionDependencies({
           circuitRegistry,
           jikanScheduler: new JikanRequestScheduler({ requestIntervalMs: 0 }),
           malConfigured: false,
@@ -185,47 +163,29 @@ describe('repository dependency creation', () => {
 });
 
 describe('RepositoryProvider', () => {
-  it('switches among four modes, clears queries, and reconstructs the session list', async () => {
+  it('keeps explicit test dependencies stable and clears repository and query caches together', async () => {
     const queryClient = createAppQueryClient();
     const dependencies = createTestDependencies();
-    const initialUserList = dependencies.userListRepository;
+    const clearCatalogCache = jest.spyOn(dependencies, 'clearCatalogCache');
     const observeRepository = jest.fn();
-    queryClient.setQueryData(['stale-catalog'], 'mock data');
-    await renderWithProviders(
-      <DataSourceProbe onRepository={observeRepository} />,
-      {
-        dependencies,
-        queryClient,
-      },
-    );
-    expect(screen.getByLabelText('Current source')).toHaveTextContent('mock');
+    queryClient.setQueryData(queryKeys.popular, 'catalog data');
+    queryClient.setQueryData(queryKeys.continueWatching, 'guest data');
 
-    fireEvent.press(screen.getByLabelText('Switch to automatic'));
-    await waitFor(() =>
-      expect(screen.getByLabelText('Current source')).toHaveTextContent(
-        'automatic',
-      ),
+    const rendered = await renderWithProviders(
+      <RepositoryProbe onRepository={observeRepository} />,
+      { dependencies, queryClient },
     );
-    expect(queryClient.getQueryData(['stale-catalog'])).toBeUndefined();
-    expect(
-      observeRepository.mock.calls[
-        observeRepository.mock.calls.length - 1
-      ]?.[0],
-    ).not.toBe(initialUserList);
+    rendered.rerender(<RepositoryProbe onRepository={observeRepository} />);
+    await fireEvent.press(screen.getByText('Clear catalog'));
 
-    fireEvent.press(screen.getByLabelText('Switch to jikan'));
-    await waitFor(() =>
-      expect(screen.getByLabelText('Current source')).toHaveTextContent(
-        'jikan',
-      ),
+    expect(observeRepository).toHaveBeenCalledTimes(1);
+    expect(observeRepository).toHaveBeenCalledWith(
+      dependencies.userListRepository,
     );
-    fireEvent.press(screen.getByLabelText('Switch to mal'));
-    await waitFor(() =>
-      expect(screen.getByLabelText('Current source')).toHaveTextContent('mal'),
-    );
-    fireEvent.press(screen.getByLabelText('Switch to mock'));
-    await waitFor(() =>
-      expect(screen.getByLabelText('Current source')).toHaveTextContent('mock'),
+    expect(clearCatalogCache).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(queryKeys.popular)).toBeUndefined();
+    expect(queryClient.getQueryData(queryKeys.continueWatching)).toBe(
+      'guest data',
     );
   });
 });

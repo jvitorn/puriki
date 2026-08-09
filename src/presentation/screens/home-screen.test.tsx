@@ -6,9 +6,9 @@ import {
 } from '@/infrastructure/api/jikan/jikan-errors';
 import { HomeScreen } from '@/presentation/screens/home-screen';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
-import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
+import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 describe('HomeScreen partial failures', () => {
   it('requests only a bounded first page for Continue Watching', async () => {

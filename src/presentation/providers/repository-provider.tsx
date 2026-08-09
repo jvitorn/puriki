@@ -1,11 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { PropsWithChildren } from 'react';
 
-import type {
-  MockBehavior,
-  MockDelayMode,
-} from '@/domain/models/mock-behavior';
+import { queryKeys } from '@/application/queries/query-keys';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
 import {
@@ -14,11 +17,9 @@ import {
 } from '@/infrastructure/api/jikan/jikan-diagnostics';
 import { JikanRequestScheduler } from '@/infrastructure/api/jikan/jikan-request-scheduler';
 import { isMalConfigured } from '@/infrastructure/api/mal/mal-config';
+import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { JikanAnimeCatalogRepository } from '@/infrastructure/repositories/jikan/jikan-anime-catalog-repository';
 import { MalAnimeCatalogRepository } from '@/infrastructure/repositories/mal/mal-anime-catalog-repository';
-import { MockAnimeCatalogRepository } from '@/infrastructure/repositories/mock/mock-anime-catalog-repository';
-import { MockRuntime } from '@/infrastructure/repositories/mock/mock-runtime';
-import { MockUserAnimeListRepository } from '@/infrastructure/repositories/mock/mock-user-anime-list-repository';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
 import {
@@ -31,49 +32,29 @@ import type {
   CatalogSuccessfulSource,
   ResilientCatalogRuntimeSnapshot,
 } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
-import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
-import { createGeneratedListDataset } from '@/mocks/factories/generated-list-dataset';
-
-export type DataSourceMode = 'automatic' | 'jikan' | 'mal' | 'mock';
-
-export type CatalogRuntimeSource = CatalogSuccessfulSource | 'mock';
 
 export interface CatalogOperationRuntimeStatus {
-  circuitState: CircuitState | null;
-  lastSuccessfulSource: CatalogRuntimeSource | null;
+  circuitState: CircuitState;
+  lastSuccessfulSource: CatalogSuccessfulSource | null;
   lastFallbackAt: string | null;
 }
 
 export interface CatalogRuntimeStatus {
-  mode: DataSourceMode;
-  jikanHealth: JikanHealth | null;
+  jikanHealth: JikanHealth;
   jikanRateLimitedUntil: string | null;
   operations: Record<JikanOperationFamily, CatalogOperationRuntimeStatus>;
-}
-
-export interface MockDevelopmentControls {
-  generateTestList(): Promise<void>;
 }
 
 export interface RepositoryDependencies {
   catalogRepository: AnimeCatalogRepository;
   userListRepository: UserAnimeListRepository;
-  mode: DataSourceMode;
-  behavior: MockBehavior;
-  malConfigured: boolean;
-  catalogRuntimeStatus: CatalogRuntimeStatus;
+  getCatalogRuntimeStatus(): CatalogRuntimeStatus;
   subscribeCatalogRuntimeStatus(
     listener: (status: CatalogRuntimeStatus) => void,
   ): () => void;
-  setDelayMode(mode: MockDelayMode): void;
-  setForceErrors(enabled: boolean): void;
-  selectDataSourceMode(mode: DataSourceMode): void;
   clearCatalogCache(): void;
-  clearAllCatalogCaches(): void;
   resetJikanCircuits(): void;
   runJikanDiagnostic(): Promise<JikanServiceDiagnosticResult>;
-  refreshCurrentSample(): Promise<void>;
-  mockDevelopmentControls: MockDevelopmentControls | null;
 }
 
 interface RepositoryProviderProps extends PropsWithChildren {
@@ -82,26 +63,17 @@ interface RepositoryProviderProps extends PropsWithChildren {
 
 interface StatusChannel {
   get(): CatalogRuntimeStatus;
-  update(
-    updater:
-      | Partial<CatalogRuntimeStatus>
-      | ((current: CatalogRuntimeStatus) => CatalogRuntimeStatus),
-  ): void;
+  update(status: CatalogRuntimeStatus): void;
   subscribe(listener: (status: CatalogRuntimeStatus) => void): () => void;
 }
 
-export interface AutomaticDependenciesOptions {
+export interface ProductionDependenciesOptions {
   jikanRepository?: AnimeCatalogRepository;
   malRepository?: AnimeCatalogRepository;
   circuitRegistry?: CatalogCircuitBreakerRegistry;
   jikanScheduler?: JikanRequestScheduler;
   malConfigured?: boolean;
 }
-
-const INACTIVE_MOCK_BEHAVIOR: MockBehavior = {
-  delayMode: 'none',
-  forceErrors: false,
-};
 
 const RepositoryContext = createContext<RepositoryDependencies | null>(null);
 
@@ -110,11 +82,7 @@ function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
   const listeners = new Set<(value: CatalogRuntimeStatus) => void>();
   return {
     get: () => status,
-    update: (updater) => {
-      const next =
-        typeof updater === 'function'
-          ? updater(status)
-          : { ...status, ...updater };
+    update: (next) => {
       if (next === status) return;
       status = next;
       listeners.forEach((listener) => listener(status));
@@ -126,40 +94,10 @@ function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
   };
 }
 
-function createOperationStatuses(
-  source: CatalogRuntimeSource | null,
-  circuitState: CircuitState | null,
-): Record<JikanOperationFamily, CatalogOperationRuntimeStatus> {
-  return Object.fromEntries(
-    JIKAN_OPERATION_FAMILIES.map((family) => [
-      family,
-      { circuitState, lastSuccessfulSource: source, lastFallbackAt: null },
-    ]),
-  ) as Record<JikanOperationFamily, CatalogOperationRuntimeStatus>;
-}
-
-function updateOperationSource(
-  channel: StatusChannel,
-  family: JikanOperationFamily,
-  source: CatalogRuntimeSource,
-): void {
-  channel.update((current) => ({
-    ...current,
-    operations: {
-      ...current.operations,
-      [family]: {
-        ...current.operations[family],
-        lastSuccessfulSource: source,
-      },
-    },
-  }));
-}
-
 function runtimeStatusFromSnapshot(
   snapshot: ResilientCatalogRuntimeSnapshot,
 ): CatalogRuntimeStatus {
   return {
-    mode: 'automatic',
     jikanHealth: snapshot.jikanHealth,
     jikanRateLimitedUntil:
       snapshot.jikanRateLimitedUntil === null
@@ -184,177 +122,8 @@ function runtimeStatusFromSnapshot(
   };
 }
 
-function createSourceTrackedRepository(
-  repository: AnimeCatalogRepository,
-  source: 'jikan' | 'mal',
-  channel: StatusChannel,
-): AnimeCatalogRepository {
-  const track = async <T,>(
-    family: JikanOperationFamily,
-    operation: Promise<T>,
-  ): Promise<T> => {
-    const value = await operation;
-    updateOperationSource(channel, family, source);
-    return value;
-  };
-  return {
-    getFeatured: () => track('featured', repository.getFeatured()),
-    getPopular: () => track('popular', repository.getPopular()),
-    getSeasonal: () => track('seasonal', repository.getSeasonal()),
-    getUpcoming: () => track('upcoming', repository.getUpcoming()),
-    search: (query) => track('search', repository.search(query)),
-    getManyByIds: (ids) => track('details', repository.getManyByIds(ids)),
-    getDetailsById: (id) => track('details', repository.getDetailsById(id)),
-    getKnownById: (id) => repository.getKnownById(id),
-    clearCache: () => repository.clearCache(),
-  };
-}
-
-function createLiveDependencies(
-  mode: Exclude<DataSourceMode, 'mock'>,
-  catalogRepository: AnimeCatalogRepository,
-  refreshCatalog: () => Promise<void>,
-  channel: StatusChannel,
-  malConfigured: boolean,
-  runJikanDiagnostic: () => Promise<JikanServiceDiagnosticResult>,
-  resetJikanCircuits: () => void = () => undefined,
-): RepositoryDependencies {
-  const userListRepository = new SessionUserAnimeListRepository(
-    catalogRepository,
-  );
-  return {
-    catalogRepository,
-    userListRepository,
-    mode,
-    behavior: INACTIVE_MOCK_BEHAVIOR,
-    malConfigured,
-    get catalogRuntimeStatus() {
-      return channel.get();
-    },
-    subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
-    setDelayMode: () => undefined,
-    setForceErrors: () => undefined,
-    selectDataSourceMode: () => undefined,
-    clearCatalogCache: () => catalogRepository.clearCache(),
-    clearAllCatalogCaches: () => catalogRepository.clearCache(),
-    resetJikanCircuits,
-    runJikanDiagnostic,
-    refreshCurrentSample: async () => {
-      await refreshCatalog();
-      await userListRepository.generateNewSample();
-    },
-    mockDevelopmentControls: null,
-  };
-}
-
-export function createMockDependencies(): RepositoryDependencies {
-  const runtime = new MockRuntime();
-  const jikanScheduler = new JikanRequestScheduler();
-  const catalogRepository = new MockAnimeCatalogRepository(runtime);
-  const userListRepository = new MockUserAnimeListRepository(runtime);
-  const channel = createStatusChannel({
-    mode: 'mock',
-    jikanHealth: null,
-    jikanRateLimitedUntil: null,
-    operations: createOperationStatuses('mock', null),
-  });
-  const dependencies: RepositoryDependencies = {
-    catalogRepository,
-    userListRepository,
-    mode: 'mock',
-    behavior: runtime.getBehavior(),
-    malConfigured: isMalConfigured,
-    get catalogRuntimeStatus() {
-      return channel.get();
-    },
-    subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
-    setDelayMode: (mode) => {
-      runtime.setDelayMode(mode);
-      dependencies.behavior = runtime.getBehavior();
-    },
-    setForceErrors: (enabled) => {
-      runtime.setForceErrors(enabled);
-      dependencies.behavior = runtime.getBehavior();
-    },
-    selectDataSourceMode: () => undefined,
-    clearCatalogCache: () => catalogRepository.clearCache(),
-    clearAllCatalogCaches: () => catalogRepository.clearCache(),
-    resetJikanCircuits: () => undefined,
-    runJikanDiagnostic: () =>
-      runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
-    refreshCurrentSample: () => userListRepository.reset(),
-    mockDevelopmentControls: {
-      generateTestList: () =>
-        runtime.run(() =>
-          runtime.replaceDataset(createGeneratedListDataset(100)),
-        ),
-    },
-  };
-  return dependencies;
-}
-
-export function createJikanDependencies(): RepositoryDependencies {
-  const jikanScheduler = new JikanRequestScheduler();
-  const jikanRepository = new JikanAnimeCatalogRepository({
-    scheduler: jikanScheduler,
-  });
-  const channel = createStatusChannel({
-    mode: 'jikan',
-    jikanHealth: null,
-    jikanRateLimitedUntil: null,
-    operations: createOperationStatuses(null, null),
-  });
-  const catalogRepository = createSourceTrackedRepository(
-    jikanRepository,
-    'jikan',
-    channel,
-  );
-  return createLiveDependencies(
-    'jikan',
-    catalogRepository,
-    async () => {
-      await jikanRepository.refresh();
-      (['popular', 'seasonal', 'upcoming'] as const).forEach((family) =>
-        updateOperationSource(channel, family, 'jikan'),
-      );
-    },
-    channel,
-    isMalConfigured,
-    () => runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
-  );
-}
-
-export function createMalDependencies(): RepositoryDependencies {
-  const jikanScheduler = new JikanRequestScheduler();
-  const malRepository = new MalAnimeCatalogRepository();
-  const channel = createStatusChannel({
-    mode: 'mal',
-    jikanHealth: null,
-    jikanRateLimitedUntil: null,
-    operations: createOperationStatuses(null, null),
-  });
-  const catalogRepository = createSourceTrackedRepository(
-    malRepository,
-    'mal',
-    channel,
-  );
-  return createLiveDependencies(
-    'mal',
-    catalogRepository,
-    async () => {
-      await malRepository.refresh();
-      (['popular', 'seasonal', 'upcoming'] as const).forEach((family) =>
-        updateOperationSource(channel, family, 'mal'),
-      );
-    },
-    channel,
-    isMalConfigured,
-    () => runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
-  );
-}
-
-export function createAutomaticDependencies(
-  options: AutomaticDependenciesOptions = {},
+export function createProductionDependencies(
+  options: ProductionDependenciesOptions = {},
 ): RepositoryDependencies {
   const malAvailable = options.malConfigured ?? isMalConfigured;
   const jikanScheduler = options.jikanScheduler ?? new JikanRequestScheduler();
@@ -380,24 +149,20 @@ export function createAutomaticDependencies(
   channel = createStatusChannel(
     runtimeStatusFromSnapshot(catalogRepository.getRuntimeSnapshot()),
   );
-  return createLiveDependencies(
-    'automatic',
+  return {
     catalogRepository,
-    () => catalogRepository.refresh(),
-    channel,
-    malAvailable,
-    () => runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
-    () => catalogRepository.resetCircuits(),
-  );
+    userListRepository: new GuestUserAnimeListRepository(catalogRepository),
+    getCatalogRuntimeStatus: () => channel.get(),
+    subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
+    clearCatalogCache: () => catalogRepository.clearCache(),
+    resetJikanCircuits: () => catalogRepository.resetCircuits(),
+    runJikanDiagnostic: () =>
+      runJikanConnectivityDiagnostic({ scheduler: jikanScheduler }),
+  };
 }
 
-export function createDefaultDependencies(
-  mode: DataSourceMode = process.env.NODE_ENV === 'test' ? 'mock' : 'automatic',
-): RepositoryDependencies {
-  if (mode === 'automatic') return createAutomaticDependencies();
-  if (mode === 'jikan') return createJikanDependencies();
-  if (mode === 'mal') return createMalDependencies();
-  return createMockDependencies();
+export function createDefaultDependencies(): RepositoryDependencies {
+  return createProductionDependencies();
 }
 
 export function RepositoryProvider({
@@ -405,55 +170,16 @@ export function RepositoryProvider({
   dependencies,
 }: RepositoryProviderProps) {
   const queryClient = useQueryClient();
-  const [source, setSource] = useState(
-    () => dependencies ?? createDefaultDependencies(),
-  );
-  const [behavior, setBehavior] = useState(source.behavior);
-  const [runtimeStatus, setRuntimeStatus] = useState(
-    source.catalogRuntimeStatus,
-  );
-
-  useEffect(() => {
-    return source.subscribeCatalogRuntimeStatus(setRuntimeStatus);
-  }, [source]);
-
+  const [source] = useState(() => dependencies ?? createDefaultDependencies());
   const value = useMemo<RepositoryDependencies>(
     () => ({
       ...source,
-      behavior,
-      catalogRuntimeStatus: runtimeStatus,
-      setDelayMode: (mode) => {
-        if (source.mode !== 'mock') return;
-        source.setDelayMode(mode);
-        setBehavior({ ...source.behavior });
-      },
-      setForceErrors: (enabled) => {
-        if (source.mode !== 'mock') return;
-        source.setForceErrors(enabled);
-        setBehavior({ ...source.behavior });
-      },
-      selectDataSourceMode: (mode) => {
-        if (mode === source.mode) return;
-        const next = createDefaultDependencies(mode);
-        queryClient.clear();
-        setSource(next);
-        setBehavior(next.behavior);
-        setRuntimeStatus(next.catalogRuntimeStatus);
-      },
       clearCatalogCache: () => {
         source.clearCatalogCache();
-        queryClient.clear();
-      },
-      clearAllCatalogCaches: () => {
-        source.clearAllCatalogCaches();
-        queryClient.clear();
-      },
-      refreshCurrentSample: async () => {
-        await source.refreshCurrentSample();
-        queryClient.clear();
+        queryClient.removeQueries({ queryKey: queryKeys.catalogRoot });
       },
     }),
-    [behavior, queryClient, runtimeStatus, source],
+    [queryClient, source],
   );
   return (
     <RepositoryContext.Provider value={value}>
@@ -468,4 +194,14 @@ export function useRepositories(): RepositoryDependencies {
     throw new Error('useRepositories must be used inside RepositoryProvider.');
   }
   return context;
+}
+
+export function useCatalogRuntimeStatus(): CatalogRuntimeStatus {
+  const { getCatalogRuntimeStatus, subscribeCatalogRuntimeStatus } =
+    useRepositories();
+  return useSyncExternalStore(
+    subscribeCatalogRuntimeStatus,
+    getCatalogRuntimeStatus,
+    getCatalogRuntimeStatus,
+  );
 }

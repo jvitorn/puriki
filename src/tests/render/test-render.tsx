@@ -13,6 +13,7 @@ import { RepositoryProvider } from '@/presentation/providers/repository-provider
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   dependencies?: RepositoryDependencies;
@@ -27,6 +28,7 @@ export function createTestWrapper(
   languagePreference: LanguagePreference = 'en',
   translationDependencies?: SynopsisTranslationDependencies,
 ) {
+  const resolvedDependencies = dependencies ?? createTestDependencies();
   void appI18n.changeLanguage(
     resolveEffectiveLanguage(languagePreference, 'en-US'),
   );
@@ -40,7 +42,7 @@ export function createTestWrapper(
       >
         <LocalizationProvider initialPreference={languagePreference}>
           <QueryClientProvider client={queryClient}>
-            <RepositoryProvider dependencies={dependencies}>
+            <RepositoryProvider dependencies={resolvedDependencies}>
               <SynopsisTranslationProvider
                 dependencies={translationDependencies}
               >

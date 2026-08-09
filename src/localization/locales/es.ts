@@ -163,10 +163,12 @@ export const es = {
   'notFound.message': 'La pantalla solicitada no existe.',
   'notFound.returnHome': 'Volver al inicio',
   'settings.title': 'Configuración',
-  'settings.general': 'General',
-  'settings.experienceTitle': 'Experiencia Purikuki',
-  'settings.experienceDescription':
-    'Una interfaz oscura, centrada en las ilustraciones y diseñada para seguir anime rápidamente a diario.',
+  'settings.account': 'Cuenta',
+  'settings.mal': 'MyAnimeList',
+  'settings.notConnected': 'No conectada',
+  'settings.connected': 'Conectada',
+  'settings.accountAvatar': 'Foto de perfil de {{name}}',
+  'settings.disconnectedAvatar': 'Avatar de cuenta desconectada',
   'settings.language': 'Idioma',
   'settings.languageDescription':
     'Cambia el idioma de la interfaz de Purikuki. Los títulos siguen en el idioma del catálogo; la traducción de sinopsis está disponible bajo demanda.',
@@ -174,44 +176,19 @@ export const es = {
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',
   'settings.languageSpanish': 'Español',
-  'settings.dataSource': 'Fuente de datos',
-  'settings.dataSourceDescription':
-    'Elige de dónde obtiene Purikuki la información pública del catálogo.',
-  'settings.sourceAutomatic': 'Automática',
-  'settings.sourceAutomaticDescription':
-    'Usa primero Jikan y recurre a MyAnimeList.',
-  'settings.sourceJikan': 'Solo Jikan',
-  'settings.sourceJikanDescription':
-    'Usa Jikan sin el respaldo de MyAnimeList.',
-  'settings.sourceMal': 'Solo MyAnimeList',
-  'settings.sourceMalDescription':
-    'Usa directamente el catálogo público de MyAnimeList.',
-  'settings.sourceMock': 'Mock',
-  'settings.sourceMockDescription':
-    'Usa datos locales deterministas de desarrollo.',
-  'settings.malNotConfigured':
-    'El Client ID de MyAnimeList no está configurado.',
-  'settings.autoFallbackUnavailable':
-    'El modo automático sigue disponible, pero su respaldo de MyAnimeList no estará disponible hasta configurar el Client ID de la aplicación.',
-  'settings.session': 'Sesión / Almacenamiento',
-  'settings.sessionDescription':
-    'Los cambios de la lista personal y las cachés del catálogo permanecen en memoria hasta que se reinicia el proceso de la aplicación.',
-  'settings.resetList': 'Restablecer lista actual',
-  'settings.resettingList': 'Restableciendo lista actual…',
-  'settings.refreshCatalog': 'Actualizar catálogo activo',
-  'settings.refreshingCatalog': 'Actualizando catálogo activo…',
-  'settings.clearCatalogCache': 'Borrar caché del catálogo activo',
-  'settings.clearAllCaches': 'Borrar todas las cachés del catálogo',
-  'settings.sessionRefreshed': 'Datos de sesión actualizados.',
-  'settings.refreshCatalogFailed':
-    'No se pudo actualizar el catálogo activo. Los datos cargados anteriormente siguen disponibles.',
-  'settings.refreshFailed':
-    'La actualización falló. Comprueba la fuente de datos activa e inténtalo de nuevo.',
+  'settings.applyingLanguage': 'Aplicando idioma…',
   'settings.developerTools': 'Herramientas de desarrollo',
-  'settings.developerDescription':
-    'Diagnósticos, estado de ejecución y controles mock',
-  'settings.runtimeStatus': 'Estado del catálogo en ejecución',
-  'settings.mode': 'Modo: {{mode}}',
+  'settings.developerDescription': 'Diagnósticos e información de compilación',
+  'settings.developerEnabled': 'Herramientas de desarrollo activadas',
+  'settings.developerTwoTapsAway':
+    'Faltan 2 toques para Herramientas de desarrollo',
+  'settings.developerOneTapAway':
+    'Falta 1 toque para Herramientas de desarrollo',
+  'settings.disableDeveloperTools': 'Desactivar Herramientas de desarrollo',
+  'settings.serviceDiagnostics': 'Diagnósticos de servicios',
+  'settings.catalogDiagnostics': 'Diagnósticos del catálogo',
+  'settings.buildInformation': 'Información de compilación',
+  'settings.environment': 'Entorno: {{environment}}',
   'settings.jikanHealth': 'Jikan: {{health}}',
   'settings.healthHealthy': 'Saludable',
   'settings.healthDegraded': 'Degradado',
@@ -226,31 +203,14 @@ export const es = {
   'settings.operation.details': 'Detalles',
   'settings.operationCircuit': 'Circuito: {{state}}',
   'settings.resetJikanCircuits': 'Restablecer circuitos de Jikan',
-  'settings.lastSource': 'Última fuente correcta: {{source}}',
+  'settings.clearCatalogCache': 'Borrar caché del catálogo',
   'settings.sourceCache': 'Caché válida anterior',
   'settings.sourceNone': 'Aún no hay solicitudes correctas',
-  'settings.jikanCircuit': 'Circuito de Jikan: {{state}}',
   'settings.lastFallback': 'Último respaldo: {{date}}',
   'settings.usingMalFallback':
     'Jikan falló, por lo que se usan datos de MyAnimeList.',
   'settings.usingCache':
     'Ambos proveedores del catálogo no están disponibles. Los datos cargados anteriormente siguen disponibles.',
-  'settings.mockEnvironment': 'Entorno mock',
-  'settings.generateList': 'Generar lista de prueba con 100 elementos',
-  'settings.generatingList': 'Generando lista de prueba…',
-  'settings.generateListDescription':
-    'Reemplaza la lista mock actual con 100 entradas deterministas para probar la paginación y el desplazamiento infinito.',
-  'settings.listGenerated': 'Lista de prueba con 100 elementos creada.',
-  'settings.generateFailed': 'No se pudo generar la lista de prueba.',
-  'settings.simulatedDelay': 'Retraso simulado de solicitudes',
-  'settings.simulatedDelayDescription':
-    'Añade un breve retraso a las operaciones de los repositorios.',
-  'settings.forceErrors': 'Forzar errores de repositorio',
-  'settings.forceErrorsDescription':
-    'Ejercita estados de recuperación de carga y error.',
-  'settings.diagnostics': 'Diagnósticos de servicios',
-  'settings.diagnosticsDescription':
-    'Prueba cada proveedor directamente. Estas solicitudes omiten las cachés del catálogo y el respaldo automático.',
   'settings.testMal': 'Probar API de MyAnimeList',
   'settings.testingMal': 'Probando API de MyAnimeList…',
   'settings.malDiagnosticDescription':
@@ -261,8 +221,6 @@ export const es = {
   'settings.endpointResult': '{{status}} • {{elapsed}} ms',
   'settings.sampleResult': 'Resultado de ejemplo: {{title}}',
   'settings.malSuccess': 'La API de MyAnimeList está operativa.',
-  'settings.jikanSuccess':
-    'Jikan respondió correctamente mediante el transporte nativo.',
   'settings.diagnosticNotConfigured':
     'El Client ID de MyAnimeList no está configurado.',
   'settings.diagnosticUnauthorized':
@@ -279,6 +237,5 @@ export const es = {
   'settings.about': 'Acerca de',
   'settings.version': 'Versión {{version}}',
   'settings.aboutDescription':
-    'Un catálogo público de anime de solo lectura con una lista personal simulada solo durante la sesión.',
-  'settings.providers': 'Jikan principal • respaldo MyAnimeList',
+    'Un cliente moderno de listas de anime diseñado para un seguimiento diario y enfocado.',
 } satisfies TranslationResource;

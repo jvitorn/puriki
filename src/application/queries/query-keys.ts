@@ -1,6 +1,7 @@
 import type { AnimeListStatus } from '@/domain/models/anime';
 
 export const queryKeys = {
+  catalogRoot: ['anime'] as const,
   detailsRoot: ['anime', 'details'] as const,
   featured: ['anime', 'featured'] as const,
   popular: ['anime', 'popular'] as const,

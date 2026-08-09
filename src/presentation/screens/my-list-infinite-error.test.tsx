@@ -5,9 +5,9 @@ import { queryKeys } from '@/application/queries/query-keys';
 import type { UnifiedAnime } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
-import { buildUserListDataset } from '@/tests/builders/mock-dataset-builder';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
+import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 describe('MyListScreen next-page recovery', () => {
   it('keeps loaded rows visible when the next page fails and retries it', async () => {

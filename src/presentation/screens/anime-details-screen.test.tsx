@@ -1,11 +1,11 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
-import { createMockScenario } from '@/mocks/scenarios/mock-scenarios';
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
 import { AnimeDetailsScreen } from '@/presentation/screens/anime-details-screen';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
+import { createTestScenario } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 function createTranslationDependencies(options?: {
   available?: boolean;
@@ -123,7 +123,9 @@ describe('AnimeDetailsScreen', () => {
     const addButton = await screen.findByLabelText(
       'Add Spirit Rail Express to My List',
     );
-    dependencies.setForceErrors(true);
+    dependencies.userListRepository.addToList = jest.fn(async () => {
+      throw new Error('The test repository could not complete this request.');
+    });
     await fireEvent.press(addButton);
 
     await waitFor(() =>
@@ -173,7 +175,9 @@ describe('AnimeDetailsScreen', () => {
     await fireEvent.press(
       await screen.findByLabelText('Remove Moonlit Vanguard from My List'),
     );
-    dependencies.setForceErrors(true);
+    dependencies.userListRepository.removeFromList = jest.fn(async () => {
+      throw new Error('The test repository could not complete this request.');
+    });
     alert.mock.calls[0]?.[2]
       ?.find((button) => button.style === 'destructive')
       ?.onPress?.();
@@ -195,7 +199,9 @@ describe('AnimeDetailsScreen', () => {
     await waitFor(() =>
       expect(screen.getByText('Moonlit Vanguard')).toBeVisible(),
     );
-    dependencies.setForceErrors(true);
+    dependencies.userListRepository.updateProgress = jest.fn(async () => {
+      throw new Error('The test repository could not complete this request.');
+    });
     await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
     await waitFor(() => expect(screen.getByRole('alert')).toBeVisible());
     expect(
@@ -212,7 +218,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('starts a long synopsis collapsed and supports both disclosure actions', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const first = dataset.catalog[0];
     if (!first) throw new Error('Expected a seeded anime.');
     dataset.catalog[0] = {
@@ -237,7 +243,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('renders missing optional metadata without empty disclosure sections', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const first = dataset.catalog[0];
     if (!first) throw new Error('Expected a seeded anime.');
     dataset.catalog[0] = {
@@ -265,7 +271,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('renders navigable continuity without hydrating related anime', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const current = dataset.catalog[0];
     const known = dataset.catalog[1];
     if (!current || !known) throw new Error('Expected seeded anime.');
@@ -312,7 +318,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('keeps the English synopsis unchanged without a translation action', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const anime = dataset.catalog[0];
     if (!anime) throw new Error('Expected a seeded anime.');
     anime.synopsis = 'The original English synopsis.';
@@ -327,7 +333,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('translates a Portuguese synopsis on demand and toggles the immutable original', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const anime = dataset.catalog[0];
     if (!anime) throw new Error('Expected a seeded anime.');
     anime.synopsis = 'An English synopsis.';
@@ -380,7 +386,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('uses a persistent Portuguese cache without a native translation call', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const anime = dataset.catalog[0];
     if (!anime) throw new Error('Expected a seeded anime.');
     anime.synopsis = 'An English synopsis.';
@@ -403,7 +409,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('translates Spanish independently with localized Google wording', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const anime = dataset.catalog[0];
     if (!anime) throw new Error('Expected a seeded anime.');
     anime.synopsis = 'An English synopsis.';
@@ -433,7 +439,7 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('keeps the original visible after an inline failure and allows retry', async () => {
-    const dataset = createMockScenario('default');
+    const dataset = createTestScenario('default');
     const anime = dataset.catalog[0];
     if (!anime) throw new Error('Expected a seeded anime.');
     anime.synopsis = 'An English synopsis.';

@@ -1,14 +1,11 @@
 import { DomainError } from '@/domain/errors/domain-error';
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
-import { SessionUserAnimeListRepository } from '@/infrastructure/repositories/session/session-user-anime-list-repository';
-import {
-  createAnimeCatalogItem,
-  resetAnimeFactory,
-} from '@/mocks/factories/anime-factory';
+import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
+import { makeAnime, resetAnimeBuilder } from '@/tests/builders/anime-builder';
 
-async function getSessionEntries(session: SessionUserAnimeListRepository) {
+async function getSessionEntries(session: GuestUserAnimeListRepository) {
   const page = await session.getPage({ page: 1, pageSize: 100 });
   return page.items;
 }
@@ -17,9 +14,9 @@ function createCatalog(): {
   catalog: AnimeCatalogItem[];
   repository: jest.Mocked<AnimeCatalogRepository>;
 } {
-  resetAnimeFactory(98);
+  resetAnimeBuilder();
   const catalog = Array.from({ length: 30 }, (_, index) =>
-    createAnimeCatalogItem({
+    makeAnime({
       id: 10_001 + index,
       title: `Real Anime ${index + 1}`,
       totalEpisodes: index === 4 ? null : 12 + (index % 3),
@@ -49,7 +46,7 @@ function createCatalog(): {
 function createSession() {
   const { catalog, repository } = createCatalog();
   let randomValue = 0.17;
-  const session = new SessionUserAnimeListRepository(repository, {
+  const session = new GuestUserAnimeListRepository(repository, {
     random: () => {
       randomValue = (randomValue + 0.31) % 1;
       return randomValue;
@@ -59,7 +56,7 @@ function createSession() {
   return { catalog, repository, session };
 }
 
-describe('SessionUserAnimeListRepository', () => {
+describe('GuestUserAnimeListRepository', () => {
   it('builds a 20-25 item real-ID sample spanning every status', async () => {
     const { session } = createSession();
     const entries = await getSessionEntries(session);
@@ -190,36 +187,6 @@ describe('SessionUserAnimeListRepository', () => {
       DomainError,
     );
     expect(repository.getManyByIds).not.toHaveBeenCalled();
-  });
-
-  it('resets mutations back to the current session sample', async () => {
-    const { session } = createSession();
-    const original = await getSessionEntries(session);
-    const first = original[0];
-    if (!first) throw new Error('Expected a sample entry.');
-    await session.updateScore(first.animeId, first.userScore === 10 ? 9 : 10);
-    await session.reset();
-    await expect(getSessionEntries(session)).resolves.toEqual(original);
-  });
-
-  it('can generate a fresh sample after catalog refresh', async () => {
-    const { repository, session } = createSession();
-    await getSessionEntries(session);
-    await session.generateNewSample();
-    expect(repository.getPopular).toHaveBeenCalledTimes(2);
-    expect(repository.getSeasonal).toHaveBeenCalledTimes(2);
-    expect(repository.getUpcoming).toHaveBeenCalledTimes(2);
-    expect(repository.getManyByIds).not.toHaveBeenCalled();
-  });
-
-  it('retains the current sample when generating a replacement fails', async () => {
-    const { repository, session } = createSession();
-    const original = await getSessionEntries(session);
-    repository.getPopular.mockRejectedValueOnce(new Error('Unavailable'));
-    repository.getSeasonal.mockRejectedValueOnce(new Error('Unavailable'));
-    repository.getUpcoming.mockRejectedValueOnce(new Error('Unavailable'));
-    await expect(session.generateNewSample()).rejects.toThrow('Unavailable');
-    await expect(getSessionEntries(session)).resolves.toEqual(original);
   });
 
   it('filters before pagination and returns stable cloned pages', async () => {

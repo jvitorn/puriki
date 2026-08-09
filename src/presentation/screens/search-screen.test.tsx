@@ -1,8 +1,8 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import { SearchScreen } from '@/presentation/screens/search-screen';
-import { createTestDependencies } from '@/tests/mocks/test-dependencies';
 import { renderWithProviders } from '@/tests/render/test-render';
+import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 describe('SearchScreen', () => {
   afterEach(() => jest.useRealTimers());
@@ -53,7 +53,9 @@ describe('SearchScreen', () => {
 
   it('uses grid-shaped skeletons while discovery content is loading', async () => {
     const dependencies = createTestDependencies();
-    dependencies.setDelayMode('normal');
+    dependencies.catalogRepository.getPopular = jest.fn(
+      () => new Promise(() => undefined),
+    );
     await renderWithProviders(<SearchScreen />, { dependencies });
 
     expect(screen.getAllByLabelText('Loading content').length).toBeGreaterThan(

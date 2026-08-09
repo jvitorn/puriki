@@ -8,7 +8,7 @@ import {
 } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
-import { createUserAnimeEntry } from '@/mocks/factories/anime-factory';
+import { makeUserAnimeEntry } from '@/tests/builders/anime-builder';
 
 describe('anime progress rules', () => {
   it('normalizes negative, fractional, and excessive progress', () => {
@@ -33,7 +33,7 @@ describe('anime progress rules', () => {
   });
 
   it('automatically completes a known final episode', () => {
-    const entry = createUserAnimeEntry({
+    const entry = makeUserAnimeEntry({
       animeId: 1,
       status: 'watching',
       watchedEpisodes: 11,
@@ -42,12 +42,12 @@ describe('anime progress rules', () => {
   });
 
   it('moves progressed planned and completed entries to watching', () => {
-    const planned = createUserAnimeEntry({
+    const planned = makeUserAnimeEntry({
       animeId: 1,
       status: 'plan_to_watch',
       watchedEpisodes: 0,
     });
-    const completed = createUserAnimeEntry({
+    const completed = makeUserAnimeEntry({
       animeId: 2,
       status: 'completed',
       watchedEpisodes: 12,
@@ -58,7 +58,7 @@ describe('anime progress rules', () => {
 });
 
 describe('anime status and score rules', () => {
-  const entry = createUserAnimeEntry({
+  const entry = makeUserAnimeEntry({
     animeId: 1,
     status: 'completed',
     watchedEpisodes: 12,
