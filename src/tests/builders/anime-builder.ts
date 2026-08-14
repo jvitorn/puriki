@@ -30,6 +30,7 @@ export function makeAnime(
     largePosterImageUrl: null,
     heroImageUrl: null,
     continuity: [],
+    streamingServices: [],
     coverSeed: id * 17,
     bannerSeed: id * 31,
     ...overrides,

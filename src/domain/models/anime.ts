@@ -9,6 +9,11 @@ export interface AnimeContinuityRelation {
   kind: AnimeContinuityKind;
 }
 
+export interface AnimeStreamingService {
+  name: string;
+  iconUrl: string | null;
+}
+
 export interface AnimeCatalogItem {
   id: number;
   title: string;
@@ -25,6 +30,7 @@ export interface AnimeCatalogItem {
   largePosterImageUrl: string | null;
   heroImageUrl: string | null;
   continuity: AnimeContinuityRelation[];
+  streamingServices: AnimeStreamingService[];
   coverSeed: number;
   bannerSeed: number;
 }

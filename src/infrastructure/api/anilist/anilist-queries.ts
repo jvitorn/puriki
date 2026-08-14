@@ -53,6 +53,12 @@ export const ANILIST_DETAILS_QUERY = /* GraphQL */ `
           }
         }
       }
+      externalLinks {
+        site
+        type
+        icon
+        isDisabled
+      }
       nextAiringEpisode {
         episode
         airingAt

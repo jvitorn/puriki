@@ -2,6 +2,7 @@ import type {
   AnimeCatalogItem,
   AnimeContinuityKind,
   AnimeContinuityRelation,
+  AnimeStreamingService,
 } from '@/domain/models/anime';
 import type {
   AniListMediaDetails,
@@ -112,6 +113,31 @@ function continuity(dto: AniListMediaDetails): AnimeContinuityRelation[] {
   return [...grouped.prequel, ...grouped.sequel];
 }
 
+function streamingServices(dto: AniListMediaDetails): AnimeStreamingService[] {
+  const seen = new Set<string>();
+  return dto.externalLinks.flatMap((link) => {
+    const name = nonEmpty(link.site);
+    const key = name?.toLocaleLowerCase();
+    if (
+      !name ||
+      !key ||
+      link.type !== 'STREAMING' ||
+      link.isDisabled === true ||
+      seen.has(key)
+    ) {
+      return [];
+    }
+    seen.add(key);
+    const iconUrl = nonEmpty(link.icon);
+    return [
+      {
+        name,
+        iconUrl: iconUrl && /^https?:\/\/\S+$/i.test(iconUrl) ? iconUrl : null,
+      },
+    ];
+  });
+}
+
 export function mapAniListSummary(
   dto: AniListMediaSummary,
 ): AnimeCatalogItem | null {
@@ -160,6 +186,7 @@ export function mapAniListSummary(
     ),
     heroImageUrl: nonEmpty(dto.bannerImage),
     continuity: [],
+    streamingServices: [],
     ...createAnimeFallbackSeeds(dto.idMal),
   };
 }
@@ -178,5 +205,6 @@ export function mapAniListDetails(
       return name ? [name] : [];
     }),
     continuity: continuity(dto),
+    streamingServices: streamingServices(dto),
   };
 }

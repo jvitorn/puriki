@@ -29,6 +29,7 @@ const primaryAnime: AnimeCatalogItem = {
   largePosterImageUrl: 'large',
   heroImageUrl: 'banner',
   continuity: [],
+  streamingServices: [],
   coverSeed: 1,
   bannerSeed: 2,
 };

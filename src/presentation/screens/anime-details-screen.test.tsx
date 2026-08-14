@@ -56,6 +56,7 @@ describe('AnimeDetailsScreen', () => {
     expect(screen.getByText('Synopsis')).toBeVisible();
     expect(screen.getByText('of 12 episodes')).toBeVisible();
     expect(screen.queryByText('Series continuity')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Where to watch')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
     await waitFor(() =>
@@ -65,6 +66,32 @@ describe('AnimeDetailsScreen', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Episode progress: 0 of 12')).toBeVisible(),
     );
+  });
+
+  it('shows informative streaming services with official icons and a neutral fallback', async () => {
+    const dataset = createTestScenario('default');
+    const first = dataset.catalog[0];
+    if (!first) throw new Error('Expected a seeded anime.');
+    first.streamingServices = [
+      {
+        name: 'Crunchyroll',
+        iconUrl: 'https://example.test/crunchyroll.png',
+      },
+      { name: 'Netflix', iconUrl: null },
+    ];
+
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      dependencies: createTestDependencies(dataset),
+    });
+
+    expect(await screen.findByText('Where to watch')).toBeVisible();
+    expect(screen.getByLabelText('Available on Crunchyroll')).toBeVisible();
+    expect(screen.getByLabelText('Available on Netflix')).toBeVisible();
+    expect(screen.getByTestId('streaming-service-icon-0')).toHaveProp(
+      'source',
+      { uri: 'https://example.test/crunchyroll.png' },
+    );
+    expect(screen.getByTestId('streaming-service-fallback-1')).toBeVisible();
   });
 
   it('keeps progress controls responsive while persistence is pending', async () => {

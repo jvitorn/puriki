@@ -37,8 +37,20 @@ describe('AniList DTO validation', () => {
     expect(aniListDisplayTitle(parsed)).toBe('One Piece');
   });
 
-  it('parses rich details, main studios, relation version 2 and airing data', () => {
-    const parsed = parseAniListDetailsData({ Media: anilistDetailsPayload() });
+  it('parses rich details, main studios, external links and airing data', () => {
+    const parsed = parseAniListDetailsData({
+      Media: anilistDetailsPayload({
+        externalLinks: [
+          {
+            site: 'Crunchyroll',
+            type: 'STREAMING',
+            icon: 'https://example.test/crunchyroll.png',
+            isDisabled: false,
+          },
+          { site: 42, type: 'STREAMING' },
+        ],
+      }),
+    });
     expect(parsed.studios).toEqual([{ id: 18, name: 'Toei Animation' }]);
     expect(parsed.relations[0]).toMatchObject({
       relationType: 'SEQUEL',
@@ -48,6 +60,14 @@ describe('AniList DTO validation', () => {
       episode: 1_151,
       airingAt: 1_800_000_000,
     });
+    expect(parsed.externalLinks).toEqual([
+      {
+        site: 'Crunchyroll',
+        type: 'STREAMING',
+        icon: 'https://example.test/crunchyroll.png',
+        isDisabled: false,
+      },
+    ]);
   });
 
   it('accepts optional detail blocks as null without fabricating content', () => {
@@ -57,6 +77,7 @@ describe('AniList DTO validation', () => {
       description: null,
       studios: null,
       relations: null,
+      externalLinks: null,
       nextAiringEpisode: null,
     });
     expect(parsed).toMatchObject({
@@ -64,6 +85,7 @@ describe('AniList DTO validation', () => {
       description: null,
       studios: [],
       relations: [],
+      externalLinks: [],
       nextAiringEpisode: null,
     });
   });

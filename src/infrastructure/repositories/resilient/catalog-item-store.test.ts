@@ -4,7 +4,11 @@ import {
   satisfiesMinimumCompleteness,
 } from '@/infrastructure/repositories/resilient/catalog-item-store';
 
-function anime(id: number, title: string): AnimeCatalogItem {
+function anime(
+  id: number,
+  title: string,
+  streamingServices: AnimeCatalogItem['streamingServices'] = [],
+): AnimeCatalogItem {
   return {
     id,
     title,
@@ -21,6 +25,7 @@ function anime(id: number, title: string): AnimeCatalogItem {
     largePosterImageUrl: null,
     heroImageUrl: null,
     continuity: [],
+    streamingServices,
     coverSeed: id,
     bannerSeed: id + 1,
   };
@@ -71,16 +76,24 @@ describe('CatalogItemStore', () => {
     'never downgrades known details with a %s summary',
     (source) => {
       const store = new CatalogItemStore();
-      store.upsert(anime(1, 'MAL details'), {
-        source: 'mal',
-        completeness: 'details',
-      });
+      store.upsert(
+        anime(1, 'MAL details', [
+          { name: 'Crunchyroll', iconUrl: 'https://example.test/icon.png' },
+        ]),
+        {
+          source: 'mal',
+          completeness: 'details',
+        },
+      );
       store.upsert(anime(1, `${source} summary`), {
         source,
         completeness: 'summary',
       });
       expect(store.get(1)).toMatchObject({
-        item: { title: 'MAL details' },
+        item: {
+          title: 'MAL details',
+          streamingServices: [{ name: 'Crunchyroll' }],
+        },
         source: 'mal',
         completeness: 'details',
       });
@@ -149,16 +162,26 @@ describe('CatalogItemStore', () => {
 
   it('returns mutation-safe clones and clears all session items', () => {
     const store = new CatalogItemStore();
-    store.upsert(anime(1, 'Original'), {
-      source: 'anilist',
-      completeness: 'details',
-    });
+    store.upsert(
+      anime(1, 'Original', [
+        { name: 'Crunchyroll', iconUrl: 'https://example.test/icon.png' },
+      ]),
+      {
+        source: 'anilist',
+        completeness: 'details',
+      },
+    );
     const first = store.get(1);
     if (!first) throw new Error('Expected a stored item.');
     first.item.title = 'Mutated';
     first.item.genres.push('Mutation');
+    first.item.streamingServices[0]!.name = 'Mutated service';
     expect(store.get(1)).toMatchObject({
-      item: { title: 'Original', genres: ['Action'] },
+      item: {
+        title: 'Original',
+        genres: ['Action'],
+        streamingServices: [{ name: 'Crunchyroll' }],
+      },
       source: 'anilist',
       completeness: 'details',
     });

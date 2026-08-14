@@ -29,6 +29,7 @@ import {
 import { AnimeContinuitySection } from '@/presentation/components/anime/anime-continuity-section';
 import { AnimeScoreSelector } from '@/presentation/components/anime/anime-score-selector';
 import { AnimeStatusSelector } from '@/presentation/components/anime/anime-status-selector';
+import { AnimeStreamingSection } from '@/presentation/components/anime/anime-streaming-section';
 import { AnimeSynopsisSection } from '@/presentation/components/anime/anime-synopsis-section';
 import { BannerPlaceholder } from '@/presentation/components/anime/banner-placeholder';
 import { EpisodeProgressControl } from '@/presentation/components/anime/episode-progress-control';
@@ -354,6 +355,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             appLanguage={language}
           />
         ) : null}
+
+        <AnimeStreamingSection services={anime.streamingServices} />
 
         <View className="gap-1">
           <Text variant="heading" className="mb-2">

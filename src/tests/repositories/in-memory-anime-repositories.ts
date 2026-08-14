@@ -23,6 +23,9 @@ function cloneAnime(anime: AnimeCatalogItem): AnimeCatalogItem {
     genres: [...anime.genres],
     studios: [...anime.studios],
     continuity: anime.continuity.map((relation) => ({ ...relation })),
+    streamingServices: anime.streamingServices.map((service) => ({
+      ...service,
+    })),
   };
 }
 

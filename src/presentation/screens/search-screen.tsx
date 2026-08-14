@@ -43,14 +43,22 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 250);
   const normalizedQuery = normalizeSearchText(query);
+  const normalizedDebouncedQuery = normalizeSearchText(debouncedQuery);
   const results = useAnimeSearch(debouncedQuery);
   const isSearching = normalizedQuery.length >= 2;
+  const isNewRemoteSearchLoading =
+    isSearching &&
+    normalizedQuery === normalizedDebouncedQuery &&
+    (results.isLoading || (results.isFetching && results.isPlaceholderData));
+  const showSkeleton = results.isLoading || isNewRemoteSearchLoading;
   const resultCount = results.data?.length ?? 0;
-  const label = isSearching
-    ? t('search.results', { count: resultCount })
-    : normalizedQuery.length === 1
-      ? t('search.typeMinimum')
-      : t('search.popularStarter');
+  const label = isNewRemoteSearchLoading
+    ? t('search.searching')
+    : isSearching
+      ? t('search.results', { count: resultCount })
+      : normalizedQuery.length === 1
+        ? t('search.typeMinimum')
+        : t('search.popularStarter');
 
   return (
     <Screen padded={false}>
@@ -67,7 +75,7 @@ export function SearchScreen() {
           title={t('search.keepTyping')}
           message={t('search.minimumMessage')}
         />
-      ) : results.isLoading ? (
+      ) : showSkeleton ? (
         <SearchGridSkeleton columns={columns} />
       ) : results.isError ? (
         <ErrorState

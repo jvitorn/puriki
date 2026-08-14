@@ -117,6 +117,7 @@ export function mapMalAnime(
     largePosterImageUrl: largePicture ?? mediumPicture,
     heroImageUrl: largePicture ?? mediumPicture,
     continuity: payload === 'details' ? continuity(dto) : [],
+    streamingServices: [],
     ...createAnimeFallbackSeeds(dto.id),
   };
 }

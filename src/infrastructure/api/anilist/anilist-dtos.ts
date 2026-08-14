@@ -34,11 +34,19 @@ export interface AniListRelation {
   mediumCoverUrl: string | null;
 }
 
+export interface AniListExternalLink {
+  site: string;
+  type: string;
+  icon: string | null;
+  isDisabled: boolean | null;
+}
+
 export interface AniListMediaDetails extends AniListMediaSummary {
   synonyms: string[];
   description: string | null;
   studios: { id: number; name: string }[];
   relations: AniListRelation[];
+  externalLinks: AniListExternalLink[];
   nextAiringEpisode: { episode: number; airingAt: number } | null;
 }
 
@@ -168,6 +176,28 @@ function parseRelations(value: unknown): AniListRelation[] {
   });
 }
 
+function parseExternalLinks(value: unknown): AniListExternalLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((link) => {
+    if (
+      !isRecord(link) ||
+      typeof link.site !== 'string' ||
+      typeof link.type !== 'string'
+    ) {
+      return [];
+    }
+    return [
+      {
+        site: link.site,
+        type: link.type,
+        icon: nullableString(link.icon),
+        isDisabled:
+          typeof link.isDisabled === 'boolean' ? link.isDisabled : null,
+      },
+    ];
+  });
+}
+
 function parseNextAiring(
   value: unknown,
 ): AniListMediaDetails['nextAiringEpisode'] {
@@ -195,6 +225,7 @@ export function parseAniListMediaDetails(value: unknown): AniListMediaDetails {
     description: nullableString(value.description),
     studios: parseStudios(value.studios),
     relations: parseRelations(value.relations),
+    externalLinks: parseExternalLinks(value.externalLinks),
     nextAiringEpisode: parseNextAiring(value.nextAiringEpisode),
   };
 }

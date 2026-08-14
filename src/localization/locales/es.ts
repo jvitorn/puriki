@@ -67,6 +67,7 @@ export const es = {
   'search.clear': 'Borrar búsqueda',
   'search.results_one': '{{count}} resultado',
   'search.results_other': '{{count}} resultados',
+  'search.searching': 'Buscando…',
   'search.typeMinimum': 'Escribe al menos 2 caracteres para buscar',
   'search.popularStarter': 'Anime popular para comenzar',
   'search.keepTyping': 'Sigue escribiendo',
@@ -115,6 +116,8 @@ export const es = {
   'details.updateFailed':
     'La actualización falló. Se restauraron los valores anteriores.',
   'details.synopsis': 'Sinopsis',
+  'details.whereToWatch': 'Dónde ver',
+  'details.streamingServiceA11y': 'Disponible en {{name}}',
   'details.synopsisTranslation.translateWithGoogle': 'Traducir con Google',
   'details.synopsisTranslation.translating': 'Traduciendo…',
   'details.synopsisTranslation.viewOriginal': 'Ver original',

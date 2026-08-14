@@ -58,6 +58,7 @@ export function anilistDetailsPayload(
         },
       ],
     },
+    externalLinks: [],
     nextAiringEpisode: { episode: 1_151, airingAt: 1_800_000_000 },
     ...overrides,
   };

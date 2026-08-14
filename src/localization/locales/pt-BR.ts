@@ -67,6 +67,7 @@ export const ptBR = {
   'search.clear': 'Limpar busca',
   'search.results_one': '{{count}} resultado',
   'search.results_other': '{{count}} resultados',
+  'search.searching': 'Buscando…',
   'search.typeMinimum': 'Digite pelo menos 2 caracteres para buscar',
   'search.popularStarter': 'Animes populares para você começar',
   'search.keepTyping': 'Continue digitando',
@@ -115,6 +116,8 @@ export const ptBR = {
   'details.updateFailed':
     'A atualização falhou. Os valores anteriores foram restaurados.',
   'details.synopsis': 'Sinopse',
+  'details.whereToWatch': 'Onde assistir',
+  'details.streamingServiceA11y': 'Disponível na {{name}}',
   'details.synopsisTranslation.translateWithGoogle': 'Traduzir com o Google',
   'details.synopsisTranslation.translating': 'Traduzindo…',
   'details.synopsisTranslation.viewOriginal': 'Ver original',

@@ -37,6 +37,7 @@ describe('AniList mapper', () => {
       synopsis: '',
       studios: [],
       continuity: [],
+      streamingServices: [],
     });
   });
 
@@ -94,6 +95,38 @@ describe('AniList mapper', () => {
             },
           ],
         },
+        externalLinks: [
+          {
+            site: 'Crunchyroll',
+            type: 'STREAMING',
+            icon: 'https://example.test/crunchyroll.png',
+            isDisabled: false,
+          },
+          {
+            site: ' crunchyroll ',
+            type: 'STREAMING',
+            icon: 'https://example.test/duplicate.png',
+            isDisabled: false,
+          },
+          {
+            site: 'Netflix',
+            type: 'STREAMING',
+            icon: 'javascript:unsafe',
+            isDisabled: null,
+          },
+          {
+            site: 'Official Site',
+            type: 'INFO',
+            icon: 'https://example.test/info.png',
+            isDisabled: false,
+          },
+          {
+            site: 'Disabled Stream',
+            type: 'STREAMING',
+            icon: null,
+            isDisabled: true,
+          },
+        ],
       }),
     );
 
@@ -105,7 +138,27 @@ describe('AniList mapper', () => {
         { animeId: 20, title: 'Prequel', kind: 'prequel' },
         { animeId: 22, title: 'Sequel', kind: 'sequel' },
       ],
+      streamingServices: [
+        {
+          name: 'Crunchyroll',
+          iconUrl: 'https://example.test/crunchyroll.png',
+        },
+        { name: 'Netflix', iconUrl: null },
+      ],
     });
+  });
+
+  it('keeps missing or malformed external-link data out of the domain model', () => {
+    const details = parseAniListMediaDetails(
+      anilistDetailsPayload({
+        externalLinks: [
+          null,
+          { site: 42, type: 'STREAMING' },
+          { site: 'No type' },
+        ],
+      }),
+    );
+    expect(mapAniListDetails(details)?.streamingServices).toEqual([]);
   });
 
   it('maps nullable and unknown values without fabricating media', () => {

@@ -34,6 +34,9 @@ function cloneItem(item: AnimeCatalogItem): AnimeCatalogItem {
     genres: [...item.genres],
     studios: [...item.studios],
     continuity: item.continuity.map((relation) => ({ ...relation })),
+    streamingServices: item.streamingServices.map((service) => ({
+      ...service,
+    })),
   };
 }
 

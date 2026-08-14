@@ -57,11 +57,18 @@ describe('MAL anime mapper', () => {
         },
         { animeId: 60002, title: 'Frieren Season 2', kind: 'sequel' },
       ],
+      streamingServices: [],
     });
   });
 
   it('does not expose continuity from summary payloads', () => {
     expect(mapMalAnime(animeDetailFixture).continuity).toEqual([]);
+  });
+
+  it('keeps streaming services empty because MAL does not provide them', () => {
+    expect(
+      mapMalAnime(animeDetailFixture, 'details').streamingServices,
+    ).toEqual([]);
   });
 
   it('uses safe nullable values when optional metadata is missing', () => {
