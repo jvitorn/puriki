@@ -17,6 +17,7 @@ module.exports = {
     'src/infrastructure/repositories/guest/**/*.ts',
     'src/infrastructure/repositories/mal/**/*.ts',
     'src/infrastructure/repositories/resilient/**/*.ts',
+    'src/infrastructure/sync/**/*.ts',
     'src/shared/utils/**/*.ts',
   ],
   coverageThreshold: {

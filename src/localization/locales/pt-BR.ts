@@ -111,6 +111,7 @@ export const ptBR = {
   'details.episodeProgress': 'Progresso dos episódios',
   'details.listStatus': 'Status da lista',
   'details.yourScore': 'Sua nota',
+  'details.completedScorePrompt': 'Anime concluído. Quer dar uma nota?',
   'details.updateFailed':
     'A atualização falhou. Os valores anteriores foram restaurados.',
   'details.synopsis': 'Sinopse',

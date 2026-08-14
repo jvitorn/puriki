@@ -4,6 +4,8 @@ coverage/
 dist/
 /android/
 /ios/
+modules/**/android/build/
+modules/**/android/.gradle/
 .DS_Store
 *.log
 

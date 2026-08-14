@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { useEffect } from 'react';
 import { Pressable, Text } from 'react-native';
 
@@ -14,6 +14,7 @@ import {
   createDefaultDependencies,
   createProductionDependencies,
   useRepositories,
+  useSyncStatus,
 } from '@/presentation/providers/repository-provider';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
@@ -31,6 +32,13 @@ function RepositoryProbe({
     <Pressable onPress={dependencies.clearCatalogCache}>
       <Text>Clear catalog</Text>
     </Pressable>
+  );
+}
+
+function SyncStatusProbe() {
+  const status = useSyncStatus();
+  return (
+    <Text>{`${status.pendingCount}:${status.failedCount}:${status.syncing}`}</Text>
   );
 }
 
@@ -131,7 +139,9 @@ describe('RepositoryProvider', () => {
       <RepositoryProbe onRepository={observeRepository} />,
       { dependencies, queryClient },
     );
-    rendered.rerender(<RepositoryProbe onRepository={observeRepository} />);
+    await rendered.rerender(
+      <RepositoryProbe onRepository={observeRepository} />,
+    );
     await fireEvent.press(screen.getByText('Clear catalog'));
 
     expect(observeRepository).toHaveBeenCalledTimes(1);
@@ -140,5 +150,34 @@ describe('RepositoryProvider', () => {
     expect(queryClient.getQueryData(queryKeys.continueWatching)).toBe(
       'guest data',
     );
+  });
+
+  it('exposes a stable sync status subscription to presentation', async () => {
+    const dependencies = createTestDependencies();
+    let status = dependencies.syncEngine.getStatus();
+    const listeners = new Set<() => void>();
+    dependencies.syncEngine = {
+      enqueue: jest.fn(async () => undefined),
+      processPending: jest.fn(async () => undefined),
+      getStatus: () => status,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+    await renderWithProviders(<SyncStatusProbe />, { dependencies });
+    expect(await screen.findByText('0:0:false')).toBeVisible();
+
+    await act(async () => {
+      status = {
+        pendingCount: 2,
+        failedCount: 1,
+        syncing: true,
+        storageError: false,
+      };
+      listeners.forEach((listener) => listener());
+    });
+
+    expect(await screen.findByText('2:1:true')).toBeVisible();
   });
 });

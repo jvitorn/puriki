@@ -11,6 +11,7 @@ import {
   InMemoryAnimeCatalogRepository,
   InMemoryUserAnimeListRepository,
 } from '@/tests/repositories/in-memory-anime-repositories';
+import { ImmediateUserAnimeSync } from '@/tests/sync/immediate-user-anime-sync';
 
 export interface TestRepositoryDependencies extends RepositoryDependencies {
   emitCatalogRuntimeStatus(status: CatalogRuntimeStatus): void;
@@ -40,9 +41,11 @@ export function createTestDependencies(
   let runtimeStatus = defaultRuntimeStatus();
   const listeners = new Set<(status: CatalogRuntimeStatus) => void>();
   const catalogRepository = new InMemoryAnimeCatalogRepository(dataset);
+  const userListRepository = new InMemoryUserAnimeListRepository(dataset);
   return {
     catalogRepository,
-    userListRepository: new InMemoryUserAnimeListRepository(dataset),
+    userListRepository,
+    syncEngine: new ImmediateUserAnimeSync(userListRepository),
     getCatalogRuntimeStatus: () => runtimeStatus,
     subscribeCatalogRuntimeStatus: (listener) => {
       listeners.add(listener);

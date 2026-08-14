@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useState,
@@ -9,7 +10,12 @@ import {
 import type { PropsWithChildren } from 'react';
 
 import { queryKeys } from '@/application/queries/query-keys';
+import type {
+  SyncTarget,
+  UserAnimeSync,
+} from '@/application/sync/user-anime-sync';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
+import type { PendingSyncStore } from '@/domain/repositories/pending-sync-store';
 import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
 import { createAniListClient } from '@/infrastructure/api/anilist/anilist-client';
 import {
@@ -35,6 +41,9 @@ import {
   type CatalogSuccessfulSource,
   type ResilientCatalogRuntimeSnapshot,
 } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
+import { AsyncStoragePendingSyncStore } from '@/infrastructure/sync/async-storage-pending-sync-store';
+import { SyncEngine } from '@/infrastructure/sync/sync-engine';
+import { UserAnimeListSyncTarget } from '@/infrastructure/sync/user-anime-list-sync-target';
 
 export interface CatalogOperationRuntimeStatus {
   circuitState: CircuitState;
@@ -52,6 +61,7 @@ export interface CatalogRuntimeStatus {
 export interface RepositoryDependencies {
   catalogRepository: AnimeCatalogRepository;
   userListRepository: UserAnimeListRepository;
+  syncEngine: UserAnimeSync;
   getCatalogRuntimeStatus(): CatalogRuntimeStatus;
   subscribeCatalogRuntimeStatus(
     listener: (status: CatalogRuntimeStatus) => void,
@@ -78,6 +88,8 @@ export interface ProductionDependenciesOptions {
   anilistCoordinator?: AniListRequestCoordinator;
   anilistDiagnosticSuite?: AniListDiagnosticSuite;
   malConfigured?: boolean;
+  pendingSyncStore?: PendingSyncStore;
+  syncTargets?: readonly SyncTarget[];
 }
 
 const RepositoryContext = createContext<RepositoryDependencies | null>(null);
@@ -164,9 +176,18 @@ export function createProductionDependencies(
   channel = createStatusChannel(
     runtimeStatusFromSnapshot(catalogRepository.getRuntimeSnapshot()),
   );
+  const userListRepository = new GuestUserAnimeListRepository(
+    catalogRepository,
+  );
+  const syncEngine = new SyncEngine(
+    options.pendingSyncStore ?? new AsyncStoragePendingSyncStore(),
+    options.syncTargets ?? [new UserAnimeListSyncTarget(userListRepository)],
+  );
+  void syncEngine.start();
   return {
     catalogRepository,
-    userListRepository: new GuestUserAnimeListRepository(catalogRepository),
+    userListRepository,
+    syncEngine,
     getCatalogRuntimeStatus: () => channel.get(),
     subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
     clearCatalogCache: () => catalogRepository.clearCache(),
@@ -226,4 +247,14 @@ export function useCatalogRuntimeStatus(): CatalogRuntimeStatus {
     getCatalogRuntimeStatus,
     getCatalogRuntimeStatus,
   );
+}
+
+export function useSyncStatus() {
+  const { syncEngine } = useRepositories();
+  const subscribe = useCallback(
+    (listener: () => void) => syncEngine.subscribe(listener),
+    [syncEngine],
+  );
+  const getSnapshot = useCallback(() => syncEngine.getStatus(), [syncEngine]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

@@ -111,6 +111,7 @@ export const es = {
   'details.episodeProgress': 'Progreso de episodios',
   'details.listStatus': 'Estado de la lista',
   'details.yourScore': 'Tu puntuación',
+  'details.completedScorePrompt': 'Anime completado. ¿Quieres puntuarlo?',
   'details.updateFailed':
     'La actualización falló. Se restauraron los valores anteriores.',
   'details.synopsis': 'Sinopsis',

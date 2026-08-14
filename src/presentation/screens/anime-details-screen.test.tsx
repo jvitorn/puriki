@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
@@ -67,6 +67,35 @@ describe('AnimeDetailsScreen', () => {
     );
   });
 
+  it('keeps progress controls responsive while persistence is pending', async () => {
+    const dependencies = createTestDependencies();
+    let finishPersistence: (() => void) | undefined;
+    dependencies.syncEngine.enqueue = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishPersistence = resolve;
+        }),
+    );
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      dependencies,
+    });
+
+    await fireEvent.press(
+      await screen.findByLabelText('Increase watched episodes'),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible(),
+    );
+    expect(screen.getByLabelText('Increase watched episodes')).toBeEnabled();
+    expect(dependencies.syncEngine.enqueue).toHaveBeenCalledWith({
+      animeId: 1,
+      type: 'SET_PROGRESS',
+      value: 2,
+    });
+
+    await act(async () => finishPersistence?.());
+  });
+
   it('updates and clears a score', async () => {
     await renderWithProviders(<AnimeDetailsScreen animeId={1} />);
     await waitFor(() =>
@@ -83,6 +112,29 @@ describe('AnimeDetailsScreen', () => {
       expect(
         screen.getByLabelText('Clear score').props.accessibilityState,
       ).toMatchObject({ selected: true, disabled: false }),
+    );
+  });
+
+  it('highlights rating after completion and hides the prompt after scoring', async () => {
+    const dataset = createTestScenario('default');
+    const entry = dataset.userEntries.find((item) => item.animeId === 1);
+    if (!entry) throw new Error('Expected a seeded list entry.');
+    entry.userScore = null;
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      dependencies: createTestDependencies(dataset),
+    });
+    await fireEvent.press(await screen.findByText('Completed'));
+    await waitFor(() =>
+      expect(
+        screen.getByText('Anime completed. Want to rate it?'),
+      ).toBeVisible(),
+    );
+
+    await fireEvent.press(screen.getByLabelText('Score 8'));
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Anime completed. Want to rate it?'),
+      ).not.toBeOnTheScreen(),
     );
   });
 

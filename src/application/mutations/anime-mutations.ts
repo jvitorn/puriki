@@ -284,7 +284,7 @@ export function useRemoveFromList() {
 
 export function useUpdateProgress() {
   const queryClient = useQueryClient();
-  const { userListRepository } = useRepositories();
+  const { syncEngine } = useRepositories();
   return useMutation({
     mutationFn: ({
       animeId,
@@ -292,21 +292,26 @@ export function useUpdateProgress() {
     }: {
       animeId: number;
       episodes: number;
-    }) => userListRepository.updateProgress(animeId, episodes),
+    }) =>
+      syncEngine.enqueue({
+        animeId,
+        type: 'SET_PROGRESS',
+        value: episodes,
+      }),
     onMutate: ({ animeId, episodes }) =>
       optimisticallyUpdate(queryClient, animeId, (current, total) =>
         applyProgress(current, episodes, total),
       ),
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
-    onSuccess: (nextEntry) =>
-      reconcileSuccessfulMutation(queryClient, nextEntry),
+    onSuccess: (_value, { animeId }) =>
+      invalidateMembershipCaches(queryClient, animeId),
   });
 }
 
 export function useUpdateStatus() {
   const queryClient = useQueryClient();
-  const { userListRepository } = useRepositories();
+  const { syncEngine } = useRepositories();
   return useMutation({
     mutationFn: ({
       animeId,
@@ -314,21 +319,21 @@ export function useUpdateStatus() {
     }: {
       animeId: number;
       status: AnimeListStatus;
-    }) => userListRepository.updateStatus(animeId, status),
+    }) => syncEngine.enqueue({ animeId, type: 'SET_STATUS', value: status }),
     onMutate: ({ animeId, status }) =>
       optimisticallyUpdate(queryClient, animeId, (current, total) =>
         transitionStatus(current, status, total),
       ),
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
-    onSuccess: (nextEntry) =>
-      reconcileSuccessfulMutation(queryClient, nextEntry),
+    onSuccess: (_value, { animeId }) =>
+      invalidateMembershipCaches(queryClient, animeId),
   });
 }
 
 export function useUpdateScore() {
   const queryClient = useQueryClient();
-  const { userListRepository } = useRepositories();
+  const { syncEngine } = useRepositories();
   return useMutation({
     mutationFn: ({
       animeId,
@@ -336,7 +341,7 @@ export function useUpdateScore() {
     }: {
       animeId: number;
       score: number | null;
-    }) => userListRepository.updateScore(animeId, score),
+    }) => syncEngine.enqueue({ animeId, type: 'SET_SCORE', value: score }),
     onMutate: ({ animeId, score }) =>
       optimisticallyUpdate(queryClient, animeId, (current) => ({
         ...current,
@@ -344,7 +349,7 @@ export function useUpdateScore() {
       })),
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
-    onSuccess: (nextEntry) =>
-      reconcileSuccessfulMutation(queryClient, nextEntry),
+    onSuccess: (_value, { animeId }) =>
+      invalidateMembershipCaches(queryClient, animeId),
   });
 }

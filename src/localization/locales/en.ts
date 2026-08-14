@@ -103,6 +103,7 @@ export const en = {
   'details.episodeProgress': 'Episode progress',
   'details.listStatus': 'List status',
   'details.yourScore': 'Your score',
+  'details.completedScorePrompt': 'Anime completed. Want to rate it?',
   'details.updateFailed': 'Update failed. Your previous values were restored.',
   'details.synopsis': 'Synopsis',
   'details.synopsisTranslation.translateWithGoogle': 'Translate with Google',

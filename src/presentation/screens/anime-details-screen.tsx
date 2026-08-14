@@ -130,12 +130,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   }
 
   const { anime, userEntry } = details.data;
-  const busy =
-    progress.isPending ||
-    status.isPending ||
-    score.isPending ||
-    addToList.isPending ||
-    removeFromList.isPending;
+  const busy = addToList.isPending || removeFromList.isPending;
 
   const confirmRemoval = () => {
     Alert.alert(
@@ -259,6 +254,12 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               <Text variant="caption" muted>
                 {t('details.yourScore')}
               </Text>
+              {userEntry.status === 'completed' &&
+              userEntry.userScore === null ? (
+                <Text className="text-primary">
+                  {t('details.completedScorePrompt')}
+                </Text>
+              ) : null}
               <AnimeScoreSelector
                 value={userEntry.userScore}
                 disabled={busy}

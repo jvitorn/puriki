@@ -84,6 +84,12 @@ Before authentication, `GuestUserAnimeListRepository` builds a small temporary l
 
 Membership is explicit: adding creates a Plan to Watch entry; progress, status, and score updates require membership; removal does not remove catalog metadata. Guest data is discarded when the process restarts. No authenticated account endpoint is used.
 
+## Pending change synchronization
+
+Progress, status, and score changes update React Query immediately and are persisted in a dedicated AsyncStorage queue before delivery. A small Sync Engine coalesces repeated changes to the same anime field, waits for 400 ms of inactivity, tracks success independently per target, and retains failed work for conservative retry. The queue is separate from catalog caches and is restored when the dependency graph is rebuilt.
+
+The current target applies changes to the guest-list repository. Provider-neutral target and operation contracts leave explicit extension points for future authenticated AniList and MyAnimeList targets without adding OAuth or credentials in this phase.
+
 ## Localization and synopsis translation
 
 The complete interface is available in English, Brazilian Portuguese, and Spanish. Settings offers those choices plus System default. The preference is stored with AsyncStorage and changing it does not clear or refetch catalog data.
@@ -95,6 +101,7 @@ On Android Development/Release Builds, Portuguese and Spanish users can explicit
 - `domain` owns provider-neutral models, repository contracts, errors, and rules.
 - `application` owns React Query hooks, mutations, and use cases.
 - `infrastructure` owns AniList and MAL transports, DTO validation, mapping, caches, request coordination, circuit breaking, and repositories.
+- `infrastructure/sync` owns pending-operation persistence, coalescing, retry, and concrete sync targets.
 - `presentation` receives repositories through `RepositoryProvider` and consumes domain models only.
 - `tests` owns deterministic fixtures and in-memory repository doubles.
 - `modules/purikuki-translation` owns the Android Expo Modules bridge to Google ML Kit.
@@ -104,12 +111,13 @@ src/infrastructure/
 ├── api/
 │   ├── anilist/
 │   └── mal/
-└── repositories/
-    ├── anilist/
-    ├── mal/
-    ├── resilient/
-    ├── catalog/
-    └── guest/
+├── repositories/
+│   ├── anilist/
+│   ├── mal/
+│   ├── resilient/
+│   ├── catalog/
+│   └── guest/
+└── sync/
 ```
 
 Normal application screens do not call `fetch`, consume provider DTOs, or construct repositories.
@@ -162,7 +170,7 @@ npm run test:ci
 - Public catalog availability and artwork depend on AniList or the configured MAL fallback.
 - AniList media without `idMal` cannot enter the current domain model.
 - On-device synopsis translation is Android-only and may require a one-time Wi-Fi model download.
-- MAL OAuth, login, profile access, list synchronization, offline mutation storage, a backend, and E2E tests are out of scope.
+- MAL OAuth, login, profile access, authenticated provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
 - Purikuki is not affiliated with AniList or MyAnimeList.
 
 ## Troubleshooting
