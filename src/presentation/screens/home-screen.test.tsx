@@ -20,7 +20,8 @@ describe('HomeScreen partial failures', () => {
     await waitFor(() =>
       expect(screen.getByText('Continue Watching')).toBeVisible(),
     );
-    expect(screen.getByText('PURIKI')).toBeVisible();
+    expect(screen.getByLabelText('Puriki')).toBeVisible();
+    expect(screen.queryByText('PURIKI')).not.toBeOnTheScreen();
     expect(getPage).toHaveBeenCalledTimes(1);
     expect(getPage).toHaveBeenCalledWith({
       page: 1,

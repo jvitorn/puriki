@@ -131,7 +131,7 @@ export function LocalizationProvider({
         className="flex-1 items-center justify-center"
         style={{ backgroundColor: colors.background }}
       >
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.primaryEmphasis} />
       </View>
     );
   }

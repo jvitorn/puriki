@@ -11,6 +11,7 @@ import {
 } from '@/application/queries/anime-queries';
 import type { AnimeCatalogItem, UnifiedAnime } from '@/domain/models/anime';
 import { localizedError } from '@/localization/localized-values';
+import { PurikiLogo } from '@/presentation/components/branding/puriki-logo';
 import { FeaturedAnime } from '@/presentation/components/home/featured-anime';
 import { HomeAnimeRail } from '@/presentation/components/home/home-anime-rail';
 import { ErrorState } from '@/presentation/components/ui/feedback';
@@ -26,9 +27,7 @@ function HomeBrand() {
   const { t } = useTranslation();
   return (
     <View className="min-h-20 justify-center py-3">
-      <Text variant="title" className="tracking-[3px] text-primary">
-        PURIKI
-      </Text>
+      <PurikiLogo variant="horizontal" colorScheme="dark" height={32} />
       <Text variant="caption" muted>
         {t('home.tagline')}
       </Text>

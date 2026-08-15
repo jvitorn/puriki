@@ -171,14 +171,17 @@ export function SettingsScreen({
                 }}
                 className={cn(
                   'min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 active:opacity-80',
-                  selected && 'border-primary bg-primary/10',
+                  selected && 'border-primary-emphasis bg-primary/10',
                   isChangingLanguage && 'opacity-60',
                 )}
                 disabled={isChangingLanguage}
                 onPress={() => void setPreference(option.value)}
               >
                 <Text
-                  className={cn('flex-1 font-bold', selected && 'text-primary')}
+                  className={cn(
+                    'flex-1 font-bold',
+                    selected && 'text-primary-emphasis',
+                  )}
                 >
                   {label}
                 </Text>
@@ -219,7 +222,7 @@ export function SettingsScreen({
               accessibilityLiveRegion="polite"
               accessibilityRole="alert"
               variant="caption"
-              className="text-primary"
+              className="text-primary-emphasis"
             >
               {feedbackText}
             </Text>

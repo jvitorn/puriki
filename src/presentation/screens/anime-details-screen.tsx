@@ -257,7 +257,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               </Text>
               {userEntry.status === 'completed' &&
               userEntry.userScore === null ? (
-                <Text className="text-primary">
+                <Text className="text-primary-emphasis">
                   {t('details.completedScorePrompt')}
                 </Text>
               ) : null}

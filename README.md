@@ -6,7 +6,7 @@ Puriki is a dark-first React Native anime list manager built with Expo. It combi
 
 The Expo identity is `Puriki`, with slug and URL scheme `puriki`. The Android application identifier is `com.jvitorn.puriki`; this migration is safe because the project has no EAS binding, store publication, provider callback, or committed native project tied to the former identifier.
 
-Native branding uses the normalized assets in `assets/app-icon/` and `assets/splash/`. Original brand masters remain in `assets/brand/source/`, while presentation-ready vectors live in `assets/brand/svg/`. The official dark background is `#090C11`. The new brand color is `#970C10`, documented for a future theme review and intentionally not applied to the current palette in this migration.
+Native branding uses the normalized assets in `assets/app-icon/` and `assets/splash/`. Original brand masters remain in `assets/brand/source/`, while presentation-ready vectors live in `assets/brand/svg/`. The official dark background is `#090C11`, and the brand red `#970C10` is the semantic primary. A lighter red is reserved for small text, focus rings, and active icons that require stronger contrast; the existing purple secondary remains available.
 
 Legacy technical identifiers such as `purikuki:` AsyncStorage keys and the `modules/purikuki-translation` native bridge remain unchanged to preserve persisted data and avoid an unrelated native-module migration. They do not represent the visible product name.
 

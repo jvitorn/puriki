@@ -4,6 +4,7 @@ module.exports = {
   testPathIgnorePatterns: ['/node_modules/', '/.expo/'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '\\.svg$': '<rootDir>/src/tests/mocks/svg-mock.tsx',
   },
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@rn-primitives/.*|expo(nent)?|@expo(nent)?/.*|expo-.*|@expo/.*|@react-navigation/.*|react-native-svg|nativewind|react-native-css-interop)/)',
