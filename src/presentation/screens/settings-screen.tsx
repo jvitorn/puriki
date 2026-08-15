@@ -206,7 +206,7 @@ export function SettingsScreen({
       <SettingsSection title={t('settings.about')}>
         <Card className="gap-3 border-0 p-4 py-4">
           <View className="flex-row items-center justify-between gap-3">
-            <Text className="font-bold">Purikuki</Text>
+            <Text className="font-bold">Puriki</Text>
             <Badge variant="outline">
               <Text>{t('settings.version', { version: appVersion })}</Text>
             </Badge>

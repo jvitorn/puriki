@@ -1,6 +1,14 @@
-# Purikuki
+# Puriki
 
-Purikuki is a dark-first React Native anime list manager built with Expo. It combines a resilient public anime catalog with a temporary guest list that exists only for the current application process.
+Puriki is a dark-first React Native anime list manager built with Expo. It combines a resilient public anime catalog with a temporary guest list that exists only for the current application process.
+
+## Product identity
+
+The Expo identity is `Puriki`, with slug and URL scheme `puriki`. The Android application identifier is `com.jvitorn.puriki`; this migration is safe because the project has no EAS binding, store publication, provider callback, or committed native project tied to the former identifier.
+
+Native branding uses the normalized assets in `assets/app-icon/` and `assets/splash/`. Original brand masters remain in `assets/brand/source/`, while presentation-ready vectors live in `assets/brand/svg/`. The official dark background is `#090C11`. The new brand color is `#970C10`, documented for a future theme review and intentionally not applied to the current palette in this migration.
+
+Legacy technical identifiers such as `purikuki:` AsyncStorage keys and the `modules/purikuki-translation` native bridge remain unchanged to preserve persisted data and avoid an unrelated native-module migration. They do not represent the visible product name.
 
 ## Production catalog
 
@@ -10,7 +18,7 @@ Catalog routing is infrastructure behavior, not a user preference:
 AniList primary → eligible failure → public MAL fallback → valid cache
 ```
 
-AniList is queried through the public GraphQL endpoint at `https://graphql.anilist.co`. Purikuki keeps its current domain identity based on MyAnimeList IDs: AniList media and continuity relations without a valid `idMal` are skipped. This avoids a premature domain-wide identity migration while allowing AniList artwork and metadata to power the product.
+AniList is queried through the public GraphQL endpoint at `https://graphql.anilist.co`. Puriki keeps its current domain identity based on MyAnimeList IDs: AniList media and continuity relations without a valid `idMal` are skipped. This avoids a premature domain-wide identity migration while allowing AniList artwork and metadata to power the product.
 
 The AniList integration provides:
 
@@ -61,7 +69,7 @@ Restart Metro after changing `.env`:
 npx expo start --clear
 ```
 
-MAL requests use React Native's global `fetch`, a 12-second timeout, `Accept: application/json`, and `X-MAL-CLIENT-ID`. The Client ID is never rendered or logged. Do not put a MAL Client Secret in a React Native bundle. Purikuki does not implement MAL OAuth, user profiles, or list synchronization.
+MAL requests use React Native's global `fetch`, a 12-second timeout, `Accept: application/json`, and `X-MAL-CLIENT-ID`. The Client ID is never rendered or logged. Do not put a MAL Client Secret in a React Native bundle. Puriki does not implement MAL OAuth, user profiles, or list synchronization.
 
 The fallback uses the official API v2 search, anime details, popularity ranking, upcoming ranking, and current-season endpoints. It maps provider DTOs into the same `AnimeCatalogItem` contract and supplies Prequel/Sequel continuity from `related_anime`. See the [official MyAnimeList API v2 reference](https://myanimelist.net/apiconfig/references/api/v2).
 
@@ -94,7 +102,7 @@ The current target applies changes to the guest-list repository. Provider-neutra
 
 The complete interface is available in English, Brazilian Portuguese, and Spanish. Settings offers those choices plus System default. The preference is stored with AsyncStorage and changing it does not clear or refetch catalog data.
 
-On Android Development/Release Builds, Portuguese and Spanish users can explicitly translate an English synopsis with Google ML Kit on device. Purikuki preserves the original provider synopsis, caches source-aware translations, and displays Google's official unmodified attribution badge. Expo Go, web, and iOS keep the original synopsis.
+On Android Development/Release Builds, Portuguese and Spanish users can explicitly translate an English synopsis with Google ML Kit on device. Puriki preserves the original provider synopsis, caches source-aware translations, and displays Google's official unmodified attribution badge. Expo Go, web, and iOS keep the original synopsis.
 
 ## Architecture
 
@@ -139,7 +147,7 @@ npm run ios
 npm run web
 ```
 
-Synopsis translation needs a Purikuki Development Build because Expo Go cannot execute the local native module:
+Synopsis translation needs a Puriki Development Build because Expo Go cannot execute the local native module:
 
 ```bash
 npm install
@@ -147,7 +155,7 @@ npx expo run:android --device
 npm run start:dev-client
 ```
 
-The persistent Android application identifier is `com.jvitorn.purikuki`. Generated `android/` and `ios/` directories are intentionally not committed.
+The persistent Android application identifier is `com.jvitorn.puriki`. Generated `android/` and `ios/` directories are intentionally not committed.
 
 ## Quality commands
 
@@ -171,7 +179,7 @@ npm run test:ci
 - AniList media without `idMal` cannot enter the current domain model.
 - On-device synopsis translation is Android-only and may require a one-time Wi-Fi model download.
 - MAL OAuth, login, profile access, authenticated provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
-- Purikuki is not affiliated with AniList or MyAnimeList.
+- Puriki is not affiliated with AniList or MyAnimeList.
 
 ## Troubleshooting
 

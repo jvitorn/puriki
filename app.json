@@ -1,17 +1,32 @@
 {
   "expo": {
-    "name": "Purikuki",
-    "slug": "purikuki",
+    "name": "Puriki",
+    "slug": "puriki",
     "description": "Anime list manager with on-demand synopsis translation powered by Google Translate.",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "scheme": "purikuki",
+    "scheme": "puriki",
+    "icon": "./assets/app-icon/puriki-app-icon-1024.png",
     "android": {
-      "package": "com.jvitorn.purikuki"
+      "package": "com.jvitorn.puriki",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon/puriki-adaptive-foreground-1024.png",
+        "backgroundColor": "#090C11",
+        "monochromeImage": "./assets/app-icon/puriki-monochrome-foreground-1024.png"
+      }
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash/puriki-splash-mark-dark-512.png",
+          "backgroundColor": "#090C11",
+          "resizeMode": "contain",
+          "imageWidth": 180
+        }
+      ],
       [
         "expo-localization",
         {

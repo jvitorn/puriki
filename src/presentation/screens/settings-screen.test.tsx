@@ -327,6 +327,8 @@ describe('SettingsScreen', () => {
     const resetQueries = jest.spyOn(queryClient, 'resetQueries');
     const invalidateQueries = jest.spyOn(queryClient, 'invalidateQueries');
 
+    expect(screen.getByText('Puriki')).toBeVisible();
+
     await fireEvent.press(screen.getByLabelText('Português (Brasil)'));
     await waitFor(() =>
       expect(screen.getByText('Configurações')).toBeVisible(),

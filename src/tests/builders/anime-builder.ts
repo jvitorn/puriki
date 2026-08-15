@@ -20,7 +20,7 @@ export function makeAnime(
     alternativeTitles: [`Anime ${id} Alternative`],
     synopsis: `Synopsis for Anime ${id}.`,
     genres: ['Adventure', 'Fantasy'],
-    studios: ['Purikuki Test Studio'],
+    studios: ['Puriki Test Studio'],
     totalEpisodes: 12,
     score: 8,
     season: 'Spring',

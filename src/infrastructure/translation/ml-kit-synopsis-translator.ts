@@ -62,7 +62,7 @@ export class MlKitSynopsisTranslator implements SynopsisTranslator {
     if (!this.nativeModule) {
       throw new SynopsisTranslationError(
         'translator_unavailable',
-        'The Purikuki native translation module is unavailable.',
+        'The Puriki native translation module is unavailable.',
       );
     }
     if (request.text.trim().length === 0) {

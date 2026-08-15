@@ -166,7 +166,7 @@ export const en = {
   'settings.disconnectedAvatar': 'Disconnected account avatar',
   'settings.language': 'Language',
   'settings.languageDescription':
-    "Changes Purikuki's interface language. Anime titles remain in their original catalog language; synopsis translation is available on demand.",
+    "Changes Puriki's interface language. Anime titles remain in their original catalog language; synopsis translation is available on demand.",
   'settings.languageSystem': 'System default',
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',

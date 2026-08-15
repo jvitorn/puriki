@@ -27,7 +27,7 @@ function HomeBrand() {
   return (
     <View className="min-h-20 justify-center py-3">
       <Text variant="title" className="tracking-[3px] text-primary">
-        PURIKUKI
+        PURIKI
       </Text>
       <Text variant="caption" muted>
         {t('home.tagline')}

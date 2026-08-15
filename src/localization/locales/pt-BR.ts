@@ -174,7 +174,7 @@ export const ptBR = {
   'settings.disconnectedAvatar': 'Avatar de conta desconectada',
   'settings.language': 'Idioma',
   'settings.languageDescription':
-    'Altera o idioma da interface do Purikuki. Os títulos continuam no idioma do catálogo; a tradução de sinopses fica disponível sob demanda.',
+    'Altera o idioma da interface do Puriki. Os títulos continuam no idioma do catálogo; a tradução de sinopses fica disponível sob demanda.',
   'settings.languageSystem': 'Padrão do sistema',
   'settings.languageEnglish': 'English',
   'settings.languagePortuguese': 'Português (Brasil)',
