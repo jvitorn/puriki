@@ -1,0 +1,125 @@
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import type { ReactNode } from 'react';
+
+import {
+  onboardingStorage,
+  type OnboardingStorage,
+} from '@/infrastructure/storage/onboarding-storage';
+import { colors } from '@/presentation/theme/tokens';
+
+type OnboardingStatus = 'unknown' | 'completed' | 'notCompleted';
+
+interface OnboardingContextValue {
+  completeOnboarding(): Promise<void>;
+}
+
+interface SplashController {
+  hideAsync(): Promise<void>;
+}
+
+interface OnboardingNavigatorProps {
+  storage?: OnboardingStorage;
+  splash?: SplashController;
+}
+
+interface OnboardingGateProps extends OnboardingNavigatorProps {
+  children(status: Exclude<OnboardingStatus, 'unknown'>): ReactNode;
+}
+
+const OnboardingContext = createContext<OnboardingContextValue | null>(null);
+
+export function OnboardingGate({
+  children,
+  storage = onboardingStorage,
+  splash = SplashScreen,
+}: OnboardingGateProps) {
+  const [status, setStatus] = useState<OnboardingStatus>('unknown');
+
+  useEffect(() => {
+    let active = true;
+    void storage
+      .hasCompleted()
+      .then((completed) => {
+        if (active) setStatus(completed ? 'completed' : 'notCompleted');
+      })
+      .catch(() => {
+        if (active) setStatus('notCompleted');
+      });
+    return () => {
+      active = false;
+    };
+  }, [storage]);
+
+  useEffect(() => {
+    if (status !== 'unknown') void splash.hideAsync().catch(() => undefined);
+  }, [splash, status]);
+
+  const completeOnboarding = useCallback(async () => {
+    try {
+      await storage.markCompleted();
+    } catch {
+      // Do not trap the user in onboarding when local persistence is unavailable.
+    } finally {
+      setStatus('completed');
+    }
+  }, [storage]);
+
+  const value = useMemo<OnboardingContextValue>(
+    () => ({ completeOnboarding }),
+    [completeOnboarding],
+  );
+
+  if (status === 'unknown') return null;
+
+  return (
+    <OnboardingContext.Provider value={value}>
+      {children(status)}
+    </OnboardingContext.Provider>
+  );
+}
+
+export function OnboardingNavigator(props: OnboardingNavigatorProps = {}) {
+  return (
+    <OnboardingGate {...props}>
+      {(status) => (
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
+          <Stack.Protected guard={status === 'notCompleted'}>
+            <Stack.Screen name="onboarding/index" />
+          </Stack.Protected>
+          <Stack.Protected guard={status === 'completed'}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="anime/[id]"
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen name="+not-found" />
+          </Stack.Protected>
+        </Stack>
+      )}
+    </OnboardingGate>
+  );
+}
+
+export function useOnboardingCompletion(): OnboardingContextValue {
+  const context = useContext(OnboardingContext);
+  if (!context) {
+    throw new Error(
+      'useOnboardingCompletion must be used inside OnboardingNavigator.',
+    );
+  }
+  return context;
+}

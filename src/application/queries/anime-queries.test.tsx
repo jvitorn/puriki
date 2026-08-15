@@ -155,7 +155,7 @@ describe('React Query integration', () => {
     expect(fallback.getManyByIds).not.toHaveBeenCalled();
   });
 
-  it('renders the session-generated My List page with zero detail traffic', async () => {
+  it('renders an empty guest My List page with zero detail traffic', async () => {
     const dataset = buildUserListDataset({ size: 30 });
     const dependencies = createTestDependencies(dataset);
     const primary = createCatalogMock(dataset.catalog);
@@ -167,14 +167,19 @@ describe('React Query integration', () => {
     dependencies.catalogRepository = catalogRepository;
     dependencies.userListRepository = new GuestUserAnimeListRepository(
       catalogRepository,
-      { random: () => 0.25 },
     );
     const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
       wrapper: createTestWrapper(dependencies),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data?.pages[0]?.items).toHaveLength(23);
+    expect(result.current.data?.pages[0]).toMatchObject({
+      items: [],
+      page: 1,
+      nextPage: null,
+      totalCount: 0,
+    });
+    expect(result.current.hasNextPage).toBe(false);
     expect(primary.getDetailsById).not.toHaveBeenCalled();
     expect(fallback.getDetailsById).not.toHaveBeenCalled();
     expect(primary.getManyByIds).not.toHaveBeenCalled();

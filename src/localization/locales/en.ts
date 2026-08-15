@@ -22,6 +22,36 @@ export const en = {
   'common.banner': 'Banner for {{title}}',
   'common.nothingToShow': 'Nothing to show yet.',
   'common.loadingContent': 'Loading content',
+  'onboarding.back': 'Go back',
+  'onboarding.posterFallback': 'Anime',
+  'onboarding.episodeMarked': 'Episode marked',
+  'onboarding.welcomeTitle': 'Your anime. Your lists. One place.',
+  'onboarding.welcomeDescription':
+    'Follow what you watch and keep your journey organized.',
+  'onboarding.getStarted': 'Get started',
+  'onboarding.illustrationUnifiedList': 'Your lists together',
+  'onboarding.illustrationOrganizedLists': 'Your lists organized',
+  'onboarding.stepListsTitle': 'Your lists, all in one place.',
+  'onboarding.stepListsDescription':
+    'Keep track of your anime without switching between services.',
+  'onboarding.stepProgressTitle': 'Updating your progress should be simple.',
+  'onboarding.stepProgressDescription':
+    'Find your anime, mark episodes, and organize your list in just a few taps.',
+  'onboarding.stepServicesTitle': 'Using more than one service?',
+  'onboarding.stepServicesDescription':
+    'Puriki can help keep your lists organized.',
+  'onboarding.stepA11y': 'Step {{current}} of {{total}}',
+  'onboarding.continue': 'Continue',
+  'onboarding.providersTitle': "Where's your list?",
+  'onboarding.providersDescription':
+    'Choose the service you already use. You can connect another later.',
+  'onboarding.connectAccount': 'Connect your account',
+  'onboarding.moreServices': 'More services in the future',
+  'onboarding.or': 'OR',
+  'onboarding.entering': 'Entering…',
+  'onboarding.continueGuest': 'Continue without an account',
+  'onboarding.guestWarning':
+    'Try Puriki without connecting an account. Your data stays only on this device for now and may be lost.',
   'status.watching': 'Watching',
   'status.completed': 'Completed',
   'status.onHold': 'On Hold',
@@ -83,6 +113,8 @@ export const en = {
   'myList.retryMore': 'Retry loading more anime',
   'myList.empty': 'No {{filter}} anime',
   'myList.emptyMessage': 'Anime in this category will appear here.',
+  'myList.emptyAll': 'Your list is empty.',
+  'myList.emptyAllMessage': 'Explore anime and add what you want to watch.',
   'details.goBack': 'Go back',
   'details.notFound': 'Anime not found',
   'details.notAvailable':

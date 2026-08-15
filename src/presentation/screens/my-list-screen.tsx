@@ -168,10 +168,18 @@ export function MyListScreen() {
           ItemSeparatorComponent={() => <View className="h-2" />}
           ListEmptyComponent={
             <EmptyState
-              title={t('myList.empty', {
-                filter: filterLabel.toLocaleLowerCase(),
-              })}
-              message={t('myList.emptyMessage')}
+              title={
+                filter === 'all'
+                  ? t('myList.emptyAll')
+                  : t('myList.empty', {
+                      filter: filterLabel.toLocaleLowerCase(),
+                    })
+              }
+              message={
+                filter === 'all'
+                  ? t('myList.emptyAllMessage')
+                  : t('myList.emptyMessage')
+              }
             />
           }
           ListFooterComponent={listFooter}

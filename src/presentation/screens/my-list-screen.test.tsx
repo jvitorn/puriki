@@ -52,6 +52,21 @@ describe('MyListScreen', () => {
     expect(screen.getByText('0 anime • Completed')).toBeVisible();
   });
 
+  it('shows the dedicated empty state for a new guest list', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 0 }),
+    );
+    await renderWithProviders(<MyListScreen />, { dependencies });
+
+    await waitFor(() =>
+      expect(screen.getByText('Your list is empty.')).toBeVisible(),
+    );
+    expect(
+      screen.getByText('Explore anime and add what you want to watch.'),
+    ).toBeVisible();
+    expect(screen.getByText('0 anime • All')).toBeVisible();
+  });
+
   it('loads a 250-entry list one page at a time near the end', async () => {
     const dependencies = createTestDependencies(
       buildUserListDataset({ size: 250 }),

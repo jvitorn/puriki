@@ -27,6 +27,36 @@ export const ptBR = {
   'common.bannerPlaceholder': 'Espaço reservado do banner de {{title}}',
   'common.banner': 'Banner de {{title}}',
   'common.nothingToShow': 'Nada para mostrar ainda.',
+  'onboarding.back': 'Voltar',
+  'onboarding.posterFallback': 'Anime',
+  'onboarding.episodeMarked': 'Episódio marcado',
+  'onboarding.welcomeTitle': 'Seus animes. Suas listas. Um só lugar.',
+  'onboarding.welcomeDescription':
+    'Acompanhe o que você assiste e mantenha sua jornada organizada.',
+  'onboarding.getStarted': 'Começar',
+  'onboarding.illustrationUnifiedList': 'Suas listas juntas',
+  'onboarding.illustrationOrganizedLists': 'Suas listas organizadas',
+  'onboarding.stepListsTitle': 'Suas listas, em um só lugar.',
+  'onboarding.stepListsDescription':
+    'Acompanhe seus animes sem precisar alternar entre serviços.',
+  'onboarding.stepProgressTitle': 'Atualizar seu progresso deve ser simples.',
+  'onboarding.stepProgressDescription':
+    'Encontre seus animes, marque episódios e organize sua lista em poucos toques.',
+  'onboarding.stepServicesTitle': 'Usa mais de um serviço?',
+  'onboarding.stepServicesDescription':
+    'O Puriki pode ajudar a manter suas listas organizadas.',
+  'onboarding.stepA11y': 'Passo {{current}} de {{total}}',
+  'onboarding.continue': 'Continuar',
+  'onboarding.providersTitle': 'Onde está sua lista?',
+  'onboarding.providersDescription':
+    'Escolha o serviço que você já usa. Você poderá conectar outro depois.',
+  'onboarding.connectAccount': 'Conectar sua conta',
+  'onboarding.moreServices': 'Mais serviços no futuro',
+  'onboarding.or': 'OU',
+  'onboarding.entering': 'Entrando…',
+  'onboarding.continueGuest': 'Continuar sem conta',
+  'onboarding.guestWarning':
+    'Experimente o Puriki sem conectar uma conta. Seus dados ficam apenas neste dispositivo por enquanto e podem ser perdidos.',
   'status.watching': 'Assistindo',
   'status.completed': 'Concluídos',
   'status.onHold': 'Em espera',
@@ -90,6 +120,9 @@ export const ptBR = {
   'myList.retryMore': 'Tentar carregar mais animes novamente',
   'myList.empty': 'Nenhum anime em {{filter}}',
   'myList.emptyMessage': 'Os animes desta categoria aparecerão aqui.',
+  'myList.emptyAll': 'Sua lista está vazia.',
+  'myList.emptyAllMessage':
+    'Explore animes e adicione o que você quer assistir.',
   'details.goBack': 'Voltar',
   'details.notFound': 'Anime não encontrado',
   'details.notAvailable': 'Este título não está disponível no catálogo ativo.',
