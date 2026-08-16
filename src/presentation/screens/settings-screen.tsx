@@ -1,6 +1,12 @@
+import { ChevronDown, ChevronUp, Languages, Moon } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, Pressable, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  ReduceMotion,
+} from 'react-native-reanimated';
 
 import AniListIcon from '../../../assets/providers/anilist.png';
 import MyAnimeListIcon from '../../../assets/providers/myanimelist.png';
@@ -16,6 +22,8 @@ import { DeveloperToolsPanel } from '@/presentation/components/settings/develope
 import { Badge } from '@/presentation/components/ui/badge';
 import { Button } from '@/presentation/components/ui/button';
 import { Card } from '@/presentation/components/ui/card';
+import { Icon } from '@/presentation/components/ui/icon';
+import { MotionPressable } from '@/presentation/components/ui/motion-pressable';
 import {
   RadioGroup,
   RadioGroupItem,
@@ -51,7 +59,9 @@ function SettingsSection({
   return (
     <View className="gap-3">
       <View className="gap-1">
-        <Text variant="heading">{title}</Text>
+        <Text className="text-xs font-black uppercase tracking-[1.5px] text-muted-foreground">
+          {title}
+        </Text>
         {description ? <Text muted>{description}</Text> : null}
       </View>
       {children}
@@ -67,9 +77,7 @@ function AccountSettings() {
   const connected = connection.state === 'connected';
 
   const status = connected
-    ? t('auth.connectedAs', {
-        username: connection.account?.username ?? t('common.unknown'),
-      })
+    ? t('settings.connectedWith', { provider: t('auth.anilist') })
     : connection.canRetry
       ? t('auth.validationPending')
       : connection.state === 'reconnect_required'
@@ -182,6 +190,7 @@ export function SettingsScreen({
   const { isChangingLanguage, preference, setPreference } = useAppLanguage();
   const appVersion = useMemo(() => versionReader(), [versionReader]);
   const [developerToolsEnabled, setDeveloperToolsEnabled] = useState(false);
+  const [languageExpanded, setLanguageExpanded] = useState(false);
   const [unlockFeedback, setUnlockFeedback] = useState<UnlockFeedback>(null);
   const tapCount = useRef(0);
   const developerPreferenceChanged = useRef(false);
@@ -251,6 +260,15 @@ export function SettingsScreen({
         : unlockFeedback === 'enabled'
           ? t('settings.developerEnabled')
           : null;
+  const selectedLanguage = LANGUAGE_OPTIONS.find(
+    (option) => option.value === preference,
+  );
+
+  const applyLanguage = async (next: LanguagePreference) => {
+    if (isChangingLanguage) return;
+    await setPreference(next);
+    setLanguageExpanded(false);
+  };
 
   return (
     <Screen scroll contentClassName="gap-8 pt-2">
@@ -262,54 +280,93 @@ export function SettingsScreen({
         <AccountSettings />
       </SettingsSection>
 
-      <SettingsSection
-        title={t('settings.language')}
-        description={t('settings.languageDescription')}
-      >
-        <RadioGroup
-          value={preference}
-          onValueChange={(value) => {
-            if (!isChangingLanguage)
-              void setPreference(value as LanguagePreference);
-          }}
-        >
-          {LANGUAGE_OPTIONS.map((option) => {
-            const label = t(option.labelKey);
-            const selected = preference === option.value;
-            return (
-              <Pressable
-                key={option.value}
-                accessibilityRole="radio"
-                accessibilityLabel={label}
-                accessibilityState={{
-                  checked: selected,
-                  disabled: isChangingLanguage,
-                }}
-                className={cn(
-                  'min-h-14 flex-row items-center gap-3 rounded-xl border border-border bg-card px-4 active:opacity-80',
-                  selected && 'border-primary-emphasis bg-primary/10',
-                  isChangingLanguage && 'opacity-60',
-                )}
-                disabled={isChangingLanguage}
-                onPress={() => void setPreference(option.value)}
+      <SettingsSection title={t('settings.preferences')}>
+        <Card className="gap-0 overflow-hidden border-0 p-0 py-0">
+          <MotionPressable
+            accessibilityLabel={t('settings.language')}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: languageExpanded }}
+            className="min-h-16 flex-row items-center gap-3 px-4"
+            onPress={() => setLanguageExpanded((current) => !current)}
+          >
+            <Icon as={Languages} className="size-5 text-muted-foreground" />
+            <View className="flex-1">
+              <Text className="font-bold">{t('settings.language')}</Text>
+              <Text variant="caption" muted>
+                {selectedLanguage
+                  ? t(selectedLanguage.labelKey)
+                  : t('settings.languageSystem')}
+              </Text>
+            </View>
+            <Icon
+              as={languageExpanded ? ChevronUp : ChevronDown}
+              className="size-5 text-muted-foreground"
+            />
+          </MotionPressable>
+
+          {languageExpanded ? (
+            <Animated.View
+              entering={FadeIn.duration(260).reduceMotion(ReduceMotion.System)}
+              exiting={FadeOut.duration(260).reduceMotion(ReduceMotion.System)}
+              className="border-t border-border px-3 py-2"
+            >
+              <RadioGroup
+                value={preference}
+                onValueChange={(value) =>
+                  void applyLanguage(value as LanguagePreference)
+                }
               >
-                <Text
-                  className={cn(
-                    'flex-1 font-bold',
-                    selected && 'text-primary-emphasis',
-                  )}
-                >
-                  {label}
-                </Text>
-                <RadioGroupItem
-                  accessible={false}
-                  pointerEvents="none"
-                  value={option.value}
-                />
-              </Pressable>
-            );
-          })}
-        </RadioGroup>
+                {LANGUAGE_OPTIONS.map((option) => {
+                  const label = t(option.labelKey);
+                  const selected = preference === option.value;
+                  return (
+                    <MotionPressable
+                      key={option.value}
+                      accessibilityRole="radio"
+                      accessibilityLabel={label}
+                      accessibilityState={{
+                        checked: selected,
+                        disabled: isChangingLanguage,
+                      }}
+                      className={cn(
+                        'min-h-12 flex-row items-center gap-3 rounded-lg px-3',
+                        selected && 'bg-primary/10',
+                        isChangingLanguage && 'opacity-60',
+                      )}
+                      disabled={isChangingLanguage}
+                      onPress={() => void applyLanguage(option.value)}
+                    >
+                      <Text
+                        className={cn(
+                          'flex-1 font-semibold',
+                          selected && 'text-primary-emphasis',
+                        )}
+                      >
+                        {label}
+                      </Text>
+                      <RadioGroupItem
+                        accessible={false}
+                        pointerEvents="none"
+                        value={option.value}
+                      />
+                    </MotionPressable>
+                  );
+                })}
+              </RadioGroup>
+            </Animated.View>
+          ) : null}
+
+          <View className="mx-4 h-px bg-border" />
+          <View
+            accessible
+            accessibilityLabel={`${t('settings.theme')}, ${t('settings.themeDark')}`}
+            className="min-h-16 flex-row items-center gap-3 px-4"
+          >
+            <Icon as={Moon} className="size-5 text-muted-foreground" />
+            <Text className="flex-1 font-bold">{t('settings.theme')}</Text>
+            <Text muted>{t('settings.themeDark')}</Text>
+          </View>
+        </Card>
         {isChangingLanguage ? (
           <Text
             accessibilityLiveRegion="polite"

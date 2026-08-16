@@ -95,6 +95,9 @@ export const en = {
   'airing.airing': 'Airing',
   'airing.finished': 'Finished Airing',
   'airing.notYet': 'Not Yet Aired',
+  'airing.cancelled': 'Cancelled',
+  'airing.hiatus': 'On Hiatus',
+  'airing.unknown': 'Status Unknown',
   'errors.network':
     'Unable to reach the anime catalog. Check your connection and try again.',
   'errors.timeout':
@@ -175,6 +178,14 @@ export const en = {
   'details.yourScore': 'Your score',
   'details.completedScorePrompt': 'Anime completed. Want to rate it?',
   'details.updateFailed': 'Update failed. Your previous values were restored.',
+  'details.statusBlockedAlreadyStarted':
+    'Plan to watch is unavailable after episode progress has started.',
+  'details.statusBlockedAiringInProgress':
+    'This anime cannot be completed while it is still in progress.',
+  'details.progressSaving': 'Saving…',
+  'details.progressSaved': 'Saved',
+  'details.progressSaveFailed': "Couldn't save your latest progress.",
+  'details.progressRetry': 'Try again',
   'details.synopsis': 'Synopsis',
   'details.whereToWatch': 'Where to watch',
   'details.streamingServiceA11y': 'Available on {{name}}',
@@ -185,10 +196,10 @@ export const en = {
     'View Google translation',
   'details.synopsisTranslation.failed': "Couldn't translate the synopsis.",
   'details.synopsisTranslation.failedHint':
-    'Check your Wi-Fi connection and try again.',
+    'Check your internet connection and try again.',
   'details.synopsisTranslation.retry': 'Try again',
   'details.synopsisTranslation.modelDownloadHint':
-    'First use may require a translation model download over Wi-Fi.',
+    'First use may require downloading a translation model.',
   'details.synopsisTranslation.translateAccessibility':
     'Translate synopsis with Google',
   'details.synopsisTranslation.translatingAccessibility':
@@ -228,6 +239,9 @@ export const en = {
   'notFound.returnHome': 'Return home',
   'settings.title': 'Settings',
   'settings.account': 'Account',
+  'settings.preferences': 'Preferences',
+  'settings.active': 'Active',
+  'settings.connectedWith': 'Connected with {{provider}}',
   'settings.mal': 'MyAnimeList',
   'settings.notConnected': 'Not connected',
   'settings.connected': 'Connected',
@@ -241,6 +255,8 @@ export const en = {
   'settings.languagePortuguese': 'Português (Brasil)',
   'settings.languageSpanish': 'Español',
   'settings.applyingLanguage': 'Applying language…',
+  'settings.theme': 'Theme',
+  'settings.themeDark': 'Dark',
   'settings.developerTools': 'Developer tools',
   'settings.developerDescription': 'Diagnostics and build information',
   'settings.developerEnabled': 'Developer Tools enabled',

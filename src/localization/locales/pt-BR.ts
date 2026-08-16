@@ -101,6 +101,9 @@ export const ptBR = {
   'airing.airing': 'Em exibição',
   'airing.finished': 'Exibição concluída',
   'airing.notYet': 'Ainda não exibido',
+  'airing.cancelled': 'Cancelado',
+  'airing.hiatus': 'Em hiato',
+  'airing.unknown': 'Status desconhecido',
   'errors.network':
     'Não foi possível acessar o catálogo de anime. Verifique sua conexão e tente novamente.',
   'errors.timeout':
@@ -186,6 +189,15 @@ export const ptBR = {
   'details.completedScorePrompt': 'Anime concluído. Quer dar uma nota?',
   'details.updateFailed':
     'A atualização falhou. Os valores anteriores foram restaurados.',
+  'details.statusBlockedAlreadyStarted':
+    'Planejar assistir fica indisponível depois que o progresso começou.',
+  'details.statusBlockedAiringInProgress':
+    'Este anime não pode ser concluído enquanto ainda está em andamento.',
+  'details.progressSaving': 'Salvando…',
+  'details.progressSaved': 'Salvo',
+  'details.progressSaveFailed':
+    'Não foi possível salvar seu progresso mais recente.',
+  'details.progressRetry': 'Tentar novamente',
   'details.synopsis': 'Sinopse',
   'details.whereToWatch': 'Onde assistir',
   'details.streamingServiceA11y': 'Disponível na {{name}}',
@@ -195,10 +207,10 @@ export const ptBR = {
   'details.synopsisTranslation.viewGoogleTranslation': 'Ver tradução do Google',
   'details.synopsisTranslation.failed': 'Não foi possível traduzir a sinopse.',
   'details.synopsisTranslation.failedHint':
-    'Verifique sua conexão Wi-Fi e tente novamente.',
+    'Verifique sua conexão com a internet e tente novamente.',
   'details.synopsisTranslation.retry': 'Tentar novamente',
   'details.synopsisTranslation.modelDownloadHint':
-    'O primeiro uso pode exigir o download de um modelo de tradução por Wi-Fi.',
+    'O primeiro uso pode exigir o download de um modelo de tradução.',
   'details.synopsisTranslation.translateAccessibility':
     'Traduzir sinopse com o Google',
   'details.synopsisTranslation.translatingAccessibility':
@@ -238,6 +250,9 @@ export const ptBR = {
   'notFound.returnHome': 'Voltar ao início',
   'settings.title': 'Configurações',
   'settings.account': 'Conta',
+  'settings.preferences': 'Preferências',
+  'settings.active': 'Ativa',
+  'settings.connectedWith': 'Conectado com {{provider}}',
   'settings.mal': 'MyAnimeList',
   'settings.notConnected': 'Não conectado',
   'settings.connected': 'Conectado',
@@ -251,6 +266,8 @@ export const ptBR = {
   'settings.languagePortuguese': 'Português (Brasil)',
   'settings.languageSpanish': 'Español',
   'settings.applyingLanguage': 'Aplicando idioma…',
+  'settings.theme': 'Tema',
+  'settings.themeDark': 'Escuro',
   'settings.developerTools': 'Ferramentas de desenvolvimento',
   'settings.developerDescription': 'Diagnósticos e informações da compilação',
   'settings.developerEnabled': 'Ferramentas de desenvolvimento ativadas',

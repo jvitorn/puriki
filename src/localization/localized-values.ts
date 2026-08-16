@@ -2,7 +2,7 @@ import type { TFunction } from 'i18next';
 
 import type { AuthFailureCode } from '@/application/auth/auth-contracts';
 import { DataSourceError } from '@/domain/errors/domain-error';
-import type { AnimeListStatus } from '@/domain/models/anime';
+import type { AnimeAiringStatus, AnimeListStatus } from '@/domain/models/anime';
 import type { AppLanguage } from '@/localization/languages';
 
 const ERROR_KEYS = {
@@ -39,10 +39,13 @@ const STATUS_KEYS: Record<AnimeListStatus, string> = {
   plan_to_watch: 'status.planToWatch',
 };
 
-const AIRING_KEYS: Record<string, string> = {
-  Airing: 'airing.airing',
-  'Finished Airing': 'airing.finished',
-  'Not Yet Aired': 'airing.notYet',
+const AIRING_KEYS: Record<AnimeAiringStatus, string> = {
+  releasing: 'airing.airing',
+  finished: 'airing.finished',
+  not_yet_released: 'airing.notYet',
+  cancelled: 'airing.cancelled',
+  hiatus: 'airing.hiatus',
+  unknown: 'airing.unknown',
 };
 
 export function localizedError(error: unknown, t: TFunction): string {
@@ -64,9 +67,11 @@ export function localizedStatus(status: AnimeListStatus, t: TFunction): string {
   return t(STATUS_KEYS[status]);
 }
 
-export function localizedAiringStatus(status: string, t: TFunction): string {
-  const key = AIRING_KEYS[status];
-  return key ? t(key) : status;
+export function localizedAiringStatus(
+  status: AnimeAiringStatus,
+  t: TFunction,
+): string {
+  return t(AIRING_KEYS[status]);
 }
 
 export function formatDateTime(value: string, language: AppLanguage): string {

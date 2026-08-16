@@ -24,7 +24,7 @@ const primaryAnime: AnimeCatalogItem = {
   score: 8.7,
   season: 'Fall',
   year: 1999,
-  airingStatus: 'Currently Airing',
+  airingStatus: 'releasing',
   posterImageUrl: 'poster',
   largePosterImageUrl: 'large',
   heroImageUrl: 'banner',

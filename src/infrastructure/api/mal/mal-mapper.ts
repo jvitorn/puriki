@@ -1,4 +1,5 @@
 import type {
+  AnimeAiringStatus,
   AnimeCatalogItem,
   AnimeContinuityKind,
   AnimeContinuityRelation,
@@ -36,13 +37,14 @@ function alternativeTitles(dto: MalAnimeDto): string[] {
   });
 }
 
-function readableStatus(status: string | undefined): string {
-  const normalized = nonEmpty(status);
-  if (!normalized) return 'Status unknown';
-  return normalized
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+function mapMalAiringStatus(status: string | undefined): AnimeAiringStatus {
+  const statuses: Record<string, AnimeAiringStatus> = {
+    currently_airing: 'releasing',
+    finished_airing: 'finished',
+    not_yet_aired: 'not_yet_released',
+  };
+  const normalized = nonEmpty(status)?.toLocaleLowerCase();
+  return normalized ? (statuses[normalized] ?? 'unknown') : 'unknown';
 }
 
 function readableSeason(season: string | undefined): string | null {
@@ -112,7 +114,7 @@ export function mapMalAnime(
       Number.isInteger(dto.start_season.year)
         ? dto.start_season.year
         : null,
-    airingStatus: readableStatus(dto.status),
+    airingStatus: mapMalAiringStatus(dto.status),
     posterImageUrl: mediumPicture ?? largePicture,
     largePosterImageUrl: largePicture ?? mediumPicture,
     heroImageUrl: largePicture ?? mediumPicture,

@@ -1,3 +1,7 @@
+import type {
+  AnimeAiringStatus,
+  AnimeTrackingContext,
+} from '@/domain/models/anime';
 import {
   applyProgress,
   canDecrementProgress,
@@ -7,8 +11,18 @@ import {
   normalizeProgress,
 } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
-import { transitionStatus } from '@/domain/rules/anime-status';
+import {
+  getAllowedStatusTransitions,
+  transitionStatus,
+} from '@/domain/rules/anime-status';
 import { makeUserAnimeEntry } from '@/tests/builders/anime-builder';
+
+function context(
+  totalEpisodes: number | null,
+  airingStatus: AnimeAiringStatus = 'finished',
+): AnimeTrackingContext {
+  return { totalEpisodes, airingStatus };
+}
 
 describe('anime progress rules', () => {
   it('normalizes negative, fractional, and excessive progress', () => {
@@ -32,13 +46,22 @@ describe('anime progress rules', () => {
     expect(decrementProgress(3)).toBe(2);
   });
 
-  it('automatically completes a known final episode', () => {
+  it('automatically completes a known final episode only when allowed', () => {
     const entry = makeUserAnimeEntry({
       animeId: 1,
       status: 'watching',
       watchedEpisodes: 11,
     });
-    expect(applyProgress(entry, 12, 12).status).toBe('completed');
+    expect(applyProgress(entry, 12, context(12)).status).toBe('completed');
+    for (const airingStatus of [
+      'releasing',
+      'not_yet_released',
+      'hiatus',
+    ] as const) {
+      expect(applyProgress(entry, 12, context(12, airingStatus))).toMatchObject(
+        { watchedEpisodes: 12, status: 'watching' },
+      );
+    }
   });
 
   it('moves progressed planned and completed entries to watching', () => {
@@ -52,34 +75,91 @@ describe('anime progress rules', () => {
       status: 'completed',
       watchedEpisodes: 12,
     });
-    expect(applyProgress(planned, 1, 12).status).toBe('watching');
-    expect(applyProgress(completed, 4, 12).status).toBe('watching');
+    expect(applyProgress(planned, 1, context(12)).status).toBe('watching');
+    expect(applyProgress(completed, 4, context(12)).status).toBe('watching');
   });
 });
 
 describe('anime status and score rules', () => {
-  const entry = makeUserAnimeEntry({
+  const started = makeUserAnimeEntry({
     animeId: 1,
-    status: 'completed',
-    watchedEpisodes: 12,
+    status: 'watching',
+    watchedEpisodes: 3,
   });
 
-  it('resets progress when moved to plan to watch', () => {
-    expect(transitionStatus(entry, 'plan_to_watch', 12).watchedEpisodes).toBe(
-      0,
+  it.each(['watching', 'on_hold', 'dropped'] as const)(
+    'blocks %s with progress from returning to plan to watch',
+    (status) => {
+      const result = transitionStatus(
+        { ...started, status },
+        'plan_to_watch',
+        context(12),
+      );
+      expect(result).toMatchObject({
+        allowed: false,
+        reason: 'already_started',
+        entry: { status, watchedEpisodes: 3 },
+      });
+    },
+  );
+
+  it('allows plan to watch before progress starts', () => {
+    const result = transitionStatus(
+      { ...started, watchedEpisodes: 0 },
+      'plan_to_watch',
+      context(12),
+    );
+    expect(result).toMatchObject({
+      allowed: true,
+      entry: { status: 'plan_to_watch', watchedEpisodes: 0 },
+    });
+  });
+
+  it.each(['releasing', 'not_yet_released', 'hiatus'] as const)(
+    'blocks completed while airing status is %s',
+    (airingStatus) => {
+      expect(
+        transitionStatus(started, 'completed', context(12, airingStatus)),
+      ).toMatchObject({ allowed: false, reason: 'airing_in_progress' });
+    },
+  );
+
+  it.each(['finished', 'cancelled', 'unknown'] as const)(
+    'allows completed while airing status is %s and fills known progress',
+    (airingStatus) => {
+      expect(
+        transitionStatus(started, 'completed', context(12, airingStatus)),
+      ).toMatchObject({
+        allowed: true,
+        entry: { status: 'completed', watchedEpisodes: 12 },
+      });
+    },
+  );
+
+  it('preserves progress when completed has an unknown total', () => {
+    expect(transitionStatus(started, 'completed', context(null))).toMatchObject(
+      {
+        allowed: true,
+        entry: { status: 'completed', watchedEpisodes: 3 },
+      },
     );
   });
 
-  it('preserves valid progress when returning to watching', () => {
-    expect(transitionStatus(entry, 'watching', 24).watchedEpisodes).toBe(12);
+  it('treats the selected status as an allowed no-op', () => {
+    expect(
+      transitionStatus(
+        { ...started, status: 'completed' },
+        'completed',
+        context(12, 'releasing'),
+      ),
+    ).toMatchObject({ allowed: true, entry: { status: 'completed' } });
   });
 
-  it('fills known progress when explicitly completed', () => {
-    expect(
-      transitionStatus({ ...entry, watchedEpisodes: 3 }, 'completed', 12)
-        .watchedEpisodes,
-    ).toBe(12);
-    expect(transitionStatus(entry, 'completed', null).watchedEpisodes).toBe(12);
+  it('returns availability for every status', () => {
+    const transitions = getAllowedStatusTransitions(started, context(12));
+    expect(Object.keys(transitions)).toHaveLength(5);
+    expect(transitions.plan_to_watch.allowed).toBe(false);
+    expect(transitions.completed.allowed).toBe(true);
   });
 
   it('accepts null and scores from one to ten', () => {

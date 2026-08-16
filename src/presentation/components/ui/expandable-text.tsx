@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NativeSyntheticEvent, TextLayoutEventData } from 'react-native';
 import { View } from 'react-native';
+import Animated, {
+  LinearTransition,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Button } from '@/presentation/components/ui/button';
 import { Text } from '@/presentation/components/ui/text';
@@ -34,6 +41,8 @@ function ExpandableTextContent({
 }: ExpandableTextProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const contentOpacity = useSharedValue(1);
   const [canExpand, setCanExpand] = useState(
     text.trim().length > collapsedLineCount * 55,
   );
@@ -41,6 +50,15 @@ function ExpandableTextContent({
   const handleMeasurement = (
     event: NativeSyntheticEvent<TextLayoutEventData>,
   ) => setCanExpand(event.nativeEvent.lines.length > collapsedLineCount);
+
+  useEffect(() => {
+    contentOpacity.value = reduceMotion ? 1 : 0.65;
+    contentOpacity.value = withTiming(1, { duration: reduceMotion ? 0 : 260 });
+  }, [contentOpacity, expanded, reduceMotion]);
+
+  const contentStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+  }));
 
   return (
     <View className="gap-2">
@@ -52,13 +70,18 @@ function ExpandableTextContent({
       >
         {text}
       </Text>
-      <Text
-        accessibilityLabel={accessibilityLabel ?? t('details.synopsis')}
-        className="leading-6 text-muted-foreground"
-        numberOfLines={expanded ? undefined : collapsedLineCount}
+      <Animated.View
+        layout={LinearTransition.duration(reduceMotion ? 0 : 260)}
+        style={contentStyle}
       >
-        {text}
-      </Text>
+        <Text
+          accessibilityLabel={accessibilityLabel ?? t('details.synopsis')}
+          className="leading-6 text-muted-foreground"
+          numberOfLines={expanded ? undefined : collapsedLineCount}
+        >
+          {text}
+        </Text>
+      </Animated.View>
       {canExpand ? (
         <Button
           accessibilityLabel={

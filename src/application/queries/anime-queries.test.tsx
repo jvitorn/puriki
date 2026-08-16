@@ -54,6 +54,24 @@ function createCatalogMock(
   };
 }
 
+function connectedAniListAuthSession(): TestAuthSessionController {
+  const authSession = new TestAuthSessionController();
+  authSession.updateConnection('anilist', {
+    state: 'connected',
+    account: {
+      provider: 'anilist',
+      userId: '42',
+      username: 'reader',
+      avatarUrl: null,
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    },
+    operation: 'idle',
+    failure: null,
+    canRetry: false,
+  });
+  return authSession;
+}
+
 describe('React Query integration', () => {
   it('moves a catalog query from loading to success', async () => {
     const dependencies = createTestDependencies();
@@ -423,20 +441,7 @@ describe('React Query integration', () => {
         ...(cached.userEntry as UserAnimeEntry),
         watchedEpisodes: 9,
       });
-    const authSession = new TestAuthSessionController();
-    authSession.updateConnection('anilist', {
-      state: 'connected',
-      account: {
-        provider: 'anilist',
-        userId: '42',
-        username: 'reader',
-        avatarUrl: null,
-        expiresAt: '2099-01-01T00:00:00.000Z',
-      },
-      operation: 'idle',
-      failure: null,
-      canRetry: false,
-    });
+    const authSession = connectedAniListAuthSession();
     const { result } = await renderHook(() => useUpdateProgress(), {
       wrapper: createTestWrapper(
         dependencies,
@@ -447,9 +452,14 @@ describe('React Query integration', () => {
       ),
     });
 
-    await expect(
-      result.current.mutateAsync({ animeId: 101, episodes: 9 }),
-    ).resolves.toMatchObject({ watchedEpisodes: 9 });
+    let savedEntry: UserAnimeEntry | null = null;
+    await act(async () => {
+      savedEntry = await result.current.mutateAsync({
+        animeId: 101,
+        episodes: 9,
+      });
+    });
+    expect(savedEntry).toMatchObject({ watchedEpisodes: 9 });
     expect(updateProgress).toHaveBeenCalledWith(101, 9);
     expect(enqueue).not.toHaveBeenCalled();
     expect(
@@ -460,6 +470,71 @@ describe('React Query integration', () => {
     expect(queryClient.getQueryData(queryKeys.details('guest', 101))).toEqual(
       guestCached,
     );
+  });
+
+  it('keeps the latest optimistic progress while an intermediate response drains', async () => {
+    const dependencies = createTestDependencies();
+    const queryClient = createAppQueryClient();
+    const cached = buildWatchingAnime({ id: 101 });
+    queryClient.setQueryData(queryKeys.details('anilist:42', 101), cached);
+    let resolveFirst: ((entry: UserAnimeEntry) => void) | undefined;
+    let resolveFinal: ((entry: UserAnimeEntry) => void) | undefined;
+    const updateProgress = jest
+      .spyOn(dependencies.userListRepository, 'updateProgress')
+      .mockImplementationOnce(
+        () =>
+          new Promise<UserAnimeEntry>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<UserAnimeEntry>((resolve) => {
+            resolveFinal = resolve;
+          }),
+      );
+    const { result } = await renderHook(() => useUpdateProgress(), {
+      wrapper: createTestWrapper(
+        dependencies,
+        queryClient,
+        'en',
+        undefined,
+        connectedAniListAuthSession(),
+      ),
+    });
+    const response = (watchedEpisodes: number): UserAnimeEntry => ({
+      ...(cached.userEntry as UserAnimeEntry),
+      watchedEpisodes,
+    });
+
+    await act(async () => result.current.mutate({ animeId: 101, episodes: 4 }));
+    await waitFor(() => expect(updateProgress).toHaveBeenCalledWith(101, 4));
+    await act(async () => {
+      result.current.mutate({ animeId: 101, episodes: 5 });
+      result.current.mutate({ animeId: 101, episodes: 6 });
+    });
+    await waitFor(() =>
+      expect(
+        queryClient.getQueryData<UnifiedAnime>(
+          queryKeys.details('anilist:42', 101),
+        )?.userEntry?.watchedEpisodes,
+      ).toBe(6),
+    );
+
+    await act(async () => resolveFirst?.(response(4)));
+    await waitFor(() => {
+      expect(updateProgress).toHaveBeenCalledTimes(2);
+      expect(updateProgress).toHaveBeenLastCalledWith(101, 6);
+    });
+    expect(
+      queryClient.getQueryData<UnifiedAnime>(
+        queryKeys.details('anilist:42', 101),
+      )?.userEntry?.watchedEpisodes,
+    ).toBe(6);
+
+    await act(async () => resolveFinal?.(response(6)));
+    await waitFor(() => expect(result.current.saveState).toBe('saved'));
+    expect(updateProgress).toHaveBeenCalledTimes(2);
   });
 
   it('optimistically adds real membership with plan-to-watch defaults', async () => {

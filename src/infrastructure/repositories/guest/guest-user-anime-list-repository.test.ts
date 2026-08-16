@@ -84,7 +84,7 @@ describe('GuestUserAnimeListRepository', () => {
     await expect(session.getByAnimeId(candidate.id)).resolves.toBeNull();
   });
 
-  it('updates progress, status and score with existing domain rules', async () => {
+  it('updates progress and score while rejecting a stale planning transition', async () => {
     const { catalog, session } = createSession();
     const candidate = catalog[0] as AnimeCatalogItem;
     await session.addToList(candidate.id);
@@ -97,7 +97,11 @@ describe('GuestUserAnimeListRepository', () => {
     });
     await expect(
       session.updateStatus(candidate.id, 'plan_to_watch'),
-    ).resolves.toMatchObject({ status: 'plan_to_watch', watchedEpisodes: 0 });
+    ).rejects.toThrow('already_started');
+    await expect(session.getByAnimeId(candidate.id)).resolves.toMatchObject({
+      status: 'completed',
+      watchedEpisodes: candidate.totalEpisodes,
+    });
     await expect(session.updateScore(candidate.id, 9)).resolves.toMatchObject({
       userScore: 9,
     });

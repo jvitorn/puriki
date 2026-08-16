@@ -32,12 +32,18 @@ describe('AniListMediaIdentityRegistry', () => {
       execute: jest.fn(),
     };
     const registry = new AniListMediaIdentityRegistry({ client });
-    registry.remember({ animeId: 21, mediaId: 30_013, totalEpisodes: null });
+    registry.remember({
+      animeId: 21,
+      mediaId: 30_013,
+      totalEpisodes: null,
+      airingStatus: 'finished',
+    });
 
     await expect(registry.resolve(21)).resolves.toEqual({
       animeId: 21,
       mediaId: 30_013,
       totalEpisodes: null,
+      airingStatus: 'finished',
     });
     expect(client.execute).not.toHaveBeenCalled();
   });
@@ -46,7 +52,14 @@ describe('AniListMediaIdentityRegistry', () => {
     const client: jest.Mocked<AniListClientPort> = {
       execute: jest.fn(
         async (_request: Parameters<AniListClientPort['execute']>[0]) =>
-          response({ Media: { id: 30_013, idMal: 21, episodes: 1_200 } }),
+          response({
+            Media: {
+              id: 30_013,
+              idMal: 21,
+              episodes: 1_200,
+              status: 'RELEASING',
+            },
+          }),
       ),
     };
     const registry = new AniListMediaIdentityRegistry({
@@ -58,6 +71,7 @@ describe('AniListMediaIdentityRegistry', () => {
       animeId: 21,
       mediaId: 30_013,
       totalEpisodes: 1_200,
+      airingStatus: 'releasing',
     });
     await registry.resolve(21);
     expect(client.execute).toHaveBeenCalledTimes(1);

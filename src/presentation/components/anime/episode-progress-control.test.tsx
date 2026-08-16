@@ -33,5 +33,50 @@ describe('EpisodeProgressControl', () => {
     );
     expect(screen.getByText('of ? episodes')).toBeVisible();
     expect(screen.getByLabelText('Increase watched episodes')).toBeEnabled();
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+  });
+
+  it('keeps controls enabled while saving and exposes final feedback', async () => {
+    const retry = jest.fn();
+    const { rerender } = await renderWithProviders(
+      <EpisodeProgressControl
+        current={5}
+        total={12}
+        saveState="saving"
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('Saving…')).toBeVisible();
+    expect(screen.getByLabelText('Increase watched episodes')).toBeEnabled();
+    expect(screen.getByLabelText('Episode progress')).toHaveAccessibilityValue({
+      min: 0,
+      max: 100,
+      now: 42,
+    });
+
+    await rerender(
+      <EpisodeProgressControl
+        current={5}
+        total={12}
+        saveState="saved"
+        onChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByText('Saved')).toBeVisible();
+
+    await rerender(
+      <EpisodeProgressControl
+        current={5}
+        total={12}
+        saveState="error"
+        onChange={jest.fn()}
+        onRetry={retry}
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't save your latest progress.",
+    );
+    await fireEvent.press(screen.getByLabelText('Try again'));
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 });

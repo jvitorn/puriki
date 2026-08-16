@@ -25,7 +25,7 @@ export function makeAnime(
     score: 8,
     season: 'Spring',
     year: 2026,
-    airingStatus: 'Finished Airing',
+    airingStatus: 'finished',
     posterImageUrl: null,
     largePosterImageUrl: null,
     heroImageUrl: null,

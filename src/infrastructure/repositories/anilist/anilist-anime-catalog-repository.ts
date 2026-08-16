@@ -19,13 +19,14 @@ import {
   type AniListRequestDiagnostic,
 } from '@/infrastructure/api/anilist/anilist-errors';
 import {
-  AniListMediaIdentityRegistry,
-  type AniListMediaIdentityResolver,
-} from '@/infrastructure/api/anilist/anilist-media-identity';
-import {
+  mapAniListAiringStatus,
   mapAniListDetails,
   mapAniListSummary,
 } from '@/infrastructure/api/anilist/anilist-mapper';
+import {
+  AniListMediaIdentityRegistry,
+  type AniListMediaIdentityResolver,
+} from '@/infrastructure/api/anilist/anilist-media-identity';
 import {
   ANILIST_COMBINED_HOME_QUERY,
   ANILIST_BY_MAL_IDS_QUERY,
@@ -106,7 +107,7 @@ function mapSummaries(
 
 function rememberIdentity(
   resolver: AniListMediaIdentityResolver,
-  dto: Pick<AniListMediaSummary, 'id' | 'idMal' | 'episodes'>,
+  dto: Pick<AniListMediaSummary, 'id' | 'idMal' | 'episodes' | 'status'>,
 ): void {
   if (dto.idMal === null) return;
   resolver.remember({
@@ -118,6 +119,7 @@ function rememberIdentity(
       dto.episodes > 0
         ? dto.episodes
         : null,
+    airingStatus: mapAniListAiringStatus(dto.status),
   });
 }
 

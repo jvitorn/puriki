@@ -7,6 +7,7 @@ export interface AniListUserListEntryDto {
   updatedAt: number;
   idMal: number | null;
   totalEpisodes: number | null;
+  mediaStatus: string | null;
 }
 
 export interface AniListUserListChunkDto {
@@ -69,6 +70,8 @@ export function parseAniListUserListEntry(
     updatedAt: requiredInteger(value.updatedAt, 'media list timestamp'),
     idMal,
     totalEpisodes,
+    mediaStatus:
+      typeof value.media.status === 'string' ? value.media.status : null,
   };
 }
 

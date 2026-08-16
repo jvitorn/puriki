@@ -1,6 +1,19 @@
 export type AnimeListStatus =
   'watching' | 'completed' | 'on_hold' | 'dropped' | 'plan_to_watch';
 
+export type AnimeAiringStatus =
+  | 'releasing'
+  | 'finished'
+  | 'not_yet_released'
+  | 'cancelled'
+  | 'hiatus'
+  | 'unknown';
+
+export interface AnimeTrackingContext {
+  totalEpisodes: number | null;
+  airingStatus: AnimeAiringStatus;
+}
+
 export type AnimeContinuityKind = 'prequel' | 'sequel';
 
 export interface AnimeContinuityRelation {
@@ -25,7 +38,7 @@ export interface AnimeCatalogItem {
   score: number | null;
   season: string | null;
   year: number | null;
-  airingStatus: string;
+  airingStatus: AnimeAiringStatus;
   posterImageUrl: string | null;
   largePosterImageUrl: string | null;
   heroImageUrl: string | null;

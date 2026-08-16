@@ -47,10 +47,32 @@ function mapNativeError(error: unknown): SynopsisTranslationError {
   );
 }
 
+export interface TranslationDiagnostic {
+  code: SynopsisTranslationError['code'];
+  sourceLanguage: SynopsisTranslationRequest['sourceLanguage'];
+  targetLanguage: SynopsisTranslationRequest['targetLanguage'];
+}
+
+export interface MlKitSynopsisTranslatorOptions {
+  isDevelopment?: boolean;
+  diagnosticLogger?: (diagnostic: TranslationDiagnostic) => void;
+}
+
 export class MlKitSynopsisTranslator implements SynopsisTranslator {
+  private readonly diagnosticLogger:
+    ((diagnostic: TranslationDiagnostic) => void) | null;
+
   constructor(
     private readonly nativeModule: NativePurikukiTranslationModule | null = PurikukiTranslationModule,
-  ) {}
+    options: MlKitSynopsisTranslatorOptions = {},
+  ) {
+    const isDevelopment = options.isDevelopment ?? __DEV__;
+    this.diagnosticLogger = isDevelopment
+      ? (options.diagnosticLogger ??
+        ((diagnostic) =>
+          console.info('[Translation] Native request failed', diagnostic)))
+      : null;
+  }
 
   isAvailable(): boolean {
     return this.nativeModule !== null;
@@ -75,7 +97,7 @@ export class MlKitSynopsisTranslator implements SynopsisTranslator {
     try {
       const result = await this.nativeModule.translateAsync({
         ...request,
-        wifiOnly: true,
+        wifiOnly: false,
       });
       if (result.translatedText.trim().length === 0) {
         throw new SynopsisTranslationError(
@@ -86,7 +108,17 @@ export class MlKitSynopsisTranslator implements SynopsisTranslator {
       return result;
     } catch (error) {
       if (error instanceof SynopsisTranslationError) throw error;
-      throw mapNativeError(error);
+      const mapped = mapNativeError(error);
+      try {
+        this.diagnosticLogger?.({
+          code: mapped.code,
+          sourceLanguage: request.sourceLanguage,
+          targetLanguage: request.targetLanguage,
+        });
+      } catch {
+        // Diagnostics must never change translation behavior.
+      }
+      throw mapped;
     }
   }
 }

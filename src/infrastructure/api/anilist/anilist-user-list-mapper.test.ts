@@ -9,7 +9,7 @@ function dto(overrides: Record<string, unknown> = {}) {
     score: 8,
     progress: 4,
     updatedAt: 1_700_000_000,
-    media: { idMal: 202, episodes: 12 },
+    media: { idMal: 202, episodes: 12, status: 'FINISHED' },
     ...overrides,
   };
 }
@@ -34,6 +34,7 @@ describe('AniList user list DTOs and mapper', () => {
       listEntryId: 501,
       mediaId: 101,
       totalEpisodes: 12,
+      airingStatus: 'finished',
       entry: {
         animeId: 202,
         status: domainStatus,

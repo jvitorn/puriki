@@ -55,9 +55,31 @@ jest.mock('react-native-reanimated', () => {
   };
   return {
     __esModule: true,
-    default: { View },
+    default: {
+      View,
+      createAnimatedComponent: (component: unknown) => component,
+    },
+    Easing: {
+      cubic: jest.fn(),
+      quad: jest.fn(),
+      out: (easing: unknown) => easing,
+    },
+    FadeIn: animationBuilder,
     FadeInDown: animationBuilder,
+    FadeOut: animationBuilder,
+    LinearTransition: animationBuilder,
     ReduceMotion: { System: 'system' },
+    ZoomIn: animationBuilder,
+    interpolate: (
+      value: number,
+      input: [number, number],
+      output: [number, number],
+    ) =>
+      output[0] +
+      ((value - input[0]) / (input[1] - input[0])) * (output[1] - output[0]),
+    useAnimatedStyle: (factory: () => unknown) => factory(),
     useReducedMotion: () => true,
+    useSharedValue: (value: unknown) => ({ value }),
+    withTiming: jest.fn((value: unknown) => value),
   };
 });

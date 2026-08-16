@@ -119,7 +119,7 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
     const existing = this.findEntry(animeId);
     if (existing) return { ...existing };
     const anime = this.getAnime(animeId);
-    const entry = transitionStatus(
+    const transition = transitionStatus(
       {
         animeId,
         status: 'plan_to_watch',
@@ -128,9 +128,15 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
         updatedAt: new Date(Date.UTC(2026, 0, 1, 12, animeId)).toISOString(),
       },
       status,
-      anime.totalEpisodes,
+      {
+        totalEpisodes: anime.totalEpisodes,
+        airingStatus: anime.airingStatus,
+      },
     );
-    return this.save(entry);
+    if (!transition.allowed) {
+      throw new DomainError(`Status transition blocked: ${transition.reason}.`);
+    }
+    return this.save(transition.entry);
   }
 
   async removeFromList(animeId: number): Promise<void> {
@@ -145,8 +151,12 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
     episodes: number,
   ): Promise<UserAnimeEntry> {
     const entry = this.requireEntry(animeId);
+    const anime = this.getAnime(animeId);
     return this.save(
-      applyProgress(entry, episodes, this.getAnime(animeId).totalEpisodes),
+      applyProgress(entry, episodes, {
+        totalEpisodes: anime.totalEpisodes,
+        airingStatus: anime.airingStatus,
+      }),
     );
   }
 
@@ -155,9 +165,16 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
     status: AnimeListStatus,
   ): Promise<UserAnimeEntry> {
     const entry = this.requireEntry(animeId);
-    return this.save(
-      transitionStatus(entry, status, this.getAnime(animeId).totalEpisodes),
-    );
+    if (entry.status === status) return { ...entry };
+    const anime = this.getAnime(animeId);
+    const transition = transitionStatus(entry, status, {
+      totalEpisodes: anime.totalEpisodes,
+      airingStatus: anime.airingStatus,
+    });
+    if (!transition.allowed) {
+      throw new DomainError(`Status transition blocked: ${transition.reason}.`);
+    }
+    return this.save(transition.entry);
   }
 
   async updateScore(

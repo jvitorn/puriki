@@ -2,29 +2,18 @@ import { Tabs } from 'expo-router';
 import { Home, List, Search, Settings } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 
+import { PurikiTabBar } from '@/presentation/components/navigation/puriki-tab-bar';
 import { colors } from '@/presentation/theme/tokens';
 
 export default function TabLayout() {
   const { t } = useTranslation();
   return (
     <Tabs
+      tabBar={(props) => <PurikiTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: colors.background },
-        tabBarActiveTintColor: colors.primaryEmphasis,
-        tabBarInactiveTintColor: colors.textMuted,
         tabBarHideOnKeyboard: true,
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: 72,
-          paddingTop: 7,
-          paddingBottom: 7,
-        },
-        tabBarItemStyle: { minHeight: 56 },
-        tabBarIconStyle: { marginBottom: 2 },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
       }}
     >
       <Tabs.Screen

@@ -15,7 +15,7 @@ data class TranslationRequest(
   @Field val text: String = "",
   @Field val sourceLanguage: String = "",
   @Field val targetLanguage: String = "",
-  @Field val wifiOnly: Boolean = true
+  @Field val wifiOnly: Boolean = false
 ) : Record
 
 class PurikukiTranslationModule : Module() {

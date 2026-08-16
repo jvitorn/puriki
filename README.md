@@ -95,13 +95,15 @@ When an AniList account is connected, its authenticated anime list becomes the a
 
 The domain continues to identify anime by MyAnimeList ID. AniList media IDs and media-list-entry IDs remain private infrastructure metadata in the authenticated repository snapshot. Scores are read in `POINT_10` and written through the fixed 100-point `scoreRaw` input, including zero to clear a score.
 
+Catalog airing state is normalized across AniList and MAL. Returning to Plan to Watch is blocked once episode progress has started, and Completed is blocked for releasing, not-yet-released, or hiatus titles. Reaching a known episode total follows the same policy, so an in-progress title remains Watching instead of being completed automatically.
+
 Authenticated mutations share the existing bearer-token client, request coordinator, rate-limit state, and unauthorized-session handling. Mutations are serialized per anime and deliberately receive no automatic retry because the provider may have applied a write even when its response is lost. Successful responses update the repository snapshot immediately; ambiguous failures make the next read refresh remote state.
 
 Upstream contracts: [AniList authentication](https://docs.anilist.co/guide/auth/), [Implicit Grant](https://docs.anilist.co/guide/auth/implicit), [authenticated requests](https://docs.anilist.co/guide/auth/authenticated-requests), and [Expo AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/).
 
 ## Settings and diagnostics
 
-Public Settings contains Account, Language, and About. Developer Tools is hidden by default and is enabled by tapping the About description five times within the three-second inactivity window.
+Public Settings is organized into Account, Preferences, and About. Language expands inline inside Preferences, while Theme truthfully reports the single supported Dark appearance without presenting a fake navigation action. Developer Tools is hidden by default and is enabled by tapping the About description five times within the three-second inactivity window.
 
 Permanent service diagnostics are intentionally compact:
 
@@ -129,6 +131,8 @@ The current Sync Engine target still applies changes only to the guest-list repo
 The complete interface is available in English, Brazilian Portuguese, and Spanish. Settings offers those choices plus System default. The preference is stored with AsyncStorage and changing it does not clear or refetch catalog data.
 
 On Android Development/Release Builds, Portuguese and Spanish users can explicitly translate an English synopsis with Google ML Kit on device. Puriki preserves the original provider synopsis, caches source-aware translations, and displays Google's official unmodified attribution badge. Expo Go, web, and iOS keep the original synopsis.
+
+ML Kit model downloads may use any available network by default. The native bridge still supports an explicit Wi-Fi-only request for callers that need it, but Puriki's synopsis action does not require Wi-Fi.
 
 ## Architecture
 
@@ -204,10 +208,10 @@ npm run test:ci
 ## Current limitations
 
 - Guest-list data, catalog caches, and diagnostic results are not persisted.
-- AniList writes are direct and intentionally have no background mutation retry; an ambiguous failure requires a refresh before retrying manually.
+- AniList writes are direct and intentionally have no background mutation retry. Rapid progress taps use one in-flight write per anime and retain only the latest pending intent; an ambiguous failure reconciles the remote read and exposes an explicit retry for that final intent.
 - Public catalog availability and artwork depend on AniList or the configured MAL fallback.
 - AniList media without `idMal` cannot enter the current domain model.
-- On-device synopsis translation is Android-only and may require a one-time Wi-Fi model download.
+- On-device synopsis translation is Android-only and may require a one-time model download over the available network.
 - MAL OAuth, AniList custom lists/notes/reviews, authenticated multi-provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
 - Puriki is not affiliated with AniList or MyAnimeList.
 

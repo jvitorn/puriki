@@ -1,3 +1,4 @@
+import type { AnimeAiringStatus } from '@/domain/models/anime';
 import {
   executeAniListRequest,
   type AniListClientPort,
@@ -7,12 +8,14 @@ import {
   AniListGraphQLExecutionError,
   AniListResponseFormatError,
 } from '@/infrastructure/api/anilist/anilist-errors';
+import { mapAniListAiringStatus } from '@/infrastructure/api/anilist/anilist-mapper';
 import { ANILIST_MEDIA_IDENTITY_QUERY } from '@/infrastructure/api/anilist/anilist-queries';
 
 export interface AniListMediaIdentity {
   animeId: number;
   mediaId: number;
   totalEpisodes: number | null;
+  airingStatus: AnimeAiringStatus;
 }
 
 export interface AniListMediaIdentityResolver {
@@ -61,6 +64,9 @@ function parseIdentity(value: unknown): AniListMediaIdentity | null {
     mediaId: positiveInteger(value.Media.id, 'media ID'),
     totalEpisodes:
       typeof episodes === 'number' && episodes > 0 ? episodes : null,
+    airingStatus: mapAniListAiringStatus(
+      typeof value.Media.status === 'string' ? value.Media.status : null,
+    ),
   };
 }
 

@@ -20,7 +20,7 @@ function anime(
     score: 8,
     season: 'Summer',
     year: 2026,
-    airingStatus: 'Currently Airing',
+    airingStatus: 'releasing',
     posterImageUrl: null,
     largePosterImageUrl: null,
     heroImageUrl: null,

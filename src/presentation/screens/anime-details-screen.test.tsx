@@ -101,9 +101,37 @@ describe('AnimeDetailsScreen', () => {
       expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible(),
     );
     await fireEvent.press(screen.getByText('Plan to Watch'));
-    await waitFor(() =>
-      expect(screen.getByLabelText('Episode progress: 0 of 12')).toBeVisible(),
+    expect(
+      screen.getByText(
+        'Plan to watch is unavailable after episode progress has started.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible();
+  });
+
+  it('explains an airing-status block without sending an update', async () => {
+    const dataset = createTestScenario('default');
+    const anime = dataset.catalog[0];
+    if (!anime) throw new Error('Expected a seeded anime.');
+    anime.airingStatus = 'releasing';
+    const dependencies = createTestDependencies(dataset);
+    const updateStatus = jest.spyOn(
+      dependencies.userListRepository,
+      'updateStatus',
     );
+    const enqueue = jest.spyOn(dependencies.syncEngine, 'enqueue');
+    await renderWithProviders(<AnimeDetailsScreen animeId={anime.id} />, {
+      dependencies,
+    });
+
+    await fireEvent.press(await screen.findByText('Completed'));
+    expect(
+      screen.getByText(
+        'This anime cannot be completed while it is still in progress.',
+      ),
+    ).toBeVisible();
+    expect(updateStatus).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('shows informative streaming services with official icons and a neutral fallback', async () => {
@@ -182,6 +210,9 @@ describe('AnimeDetailsScreen', () => {
 
   it('highlights rating after completion and hides the prompt after scoring', async () => {
     const dataset = createTestScenario('default');
+    const anime = dataset.catalog[0];
+    if (!anime) throw new Error('Expected a seeded anime.');
+    anime.airingStatus = 'finished';
     const entry = dataset.userEntries.find((item) => item.animeId === 1);
     if (!entry) throw new Error('Expected a seeded list entry.');
     entry.userScore = null;
@@ -308,23 +339,79 @@ describe('AnimeDetailsScreen', () => {
     alert.mockRestore();
   });
 
-  it('rolls back and reports mutation errors accessibly', async () => {
+  it('reports progress errors inline and offers an explicit retry', async () => {
     const dependencies = createTestDependencies();
+    const originalUpdate = dependencies.userListRepository.updateProgress.bind(
+      dependencies.userListRepository,
+    );
+    const updateProgress = jest
+      .spyOn(dependencies.userListRepository, 'updateProgress')
+      .mockRejectedValueOnce(
+        new Error('The test repository could not complete this request.'),
+      )
+      .mockImplementation(originalUpdate);
+    const authSession = new TestAuthSessionController();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'viewer',
+        avatarUrl: null,
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
     await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
       dependencies,
+      authSession,
     });
     await waitFor(() =>
       expect(screen.getByText('Moonlit Vanguard')).toBeVisible(),
     );
-    dependencies.userListRepository.updateProgress = jest.fn(async () => {
-      throw new Error('The test repository could not complete this request.');
-    });
     await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
     await waitFor(() => expect(screen.getByRole('alert')).toBeVisible());
     expect(
-      screen.getByText('Update failed. Your previous values were restored.'),
+      screen.getByText("Couldn't save your latest progress."),
     ).toBeVisible();
     expect(screen.getByLabelText('Episode progress: 1 of 12')).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('Try again'));
+    await waitFor(() => expect(screen.getByText('Saved')).toBeVisible());
+    expect(updateProgress).toHaveBeenNthCalledWith(2, 1, 2);
+    expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible();
+  });
+
+  it('keeps the post-list detail sections in the refined order', async () => {
+    const dataset = createTestScenario('default');
+    const anime = dataset.catalog[0];
+    const related = dataset.catalog[1];
+    if (!anime || !related) throw new Error('Expected seeded anime.');
+    anime.continuity = [
+      { animeId: related.id, title: related.title, kind: 'sequel' },
+    ];
+    anime.streamingServices = [{ name: 'Crunchyroll', iconUrl: null }];
+    await renderWithProviders(<AnimeDetailsScreen animeId={anime.id} />, {
+      dependencies: createTestDependencies(dataset),
+    });
+
+    const sections = [
+      await screen.findByTestId('details-section-synopsis'),
+      screen.getByTestId('details-section-alternative-titles'),
+      screen.getByTestId('details-section-information'),
+      screen.getByTestId('details-section-continuity'),
+      screen.getByTestId('details-section-streaming'),
+    ];
+    const firstSection = sections[0];
+    if (!firstSection) throw new Error('Expected the synopsis section.');
+    const parent = firstSection.parent;
+    expect(parent).not.toBeNull();
+    expect(sections.every((section) => section.parent === parent)).toBe(true);
+    const indices = sections.map((section) =>
+      parent?.children.indexOf(section),
+    );
+    expect(indices).toEqual([...indices].sort((left, right) => left! - right!));
   });
 
   it('handles a missing anime', async () => {

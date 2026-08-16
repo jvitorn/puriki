@@ -127,7 +127,7 @@ describe('SettingsScreen', () => {
     jest.clearAllMocks();
   });
 
-  it('shows only Account, Language, and About in the public experience', async () => {
+  it('shows the compact Account, Preferences, and About experience', async () => {
     const storage = createDeveloperStorage();
     await renderWithProviders(
       <SettingsScreen
@@ -144,6 +144,9 @@ describe('SettingsScreen', () => {
     expect(screen.getAllByTestId('account-avatar-fallback')).toHaveLength(2);
     expect(screen.getByLabelText('Connect')).toBeVisible();
     expect(screen.getByText('Language')).toBeVisible();
+    expect(screen.getByText('Preferences')).toBeVisible();
+    expect(screen.getByText('Theme')).toBeVisible();
+    expect(screen.getByText('Dark')).toBeVisible();
     expect(screen.getByText('About')).toBeVisible();
     expect(screen.getByText('Version 2.4.1')).toBeVisible();
     expect(screen.queryByText('Data source')).not.toBeOnTheScreen();
@@ -233,7 +236,9 @@ describe('SettingsScreen', () => {
       { authSession, dependencies },
     );
 
-    expect(screen.getByText('Connected as aiko')).toBeVisible();
+    expect(screen.getByText('aiko')).toBeVisible();
+    expect(screen.getByText('Connected with AniList')).toBeVisible();
+    expect(screen.getByText('Active')).toBeVisible();
     await fireEvent.press(screen.getByLabelText('Disconnect'));
     expect(alert).toHaveBeenCalledWith(
       'Disconnect AniList?',
@@ -262,6 +267,7 @@ describe('SettingsScreen', () => {
       <SettingsScreen developerStorage={createDeveloperStorage()} />,
       { languagePreference: 'system' },
     );
+    await fireEvent.press(screen.getByLabelText('Language'));
     expect(
       screen.getByLabelText('System default').props.accessibilityState,
     ).toMatchObject({ checked: true });
@@ -458,6 +464,7 @@ describe('SettingsScreen', () => {
 
     expect(screen.getByText('Puriki')).toBeVisible();
 
+    await fireEvent.press(screen.getByLabelText('Language'));
     await fireEvent.press(screen.getByLabelText('Português (Brasil)'));
     await waitFor(() =>
       expect(screen.getByText('Configurações')).toBeVisible(),
@@ -466,6 +473,7 @@ describe('SettingsScreen', () => {
       'purikuki:language-preference:v1',
       'pt-BR',
     );
+    await fireEvent.press(screen.getByLabelText('Idioma'));
     await fireEvent.press(screen.getByLabelText('Español'));
     await waitFor(() =>
       expect(screen.getByText('Configuración')).toBeVisible(),

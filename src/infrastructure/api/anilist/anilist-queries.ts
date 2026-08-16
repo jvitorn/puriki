@@ -204,6 +204,7 @@ export const ANILIST_USER_LIST_QUERY = /* GraphQL */ `
           media {
             idMal
             episodes
+            status
           }
         }
       }
@@ -217,6 +218,7 @@ export const ANILIST_MEDIA_IDENTITY_QUERY = /* GraphQL */ `
       id
       idMal
       episodes
+      status
     }
   }
 `;
@@ -245,6 +247,7 @@ export const ANILIST_SAVE_USER_LIST_ENTRY_MUTATION = /* GraphQL */ `
       media {
         idMal
         episodes
+        status
       }
     }
   }

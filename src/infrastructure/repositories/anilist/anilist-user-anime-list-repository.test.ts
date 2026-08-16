@@ -8,7 +8,10 @@ import {
   AniListNetworkError,
   AniListUnauthorizedError,
 } from '@/infrastructure/api/anilist/anilist-errors';
-import type { AniListMediaIdentityResolver } from '@/infrastructure/api/anilist/anilist-media-identity';
+import type {
+  AniListMediaIdentity,
+  AniListMediaIdentityResolver,
+} from '@/infrastructure/api/anilist/anilist-media-identity';
 import {
   ANILIST_DELETE_USER_LIST_ENTRY_MUTATION,
   ANILIST_SAVE_USER_LIST_ENTRY_MUTATION,
@@ -53,6 +56,7 @@ function entry(options: {
   progress?: number | null;
   updatedAt?: number;
   totalEpisodes?: number | null;
+  mediaStatus?: string | null;
 }) {
   return {
     id: options.listEntryId ?? options.mediaId + 1_000,
@@ -65,6 +69,10 @@ function entry(options: {
       idMal: options.idMal,
       episodes:
         'totalEpisodes' in options ? options.totalEpisodes! : (12 as number),
+      status:
+        'mediaStatus' in options
+          ? options.mediaStatus!
+          : ('FINISHED' as string),
     },
   };
 }
@@ -78,7 +86,7 @@ function deleted(value: boolean): AniListClientResponse {
 }
 
 function createClient(
-  responses: Array<AniListClientResponse | Error>,
+  responses: (AniListClientResponse | Error)[],
 ): jest.Mocked<AniListClientPort> {
   return {
     execute: jest.fn(
@@ -93,10 +101,7 @@ function createClient(
 }
 
 function identityResolver(
-  identities: Record<
-    number,
-    { animeId: number; mediaId: number; totalEpisodes: number | null }
-  > = {},
+  identities: Record<number, AniListMediaIdentity> = {},
 ): jest.Mocked<AniListMediaIdentityResolver> {
   return {
     resolve: jest.fn(async (animeId) => identities[animeId] ?? null),
@@ -158,6 +163,7 @@ describe('AniListUserAnimeListRepository', () => {
       animeId: 11,
       mediaId: 1,
       totalEpisodes: 12,
+      airingStatus: 'finished',
     });
     expect(client.execute).toHaveBeenCalledTimes(2);
   });
@@ -192,7 +198,12 @@ describe('AniListUserAnimeListRepository', () => {
 
   it('creates a default PLANNING entry through the MAL-to-AniList identity', async () => {
     const identities = identityResolver({
-      22: { animeId: 22, mediaId: 202, totalEpisodes: 12 },
+      22: {
+        animeId: 22,
+        mediaId: 202,
+        totalEpisodes: 12,
+        airingStatus: 'finished',
+      },
     });
     const client = createClient([
       collection([]),
@@ -246,7 +257,12 @@ describe('AniListUserAnimeListRepository', () => {
       userId: 99,
       maximumAttempts: 1,
       mediaIdentityResolver: identityResolver({
-        22: { animeId: 22, mediaId: 202, totalEpisodes: 12 },
+        22: {
+          animeId: 22,
+          mediaId: 202,
+          totalEpisodes: 12,
+          airingStatus: 'finished',
+        },
       }),
     });
 
@@ -312,17 +328,30 @@ describe('AniListUserAnimeListRepository', () => {
   });
 
   it.each([
-    ['watching', 'CURRENT', undefined],
-    ['completed', 'COMPLETED', 12],
-    ['on_hold', 'PAUSED', undefined],
-    ['dropped', 'DROPPED', undefined],
-    ['plan_to_watch', 'PLANNING', 0],
+    ['watching', 'CURRENT', undefined, 'PAUSED', 3],
+    ['completed', 'COMPLETED', 12, 'CURRENT', 3],
+    ['on_hold', 'PAUSED', undefined, 'CURRENT', 3],
+    ['dropped', 'DROPPED', undefined, 'CURRENT', 3],
+    ['plan_to_watch', 'PLANNING', undefined, 'CURRENT', 0],
   ] as const)(
     'maps status %s to %s and applies its progress transition',
-    async (domainStatus, remoteStatus, expectedProgress) => {
-      const returnedProgress = expectedProgress ?? 3;
+    async (
+      domainStatus,
+      remoteStatus,
+      expectedProgress,
+      currentStatus,
+      currentProgress,
+    ) => {
+      const returnedProgress = expectedProgress ?? currentProgress;
       const client = createClient([
-        collection([entry({ mediaId: 1, idMal: 11, progress: 3 })]),
+        collection([
+          entry({
+            mediaId: 1,
+            idMal: 11,
+            progress: currentProgress,
+            status: currentStatus,
+          }),
+        ]),
         saved({
           mediaId: 1,
           idMal: 11,
@@ -348,6 +377,99 @@ describe('AniListUserAnimeListRepository', () => {
       });
     },
   );
+
+  it('treats the current status as a valid no-op without a mutation', async () => {
+    const client = createClient([
+      collection([entry({ mediaId: 1, idMal: 11, progress: 3 })]),
+    ]);
+    const repository = new AniListUserAnimeListRepository({
+      client,
+      userId: 99,
+      maximumAttempts: 1,
+      mediaIdentityResolver: identityResolver(),
+    });
+
+    await expect(
+      repository.updateStatus(11, 'watching'),
+    ).resolves.toMatchObject({ status: 'watching', watchedEpisodes: 3 });
+    expect(client.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects plan-to-watch after progress starts without sending a mutation', async () => {
+    const client = createClient([
+      collection([entry({ mediaId: 1, idMal: 11, progress: 3 })]),
+    ]);
+    const repository = new AniListUserAnimeListRepository({
+      client,
+      userId: 99,
+      maximumAttempts: 1,
+      mediaIdentityResolver: identityResolver(),
+    });
+
+    await expect(repository.updateStatus(11, 'plan_to_watch')).rejects.toThrow(
+      'already_started',
+    );
+    expect(client.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects completed for a releasing anime without sending a mutation', async () => {
+    const client = createClient([
+      collection([
+        entry({
+          mediaId: 1,
+          idMal: 11,
+          progress: 3,
+          mediaStatus: 'RELEASING',
+        }),
+      ]),
+    ]);
+    const repository = new AniListUserAnimeListRepository({
+      client,
+      userId: 99,
+      maximumAttempts: 1,
+      mediaIdentityResolver: identityResolver(),
+    });
+
+    await expect(repository.updateStatus(11, 'completed')).rejects.toThrow(
+      'airing_in_progress',
+    );
+    expect(client.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps watching at the known total while the anime is releasing', async () => {
+    const client = createClient([
+      collection([
+        entry({
+          mediaId: 1,
+          idMal: 11,
+          progress: 11,
+          mediaStatus: 'RELEASING',
+        }),
+      ]),
+      saved({
+        mediaId: 1,
+        idMal: 11,
+        progress: 12,
+        status: 'CURRENT',
+        mediaStatus: 'RELEASING',
+      }),
+    ]);
+    const repository = new AniListUserAnimeListRepository({
+      client,
+      userId: 99,
+      maximumAttempts: 1,
+      mediaIdentityResolver: identityResolver(),
+    });
+
+    await expect(repository.updateProgress(11, 12)).resolves.toMatchObject({
+      watchedEpisodes: 12,
+      status: 'watching',
+    });
+    expect(client.execute.mock.calls[1]?.[0].variables).toEqual({
+      listEntryId: 1_001,
+      progress: 12,
+    });
+  });
 
   it('writes fixed 100-point scores and clears a score with zero', async () => {
     const client = createClient([

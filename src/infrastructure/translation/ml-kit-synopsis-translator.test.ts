@@ -18,7 +18,7 @@ describe('MlKitSynopsisTranslator', () => {
     );
   });
 
-  it('uses a Wi-Fi-only native translation request', async () => {
+  it('allows the native model download on any connection', async () => {
     const translateAsync = jest
       .fn()
       .mockResolvedValue({ translatedText: 'Sinopsis traducida.' });
@@ -37,7 +37,7 @@ describe('MlKitSynopsisTranslator', () => {
       text: 'An English synopsis.',
       sourceLanguage: 'en',
       targetLanguage: 'es',
-      wifiOnly: true,
+      wifiOnly: false,
     });
   });
 
@@ -52,6 +52,7 @@ describe('MlKitSynopsisTranslator', () => {
     });
     const translator = new MlKitSynopsisTranslator(
       nativeModule(jest.fn().mockRejectedValue(error)),
+      { isDevelopment: false },
     );
 
     await expect(
@@ -61,5 +62,32 @@ describe('MlKitSynopsisTranslator', () => {
         targetLanguage: 'pt',
       }),
     ).rejects.toMatchObject({ code: expectedCode, cause: error });
+  });
+
+  it('logs safe development diagnostics without synopsis text', async () => {
+    const diagnosticLogger = jest.fn();
+    const error = Object.assign(new Error('download failed'), {
+      code: 'ERR_MODEL_DOWNLOAD_FAILED',
+    });
+    const translator = new MlKitSynopsisTranslator(
+      nativeModule(jest.fn().mockRejectedValue(error)),
+      { isDevelopment: true, diagnosticLogger },
+    );
+
+    await expect(
+      translator.translate({
+        text: 'Sensitive synopsis contents.',
+        sourceLanguage: 'en',
+        targetLanguage: 'pt',
+      }),
+    ).rejects.toMatchObject({ code: 'model_download_failed' });
+    expect(diagnosticLogger).toHaveBeenCalledWith({
+      code: 'model_download_failed',
+      sourceLanguage: 'en',
+      targetLanguage: 'pt',
+    });
+    expect(JSON.stringify(diagnosticLogger.mock.calls)).not.toContain(
+      'Sensitive synopsis contents.',
+    );
   });
 });

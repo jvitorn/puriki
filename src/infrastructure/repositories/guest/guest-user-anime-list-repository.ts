@@ -66,7 +66,7 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
     if (existing) return { ...existing };
     const anime = this.catalogRepository.getKnownById(animeId);
     if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
-    const created = transitionStatus(
+    const transition = transitionStatus(
       {
         animeId,
         status: 'plan_to_watch',
@@ -75,8 +75,15 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
         updatedAt: this.now().toISOString(),
       },
       status,
-      anime.totalEpisodes,
+      {
+        totalEpisodes: anime.totalEpisodes,
+        airingStatus: anime.airingStatus,
+      },
     );
+    if (!transition.allowed) {
+      throw new DomainError(`Status transition blocked: ${transition.reason}.`);
+    }
+    const created = transition.entry;
     return this.save({ ...created, updatedAt: this.now().toISOString() });
   }
 
@@ -90,7 +97,10 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
   ): Promise<UserAnimeEntry> {
     const { anime, entry } = await this.resolveForUpdate(animeId);
     return this.save({
-      ...applyProgress(entry, episodes, anime.totalEpisodes),
+      ...applyProgress(entry, episodes, {
+        totalEpisodes: anime.totalEpisodes,
+        airingStatus: anime.airingStatus,
+      }),
       updatedAt: this.now().toISOString(),
     });
   }
@@ -100,8 +110,16 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
     status: AnimeListStatus,
   ): Promise<UserAnimeEntry> {
     const { anime, entry } = await this.resolveForUpdate(animeId);
+    if (entry.status === status) return { ...entry };
+    const transition = transitionStatus(entry, status, {
+      totalEpisodes: anime.totalEpisodes,
+      airingStatus: anime.airingStatus,
+    });
+    if (!transition.allowed) {
+      throw new DomainError(`Status transition blocked: ${transition.reason}.`);
+    }
     return this.save({
-      ...transitionStatus(entry, status, anime.totalEpisodes),
+      ...transition.entry,
       updatedAt: this.now().toISOString(),
     });
   }

@@ -1,5 +1,6 @@
 import { parseAniListMediaDetails } from '@/infrastructure/api/anilist/anilist-dtos';
 import {
+  mapAniListAiringStatus,
   mapAniListDetails,
   mapAniListSummary,
 } from '@/infrastructure/api/anilist/anilist-mapper';
@@ -30,7 +31,7 @@ describe('AniList mapper', () => {
       score: 8.8,
       season: 'Fall',
       year: 1999,
-      airingStatus: 'Currently Airing',
+      airingStatus: 'releasing',
       posterImageUrl: 'large',
       largePosterImageUrl: 'extra',
       heroImageUrl: null,
@@ -183,9 +184,21 @@ describe('AniList mapper', () => {
       score: null,
       season: null,
       year: null,
-      airingStatus: 'Status Unknown',
+      airingStatus: 'unknown',
       posterImageUrl: 'medium',
       largePosterImageUrl: 'medium',
     });
+  });
+
+  it.each([
+    ['RELEASING', 'releasing'],
+    ['FINISHED', 'finished'],
+    ['NOT_YET_RELEASED', 'not_yet_released'],
+    ['CANCELLED', 'cancelled'],
+    ['HIATUS', 'hiatus'],
+    ['UNKNOWN', 'unknown'],
+    [null, 'unknown'],
+  ] as const)('maps airing status %s to %s', (remote, expected) => {
+    expect(mapAniListAiringStatus(remote)).toBe(expected);
   });
 });

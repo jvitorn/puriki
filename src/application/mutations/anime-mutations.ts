@@ -4,10 +4,13 @@ import type {
   QueryClient,
   QueryKey,
 } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { LatestProgressIntentCoordinator } from '@/application/mutations/latest-progress-intent';
 import { queryKeys } from '@/application/queries/query-keys';
 import { RepositoryError } from '@/domain/errors/domain-error';
 import type {
+  AnimeCatalogItem,
   AnimeListStatus,
   UnifiedAnime,
   UserAnimeEntry,
@@ -171,7 +174,7 @@ async function optimisticallyUpdate(
   animeId: number,
   makeEntry: (
     current: UserAnimeEntry,
-    totalEpisodes: number | null,
+    anime: AnimeCatalogItem,
   ) => UserAnimeEntry,
 ): Promise<CacheSnapshot[]> {
   const snapshots = await snapshotMembershipCaches(
@@ -183,13 +186,56 @@ async function optimisticallyUpdate(
   matching.forEach(([queryKey, data]) => {
     const item = findUnifiedAnime(data, animeId);
     if (!item?.userEntry) return;
-    const nextEntry = makeEntry(item.userEntry, item.anime.totalEpisodes);
+    const nextEntry = makeEntry(item.userEntry, item.anime);
     queryClient.setQueryData(
       queryKey,
       replaceCachedEntry(data, queryKey, nextEntry),
     );
   });
   return snapshots;
+}
+
+function trackingContext(anime: AnimeCatalogItem) {
+  return {
+    totalEpisodes: anime.totalEpisodes,
+    airingStatus: anime.airingStatus,
+  };
+}
+
+function findCachedUnifiedAnime(
+  queryClient: QueryClient,
+  userListScope: string,
+  animeId: number,
+): UnifiedAnime | undefined {
+  for (const [, data] of getAnimeCacheEntries(
+    queryClient,
+    userListScope,
+    animeId,
+  )) {
+    const item = findUnifiedAnime(data, animeId);
+    if (item) return item;
+  }
+  return undefined;
+}
+
+function ensureAllowedStatusMutation(
+  queryClient: QueryClient,
+  userListScope: string,
+  animeId: number,
+  status: AnimeListStatus,
+): void {
+  const item = findCachedUnifiedAnime(queryClient, userListScope, animeId);
+  if (!item?.userEntry) return;
+  const transition = transitionStatus(
+    item.userEntry,
+    status,
+    trackingContext(item.anime),
+  );
+  if (!transition.allowed) {
+    throw new RepositoryError(
+      `Status transition blocked: ${transition.reason}.`,
+    );
+  }
 }
 
 function restoreSnapshots(
@@ -275,6 +321,26 @@ function invalidateMembershipCaches(
   ]);
 }
 
+function reconcileProgressFailure(
+  queryClient: QueryClient,
+  userListScope: string,
+  animeId: number,
+  invalidateRepository: () => void,
+): Promise<unknown[]> {
+  invalidateRepository();
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.userListScope(userListScope),
+      refetchType: 'active',
+    }),
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.details(userListScope, animeId),
+      exact: true,
+      refetchType: 'active',
+    }),
+  ]);
+}
+
 function readOnlyMutationError(): RepositoryError {
   return new RepositoryError('The active anime list is read-only.');
 }
@@ -312,12 +378,19 @@ export function useAddToList() {
           userScore: null,
           updatedAt: '',
         };
-        setDetailsMembership(
-          queryClient,
-          userListScope,
-          animeId,
-          transitionStatus(base, status, current.anime.totalEpisodes),
+        const transition = transitionStatus(
+          base,
+          status,
+          trackingContext(current.anime),
         );
+        if (transition.allowed) {
+          setDetailsMembership(
+            queryClient,
+            userListScope,
+            animeId,
+            transition.entry,
+          );
+        }
       }
       return snapshots;
     },
@@ -365,7 +438,28 @@ export function useUpdateProgress() {
     userListScope,
     userListUpdateMode,
   } = useRepositories();
-  return useMutation({
+  const coordinator = useMemo(
+    () => new LatestProgressIntentCoordinator(userListRepository),
+    [userListRepository],
+  );
+  const versions = useRef(new Map<number, number>());
+  const failedIntent = useRef<{ animeId: number; episodes: number } | null>(
+    null,
+  );
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveState, setSaveState] = useState<
+    'idle' | 'saving' | 'saved' | 'error'
+  >('idle');
+
+  useEffect(
+    () => () => {
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+    },
+    [],
+  );
+
+  const mutation = useMutation({
+    retry: false,
     mutationFn: ({
       animeId,
       episodes,
@@ -375,7 +469,7 @@ export function useUpdateProgress() {
     }) => {
       if (!canMutateUserList) throw readOnlyMutationError();
       if (userListUpdateMode === 'direct') {
-        return userListRepository.updateProgress(animeId, episodes);
+        return coordinator.submit(animeId, episodes);
       }
       if (userListUpdateMode === 'queued') {
         return syncEngine
@@ -384,22 +478,68 @@ export function useUpdateProgress() {
       }
       throw readOnlyMutationError();
     },
-    onMutate: ({ animeId, episodes }) =>
-      canMutateUserList
-        ? optimisticallyUpdate(
+    onMutate: async ({ animeId, episodes }) => {
+      const version = (versions.current.get(animeId) ?? 0) + 1;
+      versions.current.set(animeId, version);
+      failedIntent.current = null;
+      if (savedTimer.current) clearTimeout(savedTimer.current);
+      setSaveState('saving');
+      const snapshots = canMutateUserList
+        ? await optimisticallyUpdate(
             queryClient,
             userListScope,
             animeId,
-            (current, total) => applyProgress(current, episodes, total),
+            (current, anime) =>
+              applyProgress(current, episodes, trackingContext(anime)),
           )
-        : [],
-    onError: (_error, _variables, snapshots) =>
-      restoreSnapshots(queryClient, snapshots),
-    onSuccess: (nextEntry, { animeId }) =>
-      nextEntry
+        : [];
+      return { snapshots, version, mode: userListUpdateMode };
+    },
+    onError: (_error, variables, context) => {
+      if (
+        !context ||
+        context.version !== versions.current.get(variables.animeId)
+      )
+        return;
+      failedIntent.current = variables;
+      setSaveState('error');
+      if (context.mode === 'direct') {
+        return reconcileProgressFailure(
+          queryClient,
+          userListScope,
+          variables.animeId,
+          () => userListRepository.invalidateCache(),
+        );
+      }
+      restoreSnapshots(queryClient, context.snapshots);
+    },
+    onSuccess: (nextEntry, variables, context) => {
+      if (
+        !context ||
+        context.version !== versions.current.get(variables.animeId)
+      )
+        return;
+      failedIntent.current = null;
+      setSaveState('saved');
+      savedTimer.current = setTimeout(() => setSaveState('idle'), 1_000);
+      return nextEntry
         ? reconcileDirectMutation(queryClient, userListScope, nextEntry)
-        : invalidateMembershipCaches(queryClient, userListScope, animeId),
+        : invalidateMembershipCaches(
+            queryClient,
+            userListScope,
+            variables.animeId,
+          );
+    },
   });
+
+  return {
+    ...mutation,
+    saveState,
+    retryLastIntent: () => {
+      const intent = failedIntent.current;
+      if (intent) mutation.mutate(intent);
+    },
+  };
 }
 
 export function useUpdateStatus() {
@@ -420,6 +560,7 @@ export function useUpdateStatus() {
       status: AnimeListStatus;
     }) => {
       if (!canMutateUserList) throw readOnlyMutationError();
+      ensureAllowedStatusMutation(queryClient, userListScope, animeId, status);
       if (userListUpdateMode === 'direct') {
         return userListRepository.updateStatus(animeId, status);
       }
@@ -430,15 +571,23 @@ export function useUpdateStatus() {
       }
       throw readOnlyMutationError();
     },
-    onMutate: ({ animeId, status }) =>
-      canMutateUserList
-        ? optimisticallyUpdate(
-            queryClient,
-            userListScope,
-            animeId,
-            (current, total) => transitionStatus(current, status, total),
-          )
-        : [],
+    onMutate: ({ animeId, status }) => {
+      if (!canMutateUserList) return [];
+      ensureAllowedStatusMutation(queryClient, userListScope, animeId, status);
+      return optimisticallyUpdate(
+        queryClient,
+        userListScope,
+        animeId,
+        (current, anime) => {
+          const transition = transitionStatus(
+            current,
+            status,
+            trackingContext(anime),
+          );
+          return transition.allowed ? transition.entry : current;
+        },
+      );
+    },
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
     onSuccess: (nextEntry, { animeId }) =>

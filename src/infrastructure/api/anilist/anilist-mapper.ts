@@ -1,4 +1,5 @@
 import type {
+  AnimeAiringStatus,
   AnimeCatalogItem,
   AnimeContinuityKind,
   AnimeContinuityRelation,
@@ -64,15 +65,17 @@ function readableSeason(season: string | null): string | null {
   return season ? (seasons[season] ?? null) : null;
 }
 
-function readableStatus(status: string | null): string {
-  const statuses: Record<string, string> = {
-    RELEASING: 'Currently Airing',
-    FINISHED: 'Finished Airing',
-    NOT_YET_RELEASED: 'Not Yet Aired',
-    CANCELLED: 'Cancelled',
-    HIATUS: 'Hiatus',
+export function mapAniListAiringStatus(
+  status: string | null | undefined,
+): AnimeAiringStatus {
+  const statuses: Record<string, AnimeAiringStatus> = {
+    RELEASING: 'releasing',
+    FINISHED: 'finished',
+    NOT_YET_RELEASED: 'not_yet_released',
+    CANCELLED: 'cancelled',
+    HIATUS: 'hiatus',
   };
-  return status ? (statuses[status] ?? 'Status Unknown') : 'Status Unknown';
+  return status ? (statuses[status] ?? 'unknown') : 'unknown';
 }
 
 function relationKind(value: string | null): AnimeContinuityKind | null {
@@ -173,7 +176,7 @@ export function mapAniListSummary(
       dto.seasonYear !== null && Number.isInteger(dto.seasonYear)
         ? dto.seasonYear
         : null,
-    airingStatus: readableStatus(dto.status),
+    airingStatus: mapAniListAiringStatus(dto.status),
     posterImageUrl: firstUrl(
       dto.coverImage.large,
       dto.coverImage.medium,

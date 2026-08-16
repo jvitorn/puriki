@@ -84,7 +84,7 @@ export function buildTestAnimeDataset(): TestAnimeDataset {
       score: 7 + (index % 20) / 10,
       season: ['Winter', 'Spring', 'Summer', 'Fall'][index % 4] ?? 'Spring',
       year: 2015 + (index % 12),
-      airingStatus: index % 3 === 0 ? 'Airing' : 'Finished Airing',
+      airingStatus: index % 3 === 0 ? 'releasing' : 'finished',
     }),
   );
   const userEntries = catalog.slice(0, 25).map((anime, index) => {
@@ -156,7 +156,7 @@ export function createTestScenario(name: TestScenarioName): TestAnimeDataset {
   }
   if (name === 'unknown-episodes') {
     return {
-      catalog: [makeAnime({ totalEpisodes: null, airingStatus: 'Airing' })],
+      catalog: [makeAnime({ totalEpisodes: null, airingStatus: 'releasing' })],
       userEntries: [],
     };
   }

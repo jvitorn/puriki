@@ -9,9 +9,11 @@ import {
   AvatarFallback,
   AvatarImage,
 } from '@/presentation/components/ui/avatar';
+import { Badge } from '@/presentation/components/ui/badge';
 import { Card } from '@/presentation/components/ui/card';
 import { Icon } from '@/presentation/components/ui/icon';
 import { Text } from '@/presentation/components/ui/text';
+import { cn } from '@/shared/rnr/utils';
 
 export interface AccountProfileCardProps {
   providerName: string;
@@ -39,7 +41,12 @@ export function AccountProfileCard({
     : t('settings.disconnectedAvatar');
 
   return (
-    <Card className="gap-4 border-0 p-4 py-4">
+    <Card
+      className={cn(
+        'gap-4 border-0 p-4 py-4',
+        connectionState === 'coming_soon' && 'opacity-55',
+      )}
+    >
       <View accessible className="flex-row items-center gap-4">
         <Avatar alt={avatarLabel} className="size-14">
           {connected && avatarUrl ? (
@@ -57,12 +64,26 @@ export function AccountProfileCard({
           </AvatarFallback>
         </Avatar>
         <View className="flex-1 gap-1">
-          <Text className="font-bold">{providerName}</Text>
+          <Text className="font-bold">
+            {connected ? (username ?? providerName) : providerName}
+          </Text>
+          {connected ? (
+            <Text variant="caption" muted>
+              {providerName}
+            </Text>
+          ) : null}
           <Text muted>{status}</Text>
         </View>
+        {connected ? (
+          <Badge className="border-emerald-500/30 bg-emerald-500/15">
+            <Text className="text-emerald-400">{t('settings.active')}</Text>
+          </Badge>
+        ) : null}
       </View>
       {children ? (
-        <View className="flex-row flex-wrap justify-end gap-2">{children}</View>
+        <View className="flex-row flex-wrap justify-end gap-2 border-t border-border pt-3">
+          {children}
+        </View>
       ) : null}
     </Card>
   );

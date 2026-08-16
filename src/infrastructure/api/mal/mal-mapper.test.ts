@@ -45,7 +45,7 @@ describe('MAL anime mapper', () => {
       score: 9.28,
       season: 'Fall',
       year: 2023,
-      airingStatus: 'Finished Airing',
+      airingStatus: 'finished',
       posterImageUrl: 'https://example.test/frieren-medium.jpg',
       largePosterImageUrl: 'https://example.test/frieren-large.jpg',
       heroImageUrl: 'https://example.test/frieren-large.jpg',
@@ -82,11 +82,22 @@ describe('MAL anime mapper', () => {
       score: null,
       season: null,
       year: null,
-      airingStatus: 'Status unknown',
+      airingStatus: 'unknown',
       posterImageUrl: null,
       largePosterImageUrl: null,
       heroImageUrl: null,
     });
+  });
+
+  it.each([
+    ['currently_airing', 'releasing'],
+    ['finished_airing', 'finished'],
+    ['not_yet_aired', 'not_yet_released'],
+    ['cancelled', 'unknown'],
+    ['on_hiatus', 'unknown'],
+    [undefined, 'unknown'],
+  ] as const)('maps airing status %s to %s', (status, expected) => {
+    expect(mapMalAnime(completeDto({ status })).airingStatus).toBe(expected);
   });
 
   it('uses a large-only picture as every artwork fallback', () => {

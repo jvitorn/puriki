@@ -185,7 +185,7 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
       if (existing) return cloneEntry(existing.entry);
       const identity = await this.resolveIdentity(animeId);
       if (!identity) throw new DomainError(`Anime ${animeId} was not found.`);
-      const desired = transitionStatus(
+      const transition = transitionStatus(
         {
           animeId,
           status: 'plan_to_watch',
@@ -194,8 +194,17 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
           updatedAt: new Date(this.now()).toISOString(),
         },
         status,
-        identity.totalEpisodes,
+        {
+          totalEpisodes: identity.totalEpisodes,
+          airingStatus: identity.airingStatus,
+        },
       );
+      if (!transition.allowed) {
+        throw new DomainError(
+          `Status transition blocked: ${transition.reason}.`,
+        );
+      }
+      const desired = transition.entry;
       const variables: Record<string, unknown> = {
         mediaId: identity.mediaId,
         status: mapDomainStatus(desired.status),
@@ -246,11 +255,10 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
   updateProgress(animeId: number, episodes: number): Promise<UserAnimeEntry> {
     return this.serializeMutation(animeId, async () => {
       const current = await this.requireEntry(animeId);
-      const desired = applyProgress(
-        current.entry,
-        episodes,
-        current.totalEpisodes,
-      );
+      const desired = applyProgress(current.entry, episodes, {
+        totalEpisodes: current.totalEpisodes,
+        airingStatus: current.airingStatus,
+      });
       const variables: Record<string, unknown> = {
         listEntryId: current.listEntryId,
         progress: desired.watchedEpisodes,
@@ -268,11 +276,17 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
   ): Promise<UserAnimeEntry> {
     return this.serializeMutation(animeId, async () => {
       const current = await this.requireEntry(animeId);
-      const desired = transitionStatus(
-        current.entry,
-        status,
-        current.totalEpisodes,
-      );
+      if (current.entry.status === status) return cloneEntry(current.entry);
+      const transition = transitionStatus(current.entry, status, {
+        totalEpisodes: current.totalEpisodes,
+        airingStatus: current.airingStatus,
+      });
+      if (!transition.allowed) {
+        throw new DomainError(
+          `Status transition blocked: ${transition.reason}.`,
+        );
+      }
+      const desired = transition.entry;
       const variables: Record<string, unknown> = {
         listEntryId: current.listEntryId,
         status: mapDomainStatus(desired.status),
@@ -486,6 +500,7 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
       animeId: entry.entry.animeId,
       mediaId: entry.mediaId,
       totalEpisodes: entry.totalEpisodes,
+      airingStatus: entry.airingStatus,
     });
   }
 

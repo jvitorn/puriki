@@ -10,6 +10,12 @@ import {
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Alert, useWindowDimensions, View } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  ReduceMotion,
+} from 'react-native-reanimated';
 
 import {
   useAddToList,
@@ -19,6 +25,8 @@ import {
   useUpdateStatus,
 } from '@/application/mutations/anime-mutations';
 import { useAnimeDetails } from '@/application/queries/anime-queries';
+import type { StatusTransitionBlockedReason } from '@/domain/rules/anime-status';
+import { getAllowedStatusTransitions } from '@/domain/rules/anime-status';
 import { useAppLanguage } from '@/localization/localization-provider';
 import {
   formatNumber,
@@ -79,13 +87,15 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   const { width } = useWindowDimensions();
   const { canMutateUserList } = useRepositories();
   const [alternativeTitlesOpen, setAlternativeTitlesOpen] = useState(false);
+  const [statusBlockedReason, setStatusBlockedReason] =
+    useState<StatusTransitionBlockedReason | null>(null);
   const details = useAnimeDetails(animeId);
   const progress = useUpdateProgress();
   const status = useUpdateStatus();
   const score = useUpdateScore();
   const addToList = useAddToList();
   const removeFromList = useRemoveFromList();
-  const mutationError = progress.error ?? status.error ?? score.error;
+  const mutationError = status.error ?? score.error;
   const heroHeight = Math.max(260, Math.min(width * 0.62, 410));
 
   if (details.isLoading) {
@@ -134,6 +144,12 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
 
   const { anime, userEntry } = details.data;
   const busy = addToList.isPending || removeFromList.isPending;
+  const statusTransitions = userEntry
+    ? getAllowedStatusTransitions(userEntry, {
+        totalEpisodes: anime.totalEpisodes,
+        airingStatus: anime.airingStatus,
+      })
+    : null;
 
   const confirmRemoval = () => {
     if (!canMutateUserList) return;
@@ -237,7 +253,9 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 current={userEntry.watchedEpisodes}
                 total={anime.totalEpisodes}
                 disabled={busy || !canMutateUserList}
+                saveState={progress.saveState}
                 onChange={(episodes) => progress.mutate({ animeId, episodes })}
+                onRetry={progress.retryLastIntent}
               />
             </View>
             <Separator />
@@ -245,13 +263,29 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               <Text variant="caption" muted>
                 {t('details.listStatus')}
               </Text>
-              <AnimeStatusSelector
-                value={userEntry.status}
-                disabled={busy || !canMutateUserList}
-                onChange={(nextStatus) =>
-                  status.mutate({ animeId, status: nextStatus })
-                }
-              />
+              {statusTransitions ? (
+                <AnimeStatusSelector
+                  value={userEntry.status}
+                  transitions={statusTransitions}
+                  disabled={busy || !canMutateUserList}
+                  saving={status.isPending}
+                  onBlocked={setStatusBlockedReason}
+                  onChange={(nextStatus) => {
+                    setStatusBlockedReason(null);
+                    status.mutate({ animeId, status: nextStatus });
+                  }}
+                />
+              ) : null}
+              {statusBlockedReason ? (
+                <Text
+                  accessibilityLiveRegion="polite"
+                  className="text-sm text-warning"
+                >
+                  {statusBlockedReason === 'already_started'
+                    ? t('details.statusBlockedAlreadyStarted')
+                    : t('details.statusBlockedAiringInProgress')}
+                </Text>
+              ) : null}
             </View>
             {userEntry.status === 'completed' ? (
               <>
@@ -355,16 +389,54 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
         ) : null}
 
         {anime.synopsis ? (
-          <AnimeSynopsisSection
-            animeId={anime.id}
-            synopsis={anime.synopsis}
-            appLanguage={language}
-          />
+          <View testID="details-section-synopsis">
+            <AnimeSynopsisSection
+              animeId={anime.id}
+              synopsis={anime.synopsis}
+              appLanguage={language}
+            />
+          </View>
         ) : null}
 
-        <AnimeStreamingSection services={anime.streamingServices} />
+        {anime.alternativeTitles.length > 0 ? (
+          <Animated.View
+            layout={LinearTransition.duration(260).reduceMotion(
+              ReduceMotion.System,
+            )}
+            testID="details-section-alternative-titles"
+          >
+            <Collapsible
+              open={alternativeTitlesOpen}
+              onOpenChange={setAlternativeTitlesOpen}
+            >
+              <CollapsibleTrigger
+                accessibilityLabel={t('details.alternativeTitles')}
+                accessibilityState={{ expanded: alternativeTitlesOpen }}
+                className="min-h-12 w-full flex-row items-center justify-between active:opacity-75"
+              >
+                <Text variant="heading">{t('details.alternativeTitles')}</Text>
+                <Icon
+                  as={alternativeTitlesOpen ? ChevronUp : ChevronDown}
+                  className="size-5 text-muted-foreground"
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <Animated.View
+                  entering={FadeIn.duration(260).reduceMotion(
+                    ReduceMotion.System,
+                  )}
+                  exiting={FadeOut.duration(260).reduceMotion(
+                    ReduceMotion.System,
+                  )}
+                >
+                  <Text muted>{anime.alternativeTitles.join(' • ')}</Text>
+                </Animated.View>
+              </CollapsibleContent>
+            </Collapsible>
+          </Animated.View>
+        ) : null}
 
-        <View className="gap-1">
+        <View className="gap-1" testID="details-section-information">
           <Text variant="heading" className="mb-2">
             {t('details.information')}
           </Text>
@@ -402,37 +474,21 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           />
         </View>
 
-        <AnimeContinuitySection
-          relations={anime.continuity}
-          onSelect={(relatedAnimeId) =>
-            router.push({
-              pathname: '/anime/[id]',
-              params: { id: String(relatedAnimeId) },
-            })
-          }
-        />
+        <View testID="details-section-continuity">
+          <AnimeContinuitySection
+            relations={anime.continuity}
+            onSelect={(relatedAnimeId) =>
+              router.push({
+                pathname: '/anime/[id]',
+                params: { id: String(relatedAnimeId) },
+              })
+            }
+          />
+        </View>
 
-        {anime.alternativeTitles.length > 0 ? (
-          <Collapsible
-            open={alternativeTitlesOpen}
-            onOpenChange={setAlternativeTitlesOpen}
-          >
-            <CollapsibleTrigger
-              accessibilityLabel={t('details.alternativeTitles')}
-              accessibilityState={{ expanded: alternativeTitlesOpen }}
-              className="min-h-12 w-full flex-row items-center justify-between active:opacity-75"
-            >
-              <Text variant="heading">{t('details.alternativeTitles')}</Text>
-              <Icon
-                as={alternativeTitlesOpen ? ChevronUp : ChevronDown}
-                className="size-5 text-muted-foreground"
-              />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
-              <Text muted>{anime.alternativeTitles.join(' • ')}</Text>
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
+        <View testID="details-section-streaming">
+          <AnimeStreamingSection services={anime.streamingServices} />
+        </View>
       </View>
     </Screen>
   );

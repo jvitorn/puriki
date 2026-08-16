@@ -1,4 +1,9 @@
-import type { AnimeListStatus, UserAnimeEntry } from '@/domain/models/anime';
+import type {
+  AnimeListStatus,
+  AnimeTrackingContext,
+  UserAnimeEntry,
+} from '@/domain/models/anime';
+import { canMarkAnimeCompleted } from '@/domain/rules/anime-airing-status';
 
 export function normalizeProgress(
   episodes: number,
@@ -37,12 +42,13 @@ export function decrementProgress(current: number): number {
 export function statusAfterProgress(
   currentStatus: AnimeListStatus,
   watchedEpisodes: number,
-  totalEpisodes: number | null,
+  context: AnimeTrackingContext,
 ): AnimeListStatus {
   if (
-    totalEpisodes !== null &&
-    totalEpisodes > 0 &&
-    watchedEpisodes === totalEpisodes
+    context.totalEpisodes !== null &&
+    context.totalEpisodes > 0 &&
+    watchedEpisodes === context.totalEpisodes &&
+    canMarkAnimeCompleted(context.airingStatus)
   ) {
     return 'completed';
   }
@@ -58,12 +64,12 @@ export function statusAfterProgress(
 export function applyProgress(
   entry: UserAnimeEntry,
   episodes: number,
-  totalEpisodes: number | null,
+  context: AnimeTrackingContext,
 ): UserAnimeEntry {
-  const watchedEpisodes = normalizeProgress(episodes, totalEpisodes);
+  const watchedEpisodes = normalizeProgress(episodes, context.totalEpisodes);
   return {
     ...entry,
     watchedEpisodes,
-    status: statusAfterProgress(entry.status, watchedEpisodes, totalEpisodes),
+    status: statusAfterProgress(entry.status, watchedEpisodes, context),
   };
 }
