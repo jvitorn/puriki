@@ -31,6 +31,10 @@ import {
   type AniListRunAllResult,
 } from '@/infrastructure/api/anilist/anilist-diagnostics';
 import { AniListUnauthorizedError } from '@/infrastructure/api/anilist/anilist-errors';
+import {
+  AniListMediaIdentityRegistry,
+  type AniListMediaIdentityResolver,
+} from '@/infrastructure/api/anilist/anilist-media-identity';
 import { AniListRequestCoordinator } from '@/infrastructure/api/anilist/anilist-request-coordinator';
 import { isMalConfigured } from '@/infrastructure/api/mal/mal-config';
 import { AniListAnimeCatalogRepository } from '@/infrastructure/repositories/anilist/anilist-anime-catalog-repository';
@@ -74,6 +78,7 @@ export interface RepositoryDependencies {
   userListRepository: UserAnimeListRepository;
   userListScope: string;
   canMutateUserList: boolean;
+  userListUpdateMode: UserListUpdateMode;
   syncEngine: UserAnimeSync;
   getCatalogRuntimeStatus(): CatalogRuntimeStatus;
   subscribeCatalogRuntimeStatus(
@@ -83,6 +88,8 @@ export interface RepositoryDependencies {
   resetPrimaryCircuits(): void;
   runAniListDiagnostic(): Promise<AniListRunAllResult>;
 }
+
+export type UserListUpdateMode = 'queued' | 'direct' | 'unavailable';
 
 interface RepositoryProviderProps extends PropsWithChildren {
   dependencies?: RepositoryDependencies;
@@ -105,6 +112,7 @@ export interface ProductionDependenciesOptions {
   syncTargets?: readonly SyncTarget[];
   authSession?: AuthSessionController;
   authTokenStore?: AuthTokenStore;
+  anilistMediaIdentityResolver?: AniListMediaIdentityResolver;
 }
 
 const RepositoryContext = createContext<RepositoryDependencies | null>(null);
@@ -112,18 +120,24 @@ const RepositoryContext = createContext<RepositoryDependencies | null>(null);
 export function userListAccessFromSnapshot(snapshot: AuthSessionSnapshot): {
   scope: string;
   canMutate: boolean;
+  updateMode: UserListUpdateMode;
 } {
   const connection = snapshot.connections.anilist;
   if (connection.state === 'connected' && connection.account) {
     return {
       scope: `anilist:${connection.account.userId}`,
-      canMutate: false,
+      canMutate: true,
+      updateMode: 'direct',
     };
   }
   if (connection.state === 'reconnect_required') {
-    return { scope: 'anilist:reconnect-required', canMutate: false };
+    return {
+      scope: 'anilist:reconnect-required',
+      canMutate: false,
+      updateMode: 'unavailable',
+    };
   }
-  return { scope: 'guest', canMutate: true };
+  return { scope: 'guest', canMutate: true, updateMode: 'queued' };
 }
 
 function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
@@ -182,11 +196,19 @@ export function createProductionDependencies(
   coordinator.subscribeRateLimit((retryAfterMs) =>
     primaryRateLimitGate.block(retryAfterMs),
   );
+  const publicAniListClient = createAniListClient({ coordinator });
+  const anilistMediaIdentityResolver =
+    options.anilistMediaIdentityResolver ??
+    new AniListMediaIdentityRegistry({
+      client: publicAniListClient,
+      maximumAttempts: 2,
+    });
   const anilistRepository =
     options.anilistRepository ??
     new AniListAnimeCatalogRepository({
-      client: createAniListClient({ coordinator }),
+      client: publicAniListClient,
       maximumAttempts: 2,
+      mediaIdentityResolver: anilistMediaIdentityResolver,
     });
   const malRepository =
     options.malRepository ?? new MalAnimeCatalogRepository();
@@ -229,6 +251,7 @@ export function createProductionDependencies(
                 },
               }),
               userId: Number(account.userId),
+              mediaIdentityResolver: anilistMediaIdentityResolver,
               onUnauthorized: () =>
                 options.authSession?.markReconnectRequired('anilist'),
             }),
@@ -246,6 +269,7 @@ export function createProductionDependencies(
     userListRepository,
     userListScope: 'guest',
     canMutateUserList: true,
+    userListUpdateMode: 'queued',
     syncEngine,
     getCatalogRuntimeStatus: () => channel.get(),
     subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
@@ -286,12 +310,19 @@ export function RepositoryProvider({
       ...source,
       userListScope: userListAccess.scope,
       canMutateUserList: userListAccess.canMutate,
+      userListUpdateMode: userListAccess.updateMode,
       clearCatalogCache: () => {
         source.clearCatalogCache();
         queryClient.removeQueries({ queryKey: queryKeys.catalogRoot });
       },
     }),
-    [queryClient, source, userListAccess.canMutate, userListAccess.scope],
+    [
+      queryClient,
+      source,
+      userListAccess.canMutate,
+      userListAccess.scope,
+      userListAccess.updateMode,
+    ],
   );
   return (
     <RepositoryContext.Provider value={value}>

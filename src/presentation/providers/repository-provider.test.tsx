@@ -15,6 +15,7 @@ import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import {
   createDefaultDependencies,
   createProductionDependencies,
+  userListAccessFromSnapshot,
   useRepositories,
   useSyncStatus,
 } from '@/presentation/providers/repository-provider';
@@ -47,6 +48,47 @@ function SyncStatusProbe() {
 }
 
 describe('repository dependency creation', () => {
+  it('selects queued guest writes, direct AniList writes, and unavailable reconnect state', () => {
+    const session = new TestAuthSessionController();
+    expect(userListAccessFromSnapshot(session.getSnapshot())).toEqual({
+      scope: 'guest',
+      canMutate: true,
+      updateMode: 'queued',
+    });
+
+    session.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'reader',
+        avatarUrl: null,
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    expect(userListAccessFromSnapshot(session.getSnapshot())).toEqual({
+      scope: 'anilist:42',
+      canMutate: true,
+      updateMode: 'direct',
+    });
+
+    session.updateConnection('anilist', {
+      state: 'reconnect_required',
+      account: null,
+      operation: 'idle',
+      failure: 'invalid_token',
+      canRetry: false,
+    });
+    expect(userListAccessFromSnapshot(session.getSnapshot())).toEqual({
+      scope: 'anilist:reconnect-required',
+      canMutate: false,
+      updateMode: 'unavailable',
+    });
+  });
+
   it('always creates the production repository graph', () => {
     const dependencies = createDefaultDependencies();
     expect(dependencies.catalogRepository).toBeInstanceOf(

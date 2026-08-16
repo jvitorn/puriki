@@ -47,6 +47,7 @@ export function createTestDependencies(
     userListRepository,
     userListScope: 'guest',
     canMutateUserList: true,
+    userListUpdateMode: 'queued',
     syncEngine: new ImmediateUserAnimeSync(userListRepository),
     getCatalogRuntimeStatus: () => runtimeStatus,
     subscribeCatalogRuntimeStatus: (listener) => {

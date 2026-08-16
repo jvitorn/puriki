@@ -19,6 +19,10 @@ import {
   type AniListRequestDiagnostic,
 } from '@/infrastructure/api/anilist/anilist-errors';
 import {
+  AniListMediaIdentityRegistry,
+  type AniListMediaIdentityResolver,
+} from '@/infrastructure/api/anilist/anilist-media-identity';
+import {
   mapAniListDetails,
   mapAniListSummary,
 } from '@/infrastructure/api/anilist/anilist-mapper';
@@ -45,6 +49,7 @@ export interface AniListAnimeCatalogRepositoryOptions {
   now?: () => number;
   sleep?: (milliseconds: number) => Promise<void>;
   maximumAttempts?: number;
+  mediaIdentityResolver?: AniListMediaIdentityResolver;
 }
 
 type FamilyResult =
@@ -88,13 +93,32 @@ function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
 
 function mapSummaries(
   media: readonly AniListMediaSummary[],
+  identityResolver: AniListMediaIdentityResolver,
 ): AnimeCatalogItem[] {
   return deduplicate(
     media.flatMap((dto) => {
+      rememberIdentity(identityResolver, dto);
       const item = mapAniListSummary(dto);
       return item ? [item] : [];
     }),
   );
+}
+
+function rememberIdentity(
+  resolver: AniListMediaIdentityResolver,
+  dto: Pick<AniListMediaSummary, 'id' | 'idMal' | 'episodes'>,
+): void {
+  if (dto.idMal === null) return;
+  resolver.remember({
+    animeId: dto.idMal,
+    mediaId: dto.id,
+    totalEpisodes:
+      dto.episodes !== null &&
+      Number.isInteger(dto.episodes) &&
+      dto.episodes > 0
+        ? dto.episodes
+        : null,
+  });
 }
 
 function diagnostic(response: AniListClientResponse): AniListRequestDiagnostic {
@@ -128,6 +152,7 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
   private readonly now: () => number;
   private readonly sleep?: (milliseconds: number) => Promise<void>;
   private readonly maximumAttempts?: number;
+  private readonly mediaIdentityResolver: AniListMediaIdentityResolver;
   private readonly sessionCollections = new Map<
     CatalogDiscoveryOperationFamily,
     AnimeCatalogItem[]
@@ -153,6 +178,13 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
     this.now = options.now ?? Date.now;
     this.sleep = options.sleep;
     this.maximumAttempts = options.maximumAttempts;
+    this.mediaIdentityResolver =
+      options.mediaIdentityResolver ??
+      new AniListMediaIdentityRegistry({
+        client: this.client,
+        maximumAttempts: this.maximumAttempts,
+        sleep: this.sleep,
+      });
   }
 
   async getFeatured(): Promise<AnimeCatalogItem> {
@@ -258,6 +290,7 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
           diagnostic(response),
         );
       }
+      if (dto) rememberIdentity(this.mediaIdentityResolver, dto);
       const item = dto ? mapAniListDetails(dto) : null;
       if (generation === this.generation) this.cache.setDetail(id, item);
       return item;
@@ -300,6 +333,7 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
     this.discoveryLoaded = false;
     this.sessionPool = null;
     this.featured = null;
+    this.mediaIdentityResolver.clear();
   }
 
   private async getSessionCollection(
@@ -359,6 +393,7 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
             {
               items: mapSummaries(
                 parseAniListPageAlias(response.data, family).media,
+                this.mediaIdentityResolver,
               ),
             },
           ];
@@ -415,7 +450,10 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
       const executionError = graphQLErrorFor(response);
       if (executionError) throw executionError;
       try {
-        const items = mapSummaries(parseAniListPageData(response.data).media);
+        const items = mapSummaries(
+          parseAniListPageData(response.data).media,
+          this.mediaIdentityResolver,
+        );
         if (generation === this.generation) {
           this.cache.setCollection(cacheKey, items);
         }
@@ -461,7 +499,10 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
     if (executionError) throw executionError;
     let items: AnimeCatalogItem[];
     try {
-      items = mapSummaries(parseAniListPageData(response.data).media);
+      items = mapSummaries(
+        parseAniListPageData(response.data).media,
+        this.mediaIdentityResolver,
+      );
     } catch (error: unknown) {
       throw new AniListResponseFormatError(
         error instanceof Error ? error.message : undefined,

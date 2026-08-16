@@ -91,7 +91,11 @@ Puriki uses AniList's OAuth Implicit Grant because a native client cannot secure
 
 The access token is stored only in Expo SecureStore under a versioned provider key. It is never written to AsyncStorage, React Query, diagnostics, or logs. On launch, Puriki checks token expiration and validates the authenticated identity through `Viewer`. Expired or definitively rejected credentials require reconnection; temporary network failures retain the credential and expose a retry that does not reopen OAuth.
 
-Account connection currently proves login, restoration, `Viewer`, logout, and reconnection only. The catalog and personal-list dependency graph remain unchanged: My List continues to use the temporary guest repository, and signing in does not import, migrate, or synchronize an AniList list.
+When an AniList account is connected, its authenticated anime list becomes the active My List. Puriki reads `MediaListCollection` and supports adding, removing, and updating progress, status, and score through `SaveMediaListEntry` and `DeleteMediaListEntry`. Logout switches back to the untouched in-process guest list; no guest entries are imported or merged into AniList.
+
+The domain continues to identify anime by MyAnimeList ID. AniList media IDs and media-list-entry IDs remain private infrastructure metadata in the authenticated repository snapshot. Scores are read in `POINT_10` and written through the fixed 100-point `scoreRaw` input, including zero to clear a score.
+
+Authenticated mutations share the existing bearer-token client, request coordinator, rate-limit state, and unauthorized-session handling. Mutations are serialized per anime and deliberately receive no automatic retry because the provider may have applied a write even when its response is lost. Successful responses update the repository snapshot immediately; ambiguous failures make the next read refresh remote state.
 
 Upstream contracts: [AniList authentication](https://docs.anilist.co/guide/auth/), [Implicit Grant](https://docs.anilist.co/guide/auth/implicit), [authenticated requests](https://docs.anilist.co/guide/auth/authenticated-requests), and [Expo AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/).
 
@@ -118,7 +122,7 @@ Membership is explicit: adding creates a Plan to Watch entry; progress, status, 
 
 Progress, status, and score changes update React Query immediately and are persisted in a dedicated AsyncStorage queue before delivery. A small Sync Engine coalesces repeated changes to the same anime field, waits for 400 ms of inactivity, tracks success independently per target, and retains failed work for conservative retry. The queue is separate from catalog caches and is restored when the dependency graph is rebuilt.
 
-The current target applies changes to the guest-list repository. Provider-neutral target and operation contracts leave explicit extension points for future authenticated AniList and MyAnimeList targets, but account login does not change sync targets in this phase.
+The current Sync Engine target still applies changes only to the guest-list repository. Connected AniList updates bypass the persistent queue and write directly through the authenticated repository; AniList has not yet become a multi-provider sync target. Provider-neutral target and operation contracts remain available for that later phase.
 
 ## Localization and synopsis translation
 
@@ -200,11 +204,11 @@ npm run test:ci
 ## Current limitations
 
 - Guest-list data, catalog caches, and diagnostic results are not persisted.
-- AniList login does not yet import or synchronize the authenticated user's remote list; My List remains guest/local for this phase.
+- AniList writes are direct and intentionally have no background mutation retry; an ambiguous failure requires a refresh before retrying manually.
 - Public catalog availability and artwork depend on AniList or the configured MAL fallback.
 - AniList media without `idMal` cannot enter the current domain model.
 - On-device synopsis translation is Android-only and may require a one-time Wi-Fi model download.
-- MAL OAuth, authenticated provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
+- MAL OAuth, AniList custom lists/notes/reviews, authenticated multi-provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
 - Puriki is not affiliated with AniList or MyAnimeList.
 
 ## Troubleshooting

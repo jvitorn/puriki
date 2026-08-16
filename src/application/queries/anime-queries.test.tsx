@@ -409,7 +409,7 @@ describe('React Query integration', () => {
     ).toBe(4);
   });
 
-  it('blocks AniList mutations before optimistic cache or sync changes', async () => {
+  it('routes connected AniList updates directly without touching guest sync state', async () => {
     const dependencies = createTestDependencies();
     const enqueue = jest.spyOn(dependencies.syncEngine, 'enqueue');
     const queryClient = createAppQueryClient();
@@ -417,6 +417,12 @@ describe('React Query integration', () => {
     const guestCached = buildWatchingAnime({ id: 101, title: 'Guest copy' });
     queryClient.setQueryData(queryKeys.details('anilist:42', 101), cached);
     queryClient.setQueryData(queryKeys.details('guest', 101), guestCached);
+    const updateProgress = jest
+      .spyOn(dependencies.userListRepository, 'updateProgress')
+      .mockResolvedValue({
+        ...(cached.userEntry as UserAnimeEntry),
+        watchedEpisodes: 9,
+      });
     const authSession = new TestAuthSessionController();
     authSession.updateConnection('anilist', {
       state: 'connected',
@@ -443,11 +449,14 @@ describe('React Query integration', () => {
 
     await expect(
       result.current.mutateAsync({ animeId: 101, episodes: 9 }),
-    ).rejects.toThrow('read-only');
+    ).resolves.toMatchObject({ watchedEpisodes: 9 });
+    expect(updateProgress).toHaveBeenCalledWith(101, 9);
     expect(enqueue).not.toHaveBeenCalled();
     expect(
-      queryClient.getQueryData(queryKeys.details('anilist:42', 101)),
-    ).toEqual(cached);
+      queryClient.getQueryData<UnifiedAnime>(
+        queryKeys.details('anilist:42', 101),
+      )?.userEntry?.watchedEpisodes,
+    ).toBe(9);
     expect(queryClient.getQueryData(queryKeys.details('guest', 101))).toEqual(
       guestCached,
     );
@@ -645,6 +654,60 @@ describe('React Query integration', () => {
         .some((item) => item.anime.id === animeId),
     ).toBe(false);
     expect(cached?.pages[0]?.totalCount).toBe(29);
+  });
+
+  it('rebuilds only the first active infinite page after a direct status write', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 60, status: 'watching' }),
+    );
+    const queryClient = createAppQueryClient();
+    const authSession = new TestAuthSessionController();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'reader',
+        avatarUrl: null,
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    const wrapper = createTestWrapper(
+      dependencies,
+      queryClient,
+      'en',
+      undefined,
+      authSession,
+    );
+    const list = await renderHook(
+      () => useInfiniteUnifiedUserList('watching'),
+      { wrapper },
+    );
+    await waitFor(() => expect(list.result.current.isSuccess).toBe(true));
+    await act(async () => list.result.current.fetchNextPage());
+    await waitFor(() =>
+      expect(list.result.current.data?.pages).toHaveLength(2),
+    );
+    const animeId = list.result.current.data?.pages[0]?.items[0]?.anime.id;
+    if (!animeId) throw new Error('Expected an item on the first page.');
+    const mutation = await renderHook(() => useUpdateStatus(), { wrapper });
+
+    await act(async () =>
+      mutation.result.current.mutateAsync({ animeId, status: 'completed' }),
+    );
+    await waitFor(() => {
+      const cached = queryClient.getQueryData<
+        InfiniteData<PageResult<UnifiedAnime>, number>
+      >(queryKeys.infiniteUserList('anilist:42', 'watching'));
+      expect(cached?.pages).toHaveLength(1);
+      expect(cached?.pages[0]?.totalCount).toBe(59);
+      expect(
+        cached?.pages[0]?.items.some((item) => item.anime.id === animeId),
+      ).toBe(false);
+    });
   });
 
   it('uses targeted non-refetching invalidation after a score update', async () => {

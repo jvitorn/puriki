@@ -195,6 +195,7 @@ export const ANILIST_USER_LIST_QUERY = /* GraphQL */ `
       hasNextChunk
       lists {
         entries {
+          id
           mediaId
           status
           score(format: POINT_10)
@@ -202,9 +203,57 @@ export const ANILIST_USER_LIST_QUERY = /* GraphQL */ `
           updatedAt
           media {
             idMal
+            episodes
           }
         }
       }
+    }
+  }
+`;
+
+export const ANILIST_MEDIA_IDENTITY_QUERY = /* GraphQL */ `
+  query AnimeIdentityByMalId($idMal: Int!) {
+    Media(idMal: $idMal, type: ANIME) {
+      id
+      idMal
+      episodes
+    }
+  }
+`;
+
+export const ANILIST_SAVE_USER_LIST_ENTRY_MUTATION = /* GraphQL */ `
+  mutation SaveAnimeListEntry(
+    $listEntryId: Int
+    $mediaId: Int
+    $status: MediaListStatus
+    $progress: Int
+    $scoreRaw: Int
+  ) {
+    SaveMediaListEntry(
+      id: $listEntryId
+      mediaId: $mediaId
+      status: $status
+      progress: $progress
+      scoreRaw: $scoreRaw
+    ) {
+      id
+      mediaId
+      status
+      score(format: POINT_10)
+      progress
+      updatedAt
+      media {
+        idMal
+        episodes
+      }
+    }
+  }
+`;
+
+export const ANILIST_DELETE_USER_LIST_ENTRY_MUTATION = /* GraphQL */ `
+  mutation DeleteAnimeListEntry($listEntryId: Int!) {
+    DeleteMediaListEntry(id: $listEntryId) {
+      deleted
     }
   }
 `;

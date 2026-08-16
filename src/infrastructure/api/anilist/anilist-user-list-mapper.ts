@@ -2,11 +2,13 @@ import type { AnimeListStatus, UserAnimeEntry } from '@/domain/models/anime';
 import type { AniListUserListEntryDto } from '@/infrastructure/api/anilist/anilist-user-list-dtos';
 
 export interface MappedAniListUserEntry {
+  listEntryId: number;
   mediaId: number;
+  totalEpisodes: number | null;
   entry: UserAnimeEntry;
 }
 
-function mapStatus(status: string): AnimeListStatus {
+export function mapAniListStatus(status: string): AnimeListStatus {
   const statuses: Record<string, AnimeListStatus> = {
     CURRENT: 'watching',
     REPEATING: 'watching',
@@ -19,6 +21,21 @@ function mapStatus(status: string): AnimeListStatus {
   if (!mapped)
     throw new Error(`AniList returned an unknown list status: ${status}.`);
   return mapped;
+}
+
+export function mapDomainStatus(status: AnimeListStatus): string {
+  const statuses: Record<AnimeListStatus, string> = {
+    watching: 'CURRENT',
+    completed: 'COMPLETED',
+    on_hold: 'PAUSED',
+    dropped: 'DROPPED',
+    plan_to_watch: 'PLANNING',
+  };
+  return statuses[status];
+}
+
+export function mapDomainScoreToRaw(score: number | null): number {
+  return score === null ? 0 : score * 10;
 }
 
 function mapScore(score: number | null): number | null {
@@ -53,10 +70,15 @@ export function mapAniListUserListEntry(
 ): MappedAniListUserEntry | null {
   if (dto.idMal === null) return null;
   return {
+    listEntryId: dto.listEntryId,
     mediaId: dto.mediaId,
+    totalEpisodes:
+      dto.totalEpisodes !== null && dto.totalEpisodes > 0
+        ? dto.totalEpisodes
+        : null,
     entry: {
       animeId: dto.idMal,
-      status: mapStatus(dto.status),
+      status: mapAniListStatus(dto.status),
       watchedEpisodes: mapProgress(dto.progress),
       userScore: mapScore(dto.score),
       updatedAt: mapUpdatedAt(dto.updatedAt),

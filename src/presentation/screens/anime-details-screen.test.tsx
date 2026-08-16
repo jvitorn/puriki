@@ -44,7 +44,7 @@ function createTranslationDependencies(options?: {
 }
 
 describe('AnimeDetailsScreen', () => {
-  it('disables every list edit while an AniList account is connected', async () => {
+  it('enables direct list edits while an AniList account is connected', async () => {
     const authSession = new TestAuthSessionController();
     authSession.updateConnection('anilist', {
       state: 'connected',
@@ -61,22 +61,23 @@ describe('AnimeDetailsScreen', () => {
     });
     const dependencies = createTestDependencies();
     const enqueue = jest.spyOn(dependencies.syncEngine, 'enqueue');
+    const updateProgress = jest.spyOn(
+      dependencies.userListRepository,
+      'updateProgress',
+    );
     await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
       authSession,
       dependencies,
     });
 
-    expect(
-      await screen.findByText(
-        'Your AniList list is read-only in this version of Puriki.',
-      ),
-    ).toBeVisible();
-    expect(screen.getByLabelText('Increase watched episodes')).toBeDisabled();
-    expect(screen.getByLabelText('Score 8')).toBeDisabled();
+    expect(await screen.findByText('Moonlit Vanguard')).toBeVisible();
+    expect(screen.getByLabelText('Increase watched episodes')).toBeEnabled();
+    expect(screen.queryByLabelText('Score 8')).not.toBeOnTheScreen();
     expect(
       screen.getByLabelText('Remove Moonlit Vanguard from My List'),
-    ).toBeDisabled();
+    ).toBeEnabled();
     await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
+    await waitFor(() => expect(updateProgress).toHaveBeenCalledWith(1, 2));
     expect(enqueue).not.toHaveBeenCalled();
   });
 
@@ -161,9 +162,9 @@ describe('AnimeDetailsScreen', () => {
   });
 
   it('updates and clears a score', async () => {
-    await renderWithProviders(<AnimeDetailsScreen animeId={1} />);
+    await renderWithProviders(<AnimeDetailsScreen animeId={2} />);
     await waitFor(() =>
-      expect(screen.getByText('Moonlit Vanguard')).toBeVisible(),
+      expect(screen.getByText('Ember Archive')).toBeVisible(),
     );
     await fireEvent.press(screen.getByLabelText('Score 10'));
     await waitFor(() =>

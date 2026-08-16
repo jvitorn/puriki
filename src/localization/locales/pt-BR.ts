@@ -186,8 +186,6 @@ export const ptBR = {
   'details.completedScorePrompt': 'Anime concluído. Quer dar uma nota?',
   'details.updateFailed':
     'A atualização falhou. Os valores anteriores foram restaurados.',
-  'details.anilistReadOnly':
-    'Sua lista do AniList é somente leitura nesta versão do Puriki.',
   'details.synopsis': 'Sinopse',
   'details.whereToWatch': 'Onde assistir',
   'details.streamingServiceA11y': 'Disponível na {{name}}',

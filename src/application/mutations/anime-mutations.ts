@@ -201,19 +201,56 @@ function restoreSnapshots(
   );
 }
 
-function reconcileSuccessfulMutation(
+function resetInfiniteUserListPages(
+  queryClient: QueryClient,
+  userListScope: string,
+): void {
+  queryClient.setQueriesData(
+    { queryKey: queryKeys.userListScope(userListScope) },
+    (current) =>
+      isInfiniteUnifiedList(current)
+        ? {
+            ...current,
+            pages: current.pages.slice(0, 1),
+            pageParams: current.pageParams.slice(0, 1),
+          }
+        : current,
+  );
+}
+
+function reconcileDirectMutation(
   queryClient: QueryClient,
   userListScope: string,
   nextEntry: UserAnimeEntry,
 ): Promise<unknown[]> {
   updateCachedEntry(queryClient, userListScope, nextEntry);
+  resetInfiniteUserListPages(queryClient, userListScope);
   return Promise.all([
     queryClient.invalidateQueries({
       queryKey: queryKeys.userListScope(userListScope),
-      refetchType: 'none',
+      refetchType: 'active',
     }),
     queryClient.invalidateQueries({
       queryKey: queryKeys.details(userListScope, nextEntry.animeId),
+      exact: true,
+      refetchType: 'none',
+    }),
+  ]);
+}
+
+function reconcileMembershipChange(
+  queryClient: QueryClient,
+  userListScope: string,
+  animeId: number,
+): Promise<unknown[]> {
+  resetInfiniteUserListPages(queryClient, userListScope);
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.userListScope(userListScope),
+      refetchType: 'active',
+    }),
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.details(userListScope, animeId),
       exact: true,
       refetchType: 'none',
     }),
@@ -287,7 +324,7 @@ export function useAddToList() {
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
     onSuccess: (nextEntry) =>
-      reconcileSuccessfulMutation(queryClient, userListScope, nextEntry),
+      reconcileDirectMutation(queryClient, userListScope, nextEntry),
   });
 }
 
@@ -314,14 +351,20 @@ export function useRemoveFromList() {
       restoreSnapshots(queryClient, snapshots),
     onSuccess: (_value, { animeId }) => {
       setDetailsMembership(queryClient, userListScope, animeId, undefined);
-      return invalidateMembershipCaches(queryClient, userListScope, animeId);
+      return reconcileMembershipChange(queryClient, userListScope, animeId);
     },
   });
 }
 
 export function useUpdateProgress() {
   const queryClient = useQueryClient();
-  const { canMutateUserList, syncEngine, userListScope } = useRepositories();
+  const {
+    canMutateUserList,
+    syncEngine,
+    userListRepository,
+    userListScope,
+    userListUpdateMode,
+  } = useRepositories();
   return useMutation({
     mutationFn: ({
       animeId,
@@ -331,11 +374,15 @@ export function useUpdateProgress() {
       episodes: number;
     }) => {
       if (!canMutateUserList) throw readOnlyMutationError();
-      return syncEngine.enqueue({
-        animeId,
-        type: 'SET_PROGRESS',
-        value: episodes,
-      });
+      if (userListUpdateMode === 'direct') {
+        return userListRepository.updateProgress(animeId, episodes);
+      }
+      if (userListUpdateMode === 'queued') {
+        return syncEngine
+          .enqueue({ animeId, type: 'SET_PROGRESS', value: episodes })
+          .then(() => null);
+      }
+      throw readOnlyMutationError();
     },
     onMutate: ({ animeId, episodes }) =>
       canMutateUserList
@@ -348,14 +395,22 @@ export function useUpdateProgress() {
         : [],
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
-    onSuccess: (_value, { animeId }) =>
-      invalidateMembershipCaches(queryClient, userListScope, animeId),
+    onSuccess: (nextEntry, { animeId }) =>
+      nextEntry
+        ? reconcileDirectMutation(queryClient, userListScope, nextEntry)
+        : invalidateMembershipCaches(queryClient, userListScope, animeId),
   });
 }
 
 export function useUpdateStatus() {
   const queryClient = useQueryClient();
-  const { canMutateUserList, syncEngine, userListScope } = useRepositories();
+  const {
+    canMutateUserList,
+    syncEngine,
+    userListRepository,
+    userListScope,
+    userListUpdateMode,
+  } = useRepositories();
   return useMutation({
     mutationFn: ({
       animeId,
@@ -365,7 +420,15 @@ export function useUpdateStatus() {
       status: AnimeListStatus;
     }) => {
       if (!canMutateUserList) throw readOnlyMutationError();
-      return syncEngine.enqueue({ animeId, type: 'SET_STATUS', value: status });
+      if (userListUpdateMode === 'direct') {
+        return userListRepository.updateStatus(animeId, status);
+      }
+      if (userListUpdateMode === 'queued') {
+        return syncEngine
+          .enqueue({ animeId, type: 'SET_STATUS', value: status })
+          .then(() => null);
+      }
+      throw readOnlyMutationError();
     },
     onMutate: ({ animeId, status }) =>
       canMutateUserList
@@ -378,14 +441,22 @@ export function useUpdateStatus() {
         : [],
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
-    onSuccess: (_value, { animeId }) =>
-      invalidateMembershipCaches(queryClient, userListScope, animeId),
+    onSuccess: (nextEntry, { animeId }) =>
+      nextEntry
+        ? reconcileDirectMutation(queryClient, userListScope, nextEntry)
+        : invalidateMembershipCaches(queryClient, userListScope, animeId),
   });
 }
 
 export function useUpdateScore() {
   const queryClient = useQueryClient();
-  const { canMutateUserList, syncEngine, userListScope } = useRepositories();
+  const {
+    canMutateUserList,
+    syncEngine,
+    userListRepository,
+    userListScope,
+    userListUpdateMode,
+  } = useRepositories();
   return useMutation({
     mutationFn: ({
       animeId,
@@ -395,7 +466,15 @@ export function useUpdateScore() {
       score: number | null;
     }) => {
       if (!canMutateUserList) throw readOnlyMutationError();
-      return syncEngine.enqueue({ animeId, type: 'SET_SCORE', value: score });
+      if (userListUpdateMode === 'direct') {
+        return userListRepository.updateScore(animeId, score);
+      }
+      if (userListUpdateMode === 'queued') {
+        return syncEngine
+          .enqueue({ animeId, type: 'SET_SCORE', value: score })
+          .then(() => null);
+      }
+      throw readOnlyMutationError();
     },
     onMutate: ({ animeId, score }) =>
       canMutateUserList
@@ -408,7 +487,9 @@ export function useUpdateScore() {
         : [],
     onError: (_error, _variables, snapshots) =>
       restoreSnapshots(queryClient, snapshots),
-    onSuccess: (_value, { animeId }) =>
-      invalidateMembershipCaches(queryClient, userListScope, animeId),
+    onSuccess: (nextEntry, { animeId }) =>
+      nextEntry
+        ? reconcileDirectMutation(queryClient, userListScope, nextEntry)
+        : invalidateMembershipCaches(queryClient, userListScope, animeId),
   });
 }

@@ -207,18 +207,6 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           </View>
         </View>
 
-        {!canMutateUserList ? (
-          <View
-            accessible
-            accessibilityRole="text"
-            className="rounded-xl border border-primary/40 bg-primary/10 p-4"
-          >
-            <Text className="text-primary-emphasis">
-              {t('details.anilistReadOnly')}
-            </Text>
-          </View>
-        ) : null}
-
         {userEntry ? (
           <Card className="gap-5 border-0 p-4 py-4">
             <View className="flex-row items-center justify-between gap-3">
@@ -265,25 +253,28 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 }
               />
             </View>
-            <Separator />
-            <View className="gap-3">
-              <Text variant="caption" muted>
-                {t('details.yourScore')}
-              </Text>
-              {userEntry.status === 'completed' &&
-              userEntry.userScore === null ? (
-                <Text className="text-primary-emphasis">
-                  {t('details.completedScorePrompt')}
-                </Text>
-              ) : null}
-              <AnimeScoreSelector
-                value={userEntry.userScore}
-                disabled={busy || !canMutateUserList}
-                onChange={(nextScore) =>
-                  score.mutate({ animeId, score: nextScore })
-                }
-              />
-            </View>
+            {userEntry.status === 'completed' ? (
+              <>
+                <Separator />
+                <View className="gap-3">
+                  <Text variant="caption" muted>
+                    {t('details.yourScore')}
+                  </Text>
+                  {userEntry.userScore === null ? (
+                    <Text className="text-primary-emphasis">
+                      {t('details.completedScorePrompt')}
+                    </Text>
+                  ) : null}
+                  <AnimeScoreSelector
+                    value={userEntry.userScore}
+                    disabled={busy || !canMutateUserList}
+                    onChange={(nextScore) =>
+                      score.mutate({ animeId, score: nextScore })
+                    }
+                  />
+                </View>
+              </>
+            ) : null}
             <Separator />
             {addToList.isPending ? (
               <Button disabled accessibilityLabel={t('details.adding')}>

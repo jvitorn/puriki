@@ -3,12 +3,13 @@ import { mapAniListUserListEntry } from '@/infrastructure/api/anilist/anilist-us
 
 function dto(overrides: Record<string, unknown> = {}) {
   return {
+    id: 501,
     mediaId: 101,
     status: 'CURRENT',
     score: 8,
     progress: 4,
     updatedAt: 1_700_000_000,
-    media: { idMal: 202 },
+    media: { idMal: 202, episodes: 12 },
     ...overrides,
   };
 }
@@ -30,7 +31,9 @@ describe('AniList user list DTOs and mapper', () => {
     });
 
     expect(mapAniListUserListEntry(parsed.entries[0]!)).toEqual({
+      listEntryId: 501,
       mediaId: 101,
+      totalEpisodes: 12,
       entry: {
         animeId: 202,
         status: domainStatus,
@@ -49,7 +52,12 @@ describe('AniList user list DTOs and mapper', () => {
           {
             entries: [
               dto({ score: 0, progress: null }),
-              dto({ mediaId: 102, score: null, media: { idMal: 203 } }),
+              dto({
+                id: 502,
+                mediaId: 102,
+                score: null,
+                media: { idMal: 203, episodes: null },
+              }),
             ],
           },
         ],
@@ -69,7 +77,7 @@ describe('AniList user list DTOs and mapper', () => {
     const parsed = parseAniListUserListChunk({
       MediaListCollection: {
         hasNextChunk: false,
-        lists: [{ entries: [dto({ media: { idMal: null } })] }],
+        lists: [{ entries: [dto({ media: { idMal: null, episodes: 12 } })] }],
       },
     });
     expect(mapAniListUserListEntry(parsed.entries[0]!)).toBeNull();
