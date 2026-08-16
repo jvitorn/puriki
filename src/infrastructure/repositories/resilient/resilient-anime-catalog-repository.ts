@@ -260,14 +260,18 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     let primarySkippedAfterCircuit = false;
     let primarySkippedAfterRateLimit = false;
 
-    for (const id of missingIds) {
-      if (this.rateLimitGate.isBlocked()) {
-        primarySkippedAfterRateLimit = true;
-      } else if (this.circuitRegistry.get('details').getState() === 'open') {
-        primarySkippedAfterCircuit = true;
-      }
-      const item = await this.getDetailsById(id);
-      if (item) resolved.set(item.id, item);
+    if (missingIds.length > 0) {
+      primarySkippedAfterRateLimit = this.rateLimitGate.isBlocked();
+      primarySkippedAfterCircuit =
+        this.circuitRegistry.get('details').getState() === 'open';
+      const items = await this.execute(
+        `summaries:${missingIds.join(',')}`,
+        'details',
+        () => this.primary.getManyByIds(missingIds),
+        () => this.fallback.getManyByIds(missingIds),
+        { completeness: 'summary' },
+      );
+      items.forEach((item) => resolved.set(item.id, item));
     }
 
     const result = normalizedIds.flatMap((id) => {
@@ -279,7 +283,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       summaryHits,
       detailHits,
       networkMissing: missingIds.length,
-      detailResolutions: missingIds.length,
+      detailResolutions: 0,
       primarySkippedAfterCircuit,
       primarySkippedAfterRateLimit,
     });

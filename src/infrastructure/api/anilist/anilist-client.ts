@@ -7,6 +7,7 @@ import {
   AniListResponseFormatError,
   AniListServiceUnavailableError,
   AniListTimeoutError,
+  AniListUnauthorizedError,
   AniListDiagnosticError,
   type AniListRequestDiagnostic,
   type AniListRateLimitMetrics,
@@ -295,6 +296,7 @@ export class AniListDiagnosticClient {
 export interface AniListGraphQLError {
   message: string;
   path: readonly (string | number)[];
+  status?: number | null;
 }
 
 export interface AniListClientResponse {
@@ -321,6 +323,7 @@ export interface AniListProductionClientOptions {
   coordinator?: AniListRequestCoordinator;
   setTimeoutImpl?: typeof setTimeout;
   clearTimeoutImpl?: typeof clearTimeout;
+  accessTokenProvider?: () => Promise<string>;
 }
 
 export interface AniListRequestPolicyOptions {
@@ -335,6 +338,7 @@ function detailedGraphQLErrors(value: unknown): AniListGraphQLError[] {
       return {
         message: 'AniList returned an unknown GraphQL error.',
         path: [],
+        status: null,
       };
     }
     return {
@@ -348,6 +352,10 @@ function detailedGraphQLErrors(value: unknown): AniListGraphQLError[] {
               typeof part === 'string' || typeof part === 'number',
           )
         : [],
+      status:
+        typeof error.status === 'number' && Number.isFinite(error.status)
+          ? error.status
+          : null,
     };
   });
 }
@@ -359,6 +367,24 @@ function isTemporaryApiDisable(
     /temporar(?:y|ily)|maintenance|api.{0,20}disabled|service.{0,20}unavailable/i.test(
       error.message,
     ),
+  );
+}
+
+function isUnauthorizedResponse(
+  status: number,
+  errors: readonly AniListGraphQLError[],
+): boolean {
+  return (
+    status === 401 ||
+    status === 403 ||
+    errors.some(
+      (error) =>
+        error.status === 401 ||
+        error.status === 403 ||
+        /unauthenticated|invalid.{0,12}token|token.{0,12}(expired|invalid)/i.test(
+          error.message,
+        ),
+    )
   );
 }
 
@@ -389,6 +415,7 @@ export class AniListClient implements AniListClientPort {
   private readonly coordinator: AniListRequestCoordinator;
   private readonly setTimer: typeof setTimeout;
   private readonly clearTimer: typeof clearTimeout;
+  private readonly accessTokenProvider?: () => Promise<string>;
 
   constructor(options: AniListProductionClientOptions = {}) {
     this.endpoint = options.endpoint ?? ANILIST_GRAPHQL_ENDPOINT;
@@ -398,6 +425,7 @@ export class AniListClient implements AniListClientPort {
     this.coordinator = options.coordinator ?? new AniListRequestCoordinator();
     this.setTimer = options.setTimeoutImpl ?? setTimeout;
     this.clearTimer = options.clearTimeoutImpl ?? clearTimeout;
+    this.accessTokenProvider = options.accessTokenProvider;
   }
 
   execute({
@@ -426,11 +454,18 @@ export class AniListClient implements AniListClientPort {
       controller.abort();
     }, this.timeoutMs);
     try {
+      const accessToken = this.accessTokenProvider
+        ? await this.accessTokenProvider()
+        : null;
+      if (this.accessTokenProvider && !accessToken?.trim()) {
+        throw new AniListUnauthorizedError();
+      }
       const response = await this.fetchImpl(this.endpoint, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({ query, variables }),
         signal: controller.signal,
@@ -452,6 +487,12 @@ export class AniListClient implements AniListClientPort {
           rateLimit,
           [],
         );
+        if (
+          this.accessTokenProvider &&
+          (response.status === 401 || response.status === 403)
+        ) {
+          throw new AniListUnauthorizedError();
+        }
         if (response.status === 429) {
           throw new AniListRateLimitError(
             retryAfterMs(rateLimit, this.now()),
@@ -487,6 +528,12 @@ export class AniListClient implements AniListClientPort {
           rateLimit,
           [],
         );
+        if (
+          this.accessTokenProvider &&
+          (response.status === 401 || response.status === 403)
+        ) {
+          throw new AniListUnauthorizedError();
+        }
         if (response.status === 429) {
           throw new AniListRateLimitError(
             retryAfterMs(rateLimit, this.now()),
@@ -538,6 +585,12 @@ export class AniListClient implements AniListClientPort {
           diagnostic,
         );
       }
+      if (
+        this.accessTokenProvider &&
+        isUnauthorizedResponse(response.status, errors)
+      ) {
+        throw new AniListUnauthorizedError(errors[0]?.message);
+      }
       if (response.status === 400) {
         throw new AniListGraphQLValidationError(errors[0]?.message, diagnostic);
       }
@@ -566,7 +619,12 @@ export class AniListClient implements AniListClientPort {
         rateLimit,
       };
     } catch (error: unknown) {
-      if (error instanceof PrimaryProviderError) throw error;
+      if (
+        error instanceof PrimaryProviderError ||
+        error instanceof AniListUnauthorizedError
+      ) {
+        throw error;
+      }
       const diagnostic = this.diagnostic(
         null,
         Math.max(0, this.now() - startedAt),

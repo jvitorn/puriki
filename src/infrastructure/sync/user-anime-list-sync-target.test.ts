@@ -7,6 +7,7 @@ import { UserAnimeListSyncTarget } from '@/infrastructure/sync/user-anime-list-s
 
 function repository(): jest.Mocked<UserAnimeListRepository> {
   return {
+    invalidateCache: jest.fn(),
     getPage: jest.fn(),
     getByAnimeId: jest.fn(),
     addToList: jest.fn(),

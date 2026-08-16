@@ -6,6 +6,7 @@ export interface UserAnimeListPageRequest extends PageRequest {
 }
 
 export interface UserAnimeListRepository {
+  invalidateCache(): void;
   getPage(
     request: UserAnimeListPageRequest,
   ): Promise<PageResult<UserAnimeEntry>>;

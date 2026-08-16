@@ -21,6 +21,7 @@ type OnboardingStatus = 'unknown' | 'completed' | 'notCompleted';
 
 interface OnboardingContextValue {
   completeOnboarding(): Promise<void>;
+  onboardingCompleted: boolean;
 }
 
 interface SplashController {
@@ -78,8 +79,11 @@ export function OnboardingGate({
   }, [storage]);
 
   const value = useMemo<OnboardingContextValue>(
-    () => ({ completeOnboarding }),
-    [completeOnboarding],
+    () => ({
+      completeOnboarding,
+      onboardingCompleted: status === 'completed',
+    }),
+    [completeOnboarding, status],
   );
 
   if (status === 'unknown' || authSession.phase !== 'ready') return null;
@@ -101,6 +105,10 @@ export function OnboardingNavigator(props: OnboardingNavigatorProps = {}) {
             contentStyle: { backgroundColor: colors.background },
           }}
         >
+          <Stack.Screen
+            name="auth/[provider]"
+            options={{ animation: 'none' }}
+          />
           <Stack.Protected guard={status === 'notCompleted'}>
             <Stack.Screen name="onboarding/index" />
           </Stack.Protected>

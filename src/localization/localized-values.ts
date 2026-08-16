@@ -13,6 +13,7 @@ const ERROR_KEYS = {
   not_found: 'errors.notFound',
   configuration: 'errors.configuration',
   unauthorized: 'errors.unauthorized',
+  session_expired: 'errors.sessionExpired',
   http: 'errors.http',
   invalid_response: 'errors.invalidResponse',
 } as const;

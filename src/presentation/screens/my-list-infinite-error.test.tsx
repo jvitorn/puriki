@@ -41,7 +41,7 @@ describe('MyListScreen next-page recovery', () => {
       expect(
         queryClient.getQueryData<
           InfiniteData<PageResult<UnifiedAnime>, number>
-        >(queryKeys.infiniteUserList())?.pages,
+        >(queryKeys.infiniteUserList('guest'))?.pages,
       ).toHaveLength(2),
     );
     expect(

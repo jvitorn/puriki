@@ -150,6 +150,7 @@ describe('OnboardingNavigator', () => {
     await waitFor(() =>
       expect(screen.getByTestId('stack-screen-onboarding/index')).toBeVisible(),
     );
+    expect(screen.getByTestId('stack-screen-auth/[provider]')).toBeVisible();
     expect(screen.queryByTestId('stack-screen-(tabs)')).not.toBeOnTheScreen();
     expect(
       screen.queryByTestId('stack-screen-anime/[id]'),
@@ -167,6 +168,7 @@ describe('OnboardingNavigator', () => {
     await waitFor(() =>
       expect(screen.getByTestId('stack-screen-(tabs)')).toBeVisible(),
     );
+    expect(screen.getByTestId('stack-screen-auth/[provider]')).toBeVisible();
     expect(screen.getByTestId('stack-screen-anime/[id]')).toBeVisible();
     expect(
       screen.queryByTestId('stack-screen-onboarding/index'),

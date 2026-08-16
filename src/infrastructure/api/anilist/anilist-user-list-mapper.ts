@@ -1,0 +1,65 @@
+import type { AnimeListStatus, UserAnimeEntry } from '@/domain/models/anime';
+import type { AniListUserListEntryDto } from '@/infrastructure/api/anilist/anilist-user-list-dtos';
+
+export interface MappedAniListUserEntry {
+  mediaId: number;
+  entry: UserAnimeEntry;
+}
+
+function mapStatus(status: string): AnimeListStatus {
+  const statuses: Record<string, AnimeListStatus> = {
+    CURRENT: 'watching',
+    REPEATING: 'watching',
+    COMPLETED: 'completed',
+    PAUSED: 'on_hold',
+    DROPPED: 'dropped',
+    PLANNING: 'plan_to_watch',
+  };
+  const mapped = statuses[status];
+  if (!mapped)
+    throw new Error(`AniList returned an unknown list status: ${status}.`);
+  return mapped;
+}
+
+function mapScore(score: number | null): number | null {
+  if (score === null || score === 0) return null;
+  if (!Number.isInteger(score) || score < 1 || score > 10) {
+    throw new Error('AniList returned a score outside the POINT_10 range.');
+  }
+  return score;
+}
+
+function mapProgress(progress: number | null): number {
+  if (progress === null) return 0;
+  if (!Number.isInteger(progress) || progress < 0) {
+    throw new Error('AniList returned an invalid episode progress.');
+  }
+  return progress;
+}
+
+function mapUpdatedAt(seconds: number): string {
+  if (!Number.isInteger(seconds) || seconds < 0) {
+    throw new Error('AniList returned an invalid media list timestamp.');
+  }
+  const timestamp = new Date(seconds * 1_000);
+  if (Number.isNaN(timestamp.getTime())) {
+    throw new Error('AniList returned an invalid media list timestamp.');
+  }
+  return timestamp.toISOString();
+}
+
+export function mapAniListUserListEntry(
+  dto: AniListUserListEntryDto,
+): MappedAniListUserEntry | null {
+  if (dto.idMal === null) return null;
+  return {
+    mediaId: dto.mediaId,
+    entry: {
+      animeId: dto.idMal,
+      status: mapStatus(dto.status),
+      watchedEpisodes: mapProgress(dto.progress),
+      userScore: mapScore(dto.score),
+      updatedAt: mapUpdatedAt(dto.updatedAt),
+    },
+  };
+}

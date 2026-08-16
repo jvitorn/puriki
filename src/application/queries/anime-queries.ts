@@ -78,9 +78,10 @@ export function useAnimeSearch(query: string) {
 }
 
 export function useAnimeDetails(id: number) {
-  const { catalogRepository, userListRepository } = useRepositories();
+  const { catalogRepository, userListRepository, userListScope } =
+    useRepositories();
   return useQuery({
-    queryKey: queryKeys.details(id),
+    queryKey: queryKeys.details(userListScope, id),
     queryFn: async (): Promise<UnifiedAnime | null> => {
       const [anime, userEntry] = await Promise.all([
         catalogRepository.getDetailsById(id),
@@ -105,9 +106,10 @@ export function useKnownAnimeByIds(
 }
 
 export function useInfiniteUnifiedUserList(status?: AnimeListStatus) {
-  const { catalogRepository, userListRepository } = useRepositories();
+  const { catalogRepository, userListRepository, userListScope } =
+    useRepositories();
   const queryClient = useQueryClient();
-  const queryKey = queryKeys.infiniteUserList(status);
+  const queryKey = queryKeys.infiniteUserList(userListScope, status);
   const query = useInfiniteQuery({
     queryKey,
     initialPageParam: 1,
@@ -129,6 +131,7 @@ export function useInfiniteUnifiedUserList(status?: AnimeListStatus) {
   });
 
   const refreshFromStart = useCallback(async () => {
+    userListRepository.invalidateCache();
     await queryClient.cancelQueries({ queryKey, exact: true });
     queryClient.setQueryData<InfiniteData<PageResult<UnifiedAnime>, number>>(
       queryKey,
@@ -141,15 +144,16 @@ export function useInfiniteUnifiedUserList(status?: AnimeListStatus) {
           : current,
     );
     return query.refetch();
-  }, [query, queryClient, queryKey]);
+  }, [query, queryClient, queryKey, userListRepository]);
 
   return { ...query, refreshFromStart };
 }
 
 export function useContinueWatching() {
-  const { catalogRepository, userListRepository } = useRepositories();
+  const { catalogRepository, userListRepository, userListScope } =
+    useRepositories();
   return useQuery({
-    queryKey: queryKeys.continueWatching,
+    queryKey: queryKeys.continueWatching(userListScope),
     queryFn: async (): Promise<UnifiedAnime[]> => {
       const entryPage = await userListRepository.getPage({
         status: 'watching',

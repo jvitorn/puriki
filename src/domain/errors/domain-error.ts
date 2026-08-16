@@ -20,6 +20,7 @@ export type DataSourceErrorCode =
   | 'not_found'
   | 'configuration'
   | 'unauthorized'
+  | 'session_expired'
   | 'http'
   | 'invalid_response';
 
@@ -43,6 +44,7 @@ const SAFE_ERROR_MESSAGES: Record<DataSourceErrorCode, string> = {
   not_found: 'Anime not found.',
   configuration: 'The MyAnimeList fallback is not configured.',
   unauthorized: 'MyAnimeList rejected the application Client ID.',
+  session_expired: 'The AniList session is no longer valid.',
   http: 'The anime catalog could not complete the request. Please try again.',
   invalid_response:
     'The anime catalog returned an unknown response format. Please try again.',

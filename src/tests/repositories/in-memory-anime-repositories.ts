@@ -86,6 +86,8 @@ export class InMemoryAnimeCatalogRepository implements AnimeCatalogRepository {
 export class InMemoryUserAnimeListRepository implements UserAnimeListRepository {
   constructor(private readonly dataset: TestAnimeDataset) {}
 
+  invalidateCache(): void {}
+
   async getPage(
     request: UserAnimeListPageRequest,
   ): Promise<PageResult<UserAnimeEntry>> {

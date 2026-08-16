@@ -34,6 +34,8 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
     this.now = options.now ?? (() => new Date());
   }
 
+  invalidateCache(): void {}
+
   async getPage(
     request: UserAnimeListPageRequest,
   ): Promise<PageResult<UserAnimeEntry>> {

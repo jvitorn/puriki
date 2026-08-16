@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
 import { AnimeDetailsScreen } from '@/presentation/screens/anime-details-screen';
+import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 import { createTestScenario } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
@@ -43,6 +44,42 @@ function createTranslationDependencies(options?: {
 }
 
 describe('AnimeDetailsScreen', () => {
+  it('disables every list edit while an AniList account is connected', async () => {
+    const authSession = new TestAuthSessionController();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'viewer',
+        avatarUrl: null,
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    const dependencies = createTestDependencies();
+    const enqueue = jest.spyOn(dependencies.syncEngine, 'enqueue');
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      authSession,
+      dependencies,
+    });
+
+    expect(
+      await screen.findByText(
+        'Your AniList list is read-only in this version of Puriki.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Increase watched episodes')).toBeDisabled();
+    expect(screen.getByLabelText('Score 8')).toBeDisabled();
+    expect(
+      screen.getByLabelText('Remove Moonlit Vanguard from My List'),
+    ).toBeDisabled();
+    await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
+    expect(enqueue).not.toHaveBeenCalled();
+  });
+
   it('displays domain data and updates progress and status', async () => {
     await renderWithProviders(<AnimeDetailsScreen animeId={1} />);
     await waitFor(() =>

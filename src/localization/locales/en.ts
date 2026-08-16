@@ -105,6 +105,8 @@ export const en = {
   'errors.notFound': 'Anime not found.',
   'errors.configuration': 'The MyAnimeList fallback is not configured.',
   'errors.unauthorized': 'MyAnimeList rejected the application Client ID.',
+  'errors.sessionExpired':
+    'Your AniList session expired. Reconnect your account and try again.',
   'errors.http':
     'The anime catalog could not complete the request. Please try again.',
   'errors.invalidResponse':
@@ -173,6 +175,8 @@ export const en = {
   'details.yourScore': 'Your score',
   'details.completedScorePrompt': 'Anime completed. Want to rate it?',
   'details.updateFailed': 'Update failed. Your previous values were restored.',
+  'details.anilistReadOnly':
+    'Your AniList list is read-only in this version of Puriki.',
   'details.synopsis': 'Synopsis',
   'details.whereToWatch': 'Where to watch',
   'details.streamingServiceA11y': 'Available on {{name}}',

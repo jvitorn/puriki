@@ -200,15 +200,17 @@ describe('ResilientAnimeCatalogRepository', () => {
     });
   });
 
-  it('preserves detail completeness and resolves missing IDs sequentially', async () => {
+  it('preserves detail completeness and delegates missing IDs as one batch', async () => {
     const primary = createCatalogMock(primaryAnime);
     const fallback = createCatalogMock(fallbackAnime);
     const store = new CatalogItemStore();
-    const starts: number[] = [];
-    primary.getDetailsById.mockImplementation(async (id) => {
-      starts.push(id);
-      return { ...primaryAnime, id };
-    });
+    primary.getManyByIds.mockImplementation(async (ids) =>
+      ids.map((id) => ({ ...primaryAnime, id })),
+    );
+    primary.getDetailsById.mockImplementation(async (id) => ({
+      ...primaryAnime,
+      id,
+    }));
     const repository = new ResilientAnimeCatalogRepository({
       primary,
       fallback,
@@ -218,9 +220,11 @@ describe('ResilientAnimeCatalogRepository', () => {
     await expect(repository.getManyByIds([3, 2, 3, -1])).resolves.toMatchObject(
       [{ id: 3 }, { id: 2 }],
     );
-    expect(starts).toEqual([3, 2]);
+    expect(primary.getManyByIds).toHaveBeenCalledTimes(1);
+    expect(primary.getManyByIds).toHaveBeenCalledWith([3, 2]);
+    expect(primary.getDetailsById).not.toHaveBeenCalled();
     await repository.getDetailsById(3);
-    expect(primary.getDetailsById).toHaveBeenCalledTimes(2);
+    expect(primary.getDetailsById).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes discovery families independently', async () => {

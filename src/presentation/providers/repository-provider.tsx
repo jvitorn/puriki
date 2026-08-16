@@ -3,12 +3,19 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
 import type { PropsWithChildren } from 'react';
 
+import type {
+  AuthSessionController,
+  AuthSessionSnapshot,
+  AuthTokenStore,
+} from '@/application/auth/auth-contracts';
 import { queryKeys } from '@/application/queries/query-keys';
 import type {
   SyncTarget,
@@ -23,9 +30,11 @@ import {
   type AniListDiagnosticSuite,
   type AniListRunAllResult,
 } from '@/infrastructure/api/anilist/anilist-diagnostics';
+import { AniListUnauthorizedError } from '@/infrastructure/api/anilist/anilist-errors';
 import { AniListRequestCoordinator } from '@/infrastructure/api/anilist/anilist-request-coordinator';
 import { isMalConfigured } from '@/infrastructure/api/mal/mal-config';
 import { AniListAnimeCatalogRepository } from '@/infrastructure/repositories/anilist/anilist-anime-catalog-repository';
+import { AniListUserAnimeListRepository } from '@/infrastructure/repositories/anilist/anilist-user-anime-list-repository';
 import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { MalAnimeCatalogRepository } from '@/infrastructure/repositories/mal/mal-anime-catalog-repository';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
@@ -41,9 +50,11 @@ import {
   type CatalogSuccessfulSource,
   type ResilientCatalogRuntimeSnapshot,
 } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
+import { SessionAwareUserAnimeListRepository } from '@/infrastructure/repositories/session-aware-user-anime-list-repository';
 import { AsyncStoragePendingSyncStore } from '@/infrastructure/sync/async-storage-pending-sync-store';
 import { SyncEngine } from '@/infrastructure/sync/sync-engine';
 import { UserAnimeListSyncTarget } from '@/infrastructure/sync/user-anime-list-sync-target';
+import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 
 export interface CatalogOperationRuntimeStatus {
   circuitState: CircuitState;
@@ -61,6 +72,8 @@ export interface CatalogRuntimeStatus {
 export interface RepositoryDependencies {
   catalogRepository: AnimeCatalogRepository;
   userListRepository: UserAnimeListRepository;
+  userListScope: string;
+  canMutateUserList: boolean;
   syncEngine: UserAnimeSync;
   getCatalogRuntimeStatus(): CatalogRuntimeStatus;
   subscribeCatalogRuntimeStatus(
@@ -90,9 +103,28 @@ export interface ProductionDependenciesOptions {
   malConfigured?: boolean;
   pendingSyncStore?: PendingSyncStore;
   syncTargets?: readonly SyncTarget[];
+  authSession?: AuthSessionController;
+  authTokenStore?: AuthTokenStore;
 }
 
 const RepositoryContext = createContext<RepositoryDependencies | null>(null);
+
+export function userListAccessFromSnapshot(snapshot: AuthSessionSnapshot): {
+  scope: string;
+  canMutate: boolean;
+} {
+  const connection = snapshot.connections.anilist;
+  if (connection.state === 'connected' && connection.account) {
+    return {
+      scope: `anilist:${connection.account.userId}`,
+      canMutate: false,
+    };
+  }
+  if (connection.state === 'reconnect_required') {
+    return { scope: 'anilist:reconnect-required', canMutate: false };
+  }
+  return { scope: 'guest', canMutate: true };
+}
 
 function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
   let status = initial;
@@ -176,17 +208,44 @@ export function createProductionDependencies(
   channel = createStatusChannel(
     runtimeStatusFromSnapshot(catalogRepository.getRuntimeSnapshot()),
   );
-  const userListRepository = new GuestUserAnimeListRepository(
+  const guestUserListRepository = new GuestUserAnimeListRepository(
     catalogRepository,
   );
+  const userListRepository =
+    options.authSession && options.authTokenStore
+      ? new SessionAwareUserAnimeListRepository({
+          session: options.authSession,
+          guestRepository: guestUserListRepository,
+          createAniListRepository: (account) =>
+            new AniListUserAnimeListRepository({
+              client: createAniListClient({
+                coordinator,
+                accessTokenProvider: async () => {
+                  const record = await options.authTokenStore?.get('anilist');
+                  if (!record || Date.parse(record.expiresAt) <= Date.now()) {
+                    throw new AniListUnauthorizedError();
+                  }
+                  return record.accessToken;
+                },
+              }),
+              userId: Number(account.userId),
+              onUnauthorized: () =>
+                options.authSession?.markReconnectRequired('anilist'),
+            }),
+        })
+      : guestUserListRepository;
   const syncEngine = new SyncEngine(
     options.pendingSyncStore ?? new AsyncStoragePendingSyncStore(),
-    options.syncTargets ?? [new UserAnimeListSyncTarget(userListRepository)],
+    options.syncTargets ?? [
+      new UserAnimeListSyncTarget(guestUserListRepository),
+    ],
   );
   void syncEngine.start();
   return {
     catalogRepository,
     userListRepository,
+    userListScope: 'guest',
+    canMutateUserList: true,
     syncEngine,
     getCatalogRuntimeStatus: () => channel.get(),
     subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
@@ -213,16 +272,26 @@ export function RepositoryProvider({
   dependencies,
 }: RepositoryProviderProps) {
   const queryClient = useQueryClient();
+  const { snapshot: authSnapshot } = useAuthSession();
   const [source] = useState(() => dependencies ?? createDefaultDependencies());
+  const userListAccess = userListAccessFromSnapshot(authSnapshot);
+  const previousUserListScope = useRef(userListAccess.scope);
+  useEffect(() => {
+    if (previousUserListScope.current === userListAccess.scope) return;
+    source.userListRepository.invalidateCache();
+    previousUserListScope.current = userListAccess.scope;
+  }, [source.userListRepository, userListAccess.scope]);
   const value = useMemo<RepositoryDependencies>(
     () => ({
       ...source,
+      userListScope: userListAccess.scope,
+      canMutateUserList: userListAccess.canMutate,
       clearCatalogCache: () => {
         source.clearCatalogCache();
         queryClient.removeQueries({ queryKey: queryKeys.catalogRoot });
       },
     }),
-    [queryClient, source],
+    [queryClient, source, userListAccess.canMutate, userListAccess.scope],
   );
   return (
     <RepositoryContext.Provider value={value}>

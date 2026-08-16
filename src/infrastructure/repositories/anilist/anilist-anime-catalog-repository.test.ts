@@ -5,6 +5,7 @@ import type {
 import { AniListGraphQLExecutionError } from '@/infrastructure/api/anilist/anilist-errors';
 import {
   ANILIST_COMBINED_HOME_QUERY,
+  ANILIST_BY_MAL_IDS_QUERY,
   ANILIST_DETAILS_QUERY,
   ANILIST_POPULAR_QUERY,
   ANILIST_SEARCH_QUERY,
@@ -160,17 +161,13 @@ describe('AniListAnimeCatalogRepository', () => {
     });
   });
 
-  it('resolves missing IDs sequentially and preserves first-seen order', async () => {
-    let active = 0;
-    let maximumActive = 0;
+  it('resolves missing IDs in one batch and preserves first-seen order', async () => {
     const execute = jest.fn(
       async (request: { variables?: Record<string, unknown> }) => {
-        active += 1;
-        maximumActive = Math.max(maximumActive, active);
-        const idMal = Number(request.variables?.idMal);
-        await Promise.resolve();
-        active -= 1;
-        return response({ Media: anilistDetailsPayload({ idMal }) });
+        const ids = request.variables?.ids as number[];
+        return response(
+          anilistPage(ids.map((idMal) => anilistSummary({ id: idMal, idMal }))),
+        );
       },
     );
     const repository = new AniListAnimeCatalogRepository({
@@ -180,7 +177,37 @@ describe('AniListAnimeCatalogRepository', () => {
       { id: 3 },
       { id: 2 },
     ]);
-    expect(maximumActive).toBe(1);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: ANILIST_BY_MAL_IDS_QUERY,
+        variables: { ids: [3, 2], perPage: 2 },
+      }),
+    );
+  });
+
+  it('splits MAL ID enrichment into batches of at most 50', async () => {
+    const execute = jest.fn(
+      async (request: { variables?: Record<string, unknown> }) => {
+        const ids = request.variables?.ids as number[];
+        return response(
+          anilistPage(ids.map((idMal) => anilistSummary({ id: idMal, idMal }))),
+        );
+      },
+    );
+    const repository = new AniListAnimeCatalogRepository({
+      client: createClient(execute),
+    });
+    const ids = Array.from({ length: 51 }, (_, index) => index + 1);
+
+    await expect(repository.getManyByIds(ids)).resolves.toHaveLength(51);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[0]?.[0]).toMatchObject({
+      variables: { ids: ids.slice(0, 50), perPage: 50 },
+    });
+    expect(execute.mock.calls[1]?.[0]).toMatchObject({
+      variables: { ids: [51], perPage: 1 },
+    });
   });
 
   it('refreshes one family with its individual query', async () => {

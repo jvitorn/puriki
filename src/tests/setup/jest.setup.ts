@@ -33,7 +33,12 @@ jest.mock('expo-router', () => {
     },
   );
   return {
-    useRouter: () => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() }),
+    useRouter: () => ({
+      push: jest.fn(),
+      back: jest.fn(),
+      replace: jest.fn(),
+      canGoBack: () => false,
+    }),
     useLocalSearchParams: () => ({ id: '1' }),
     Stack,
     Tabs: Object.assign(() => null, { Screen: () => null }),

@@ -16,6 +16,7 @@ import {
   AniListResponseFormatError,
   AniListServiceUnavailableError,
   AniListTimeoutError,
+  AniListUnauthorizedError,
 } from '@/infrastructure/api/anilist/anilist-errors';
 import { AniListRequestCoordinator } from '@/infrastructure/api/anilist/anilist-request-coordinator';
 import { anilistResponse } from '@/infrastructure/api/anilist/anilist-test-fixtures';
@@ -232,6 +233,79 @@ describe('AniListDiagnosticClient', () => {
 });
 
 describe('AniList production client', () => {
+  it('injects Authorization only when an access token provider is configured', async () => {
+    const authenticatedFetch = jest.fn(async () =>
+      anilistResponse({ data: { Viewer: { id: 42 } } }),
+    );
+    const authenticated = new AniListClient({
+      accessTokenProvider: jest.fn(async () => 'secret-token'),
+      fetchImpl: authenticatedFetch as unknown as typeof fetch,
+    });
+    await authenticated.execute({
+      key: 'viewer',
+      query: 'query Viewer { Viewer { id } }',
+    });
+    expect(authenticatedFetch).toHaveBeenCalledWith(
+      ANILIST_GRAPHQL_ENDPOINT,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer secret-token',
+        }),
+      }),
+    );
+
+    const publicFetch = jest.fn(async () => anilistResponse({ data: {} }));
+    const publicClient = new AniListClient({
+      fetchImpl: publicFetch as unknown as typeof fetch,
+    });
+    await publicClient.execute({ key: 'public', query: 'query Public { x }' });
+    expect(publicFetch).toHaveBeenCalledWith(
+      ANILIST_GRAPHQL_ENDPOINT,
+      expect.objectContaining({
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      }),
+    );
+  });
+
+  it('classifies missing and rejected authenticated tokens as expired sessions', async () => {
+    const fetchImpl = jest.fn(async () =>
+      anilistResponse({ errors: [{ message: 'Invalid token' }] }, 401),
+    );
+    const rejected = new AniListClient({
+      accessTokenProvider: jest.fn(async () => 'expired-token'),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await expect(
+      rejected.execute({ key: 'list', query: 'query List { x }' }),
+    ).rejects.toBeInstanceOf(AniListUnauthorizedError);
+
+    const missing = new AniListClient({
+      accessTokenProvider: jest.fn(async () => ''),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await expect(
+      missing.execute({ key: 'missing', query: 'query List { x }' }),
+    ).rejects.toBeInstanceOf(AniListUnauthorizedError);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies authenticated 401/403 responses even with malformed bodies', async () => {
+    for (const status of [401, 403]) {
+      const client = new AniListClient({
+        accessTokenProvider: jest.fn(async () => 'expired-token'),
+        fetchImpl: jest.fn(async () =>
+          anilistResponse('not-json', status),
+        ) as unknown as typeof fetch,
+      });
+      await expect(
+        client.execute({ key: String(status), query: 'query List { x }' }),
+      ).rejects.toBeInstanceOf(AniListUnauthorizedError);
+    }
+  });
+
   it('posts GraphQL variables and preserves partial alias errors', async () => {
     const fetchImpl = jest.fn(async () =>
       anilistResponse({

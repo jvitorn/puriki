@@ -5,6 +5,7 @@ import { queryKeys } from '@/application/queries/query-keys';
 import type { UnifiedAnime } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
+import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 import {
   buildUserListDataset,
   createTestScenario,
@@ -12,12 +13,30 @@ import {
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
+function connectedAniListSession(): TestAuthSessionController {
+  const session = new TestAuthSessionController();
+  session.updateConnection('anilist', {
+    state: 'connected',
+    account: {
+      provider: 'anilist',
+      userId: '42',
+      username: 'reader',
+      avatarUrl: null,
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    },
+    operation: 'idle',
+    failure: null,
+    canRetry: false,
+  });
+  return session;
+}
+
 describe('MyListScreen', () => {
   const getLoadedPages = (queryClient: {
     getQueryData<T>(queryKey: readonly unknown[]): T | undefined;
   }) =>
     queryClient.getQueryData<InfiniteData<PageResult<UnifiedAnime>, number>>(
-      queryKeys.infiniteUserList(),
+      queryKeys.infiniteUserList('guest'),
     )?.pages;
 
   it('displays list counts and filters by status', async () => {
@@ -65,6 +84,76 @@ describe('MyListScreen', () => {
       screen.getByText('Explore anime and add what you want to watch.'),
     ).toBeVisible();
     expect(screen.getByText('0 anime • All')).toBeVisible();
+  });
+
+  it('renders the active AniList account list after loading', async () => {
+    await renderWithProviders(<MyListScreen />, {
+      authSession: connectedAniListSession(),
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('25 anime • All')).toBeVisible(),
+    );
+    expect(screen.getByText('Neon Ronin')).toBeVisible();
+  });
+
+  it('keeps the AniList skeleton visible until a valid empty snapshot arrives', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 0 }),
+    );
+    let resolvePage: ((page: PageResult<never>) => void) | undefined;
+    dependencies.userListRepository.getPage = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolvePage = resolve;
+        }),
+    );
+
+    await renderWithProviders(<MyListScreen />, {
+      authSession: connectedAniListSession(),
+      dependencies,
+    });
+
+    expect(screen.getAllByLabelText('Loading content')).not.toHaveLength(0);
+    expect(screen.queryByText('Your list is empty.')).not.toBeOnTheScreen();
+
+    await act(async () =>
+      resolvePage?.({ items: [], page: 1, nextPage: null, totalCount: 0 }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText('Your list is empty.')).toBeVisible(),
+    );
+  });
+
+  it('shows a retryable AniList session error instead of a guest empty state', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 0 }),
+    );
+    dependencies.userListRepository.getPage = jest
+      .fn()
+      .mockRejectedValueOnce(
+        new Error('The AniList session is no longer valid.'),
+      )
+      .mockResolvedValue({
+        items: [],
+        page: 1,
+        nextPage: null,
+        totalCount: 0,
+      });
+
+    await renderWithProviders(<MyListScreen />, {
+      authSession: connectedAniListSession(),
+      dependencies,
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Unable to load')).toBeVisible(),
+    );
+    expect(screen.queryByText('Your list is empty.')).not.toBeOnTheScreen();
+    fireEvent.press(screen.getByText('Try again'));
+    await waitFor(() =>
+      expect(screen.getByText('Your list is empty.')).toBeVisible(),
+    );
   });
 
   it('loads a 250-entry list one page at a time near the end', async () => {

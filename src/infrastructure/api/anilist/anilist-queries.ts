@@ -181,3 +181,46 @@ export const ANILIST_COMBINED_HOME_QUERY = /* GraphQL */ `
   }
   ${ANILIST_SUMMARY_FRAGMENT}
 `;
+
+export const ANILIST_USER_LIST_QUERY = /* GraphQL */ `
+  query AuthenticatedAnimeList($userId: Int!, $chunk: Int!, $perChunk: Int!) {
+    MediaListCollection(
+      userId: $userId
+      type: ANIME
+      chunk: $chunk
+      perChunk: $perChunk
+      sort: UPDATED_TIME_DESC
+      forceSingleCompletedList: true
+    ) {
+      hasNextChunk
+      lists {
+        entries {
+          mediaId
+          status
+          score(format: POINT_10)
+          progress
+          updatedAt
+          media {
+            idMal
+          }
+        }
+      }
+    }
+  }
+`;
+
+export const ANILIST_BY_MAL_IDS_QUERY = /* GraphQL */ `
+  query AnimeSummariesByMalIds($ids: [Int!]!, $perPage: Int!) {
+    Page(page: 1, perPage: $perPage) {
+      pageInfo {
+        currentPage
+        hasNextPage
+        lastPage
+      }
+      media(type: ANIME, idMal_in: $ids) {
+        ...AnimeSummary
+      }
+    }
+  }
+  ${ANILIST_SUMMARY_FRAGMENT}
+`;

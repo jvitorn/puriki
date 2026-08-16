@@ -24,6 +24,7 @@ import {
 } from '@/infrastructure/api/anilist/anilist-mapper';
 import {
   ANILIST_COMBINED_HOME_QUERY,
+  ANILIST_BY_MAL_IDS_QUERY,
   ANILIST_DETAILS_QUERY,
   ANILIST_POPULAR_QUERY,
   ANILIST_SEARCH_QUERY,
@@ -208,15 +209,25 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
       ...new Set(ids.filter((id) => Number.isInteger(id) && id > 0)),
     ];
     const resolved = new Map<number, AnimeCatalogItem>();
-    for (const id of uniqueIds) {
+    const missingIds = uniqueIds.filter((id) => {
       const known = this.cache.getSummary(id);
-      if (known) {
-        resolved.set(id, known);
-        continue;
-      }
-      const item = await this.getDetailsById(id);
-      if (item) resolved.set(id, item);
-    }
+      if (known) resolved.set(id, known);
+      return !known;
+    });
+    const batches = Array.from(
+      { length: Math.ceil(missingIds.length / 50) },
+      (_, index) => missingIds.slice(index * 50, index * 50 + 50),
+    );
+    const fetched = await Promise.all(
+      batches.map((batch) =>
+        this.fetchCollection(
+          `mal-ids:${batch.join(',')}`,
+          ANILIST_BY_MAL_IDS_QUERY,
+          { ids: batch, perPage: batch.length },
+        ),
+      ),
+    );
+    fetched.flat().forEach((item) => resolved.set(item.id, item));
     return uniqueIds.flatMap((id) => {
       const item = resolved.get(id);
       return item ? [item] : [];

@@ -1,3 +1,4 @@
+import { DataSourceError } from '@/domain/errors/domain-error';
 import { PrimaryProviderError } from '@/infrastructure/repositories/resilient/primary-provider-error';
 
 export type AniListDiagnosticErrorKind =
@@ -41,6 +42,13 @@ export interface AniListRequestDiagnostic {
   elapsedMs: number;
   rateLimit: AniListRateLimitMetrics;
   graphqlErrors: string[];
+}
+
+export class AniListUnauthorizedError extends DataSourceError {
+  constructor(message = 'The AniList session is no longer valid.') {
+    super('session_expired', message);
+    this.name = 'AniListUnauthorizedError';
+  }
 }
 
 export class AniListNetworkError extends PrimaryProviderError {

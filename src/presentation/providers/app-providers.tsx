@@ -4,9 +4,14 @@ import type { PropsWithChildren } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { createProductionAuthSession } from '@/infrastructure/auth/create-auth-session';
+import { ExpoSecureAuthTokenStore } from '@/infrastructure/auth/expo-secure-auth-token-store';
 import { LocalizationProvider } from '@/localization/localization-provider';
 import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
-import { RepositoryProvider } from '@/presentation/providers/repository-provider';
+import {
+  createProductionDependencies,
+  RepositoryProvider,
+} from '@/presentation/providers/repository-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 
 export function createAppQueryClient(): QueryClient {
@@ -27,13 +32,24 @@ export function createAppQueryClient(): QueryClient {
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(createAppQueryClient);
+  const [runtime] = useState(() => {
+    const tokenStore = new ExpoSecureAuthTokenStore();
+    const authSession = createProductionAuthSession({ tokenStore });
+    return {
+      authSession,
+      dependencies: createProductionDependencies({
+        authSession,
+        authTokenStore: tokenStore,
+      }),
+    };
+  });
   return (
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
         <LocalizationProvider>
-          <AuthSessionProvider>
+          <AuthSessionProvider session={runtime.authSession}>
             <QueryClientProvider client={queryClient}>
-              <RepositoryProvider>
+              <RepositoryProvider dependencies={runtime.dependencies}>
                 <SynopsisTranslationProvider>
                   {children}
                 </SynopsisTranslationProvider>

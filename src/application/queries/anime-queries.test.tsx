@@ -28,6 +28,7 @@ import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog
 import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
+import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
 import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
 import { createTestWrapper } from '@/tests/render/test-render';
@@ -300,6 +301,10 @@ describe('React Query integration', () => {
     const dependencies = createTestDependencies(
       buildUserListDataset({ size: 250 }),
     );
+    const invalidateCache = jest.spyOn(
+      dependencies.userListRepository,
+      'invalidateCache',
+    );
     const getPage = jest.spyOn(dependencies.userListRepository, 'getPage');
     const { result } = await renderHook(() => useInfiniteUnifiedUserList(), {
       wrapper: createTestWrapper(dependencies),
@@ -319,6 +324,10 @@ describe('React Query integration', () => {
       pageSize: 25,
       status: undefined,
     });
+    expect(invalidateCache).toHaveBeenCalledTimes(1);
+    expect(invalidateCache.mock.invocationCallOrder[0]).toBeLessThan(
+      getPage.mock.invocationCallOrder[0] ?? Number.MAX_SAFE_INTEGER,
+    );
 
     await act(async () => result.current.fetchNextPage());
     await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
@@ -380,7 +389,7 @@ describe('React Query integration', () => {
     );
     const queryClient = createAppQueryClient();
     const cached = buildWatchingAnime({ id: 101 });
-    queryClient.setQueryData(queryKeys.details(101), cached);
+    queryClient.setQueryData(queryKeys.details('guest', 101), cached);
     const { result } = await renderHook(() => useUpdateProgress(), {
       wrapper: createTestWrapper(dependencies, queryClient),
     });
@@ -388,16 +397,60 @@ describe('React Query integration', () => {
     await act(async () => result.current.mutate({ animeId: 101, episodes: 5 }));
     await waitFor(() => {
       const optimistic = queryClient.getQueryData<UnifiedAnime>(
-        queryKeys.details(101),
+        queryKeys.details('guest', 101),
       );
       expect(optimistic?.userEntry?.watchedEpisodes).toBe(5);
     });
     await act(async () => rejectUpdate(new Error('Mutation failed')));
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(
-      queryClient.getQueryData<UnifiedAnime>(queryKeys.details(101))?.userEntry
-        ?.watchedEpisodes,
+      queryClient.getQueryData<UnifiedAnime>(queryKeys.details('guest', 101))
+        ?.userEntry?.watchedEpisodes,
     ).toBe(4);
+  });
+
+  it('blocks AniList mutations before optimistic cache or sync changes', async () => {
+    const dependencies = createTestDependencies();
+    const enqueue = jest.spyOn(dependencies.syncEngine, 'enqueue');
+    const queryClient = createAppQueryClient();
+    const cached = buildWatchingAnime({ id: 101 });
+    const guestCached = buildWatchingAnime({ id: 101, title: 'Guest copy' });
+    queryClient.setQueryData(queryKeys.details('anilist:42', 101), cached);
+    queryClient.setQueryData(queryKeys.details('guest', 101), guestCached);
+    const authSession = new TestAuthSessionController();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'reader',
+        avatarUrl: null,
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    const { result } = await renderHook(() => useUpdateProgress(), {
+      wrapper: createTestWrapper(
+        dependencies,
+        queryClient,
+        'en',
+        undefined,
+        authSession,
+      ),
+    });
+
+    await expect(
+      result.current.mutateAsync({ animeId: 101, episodes: 9 }),
+    ).rejects.toThrow('read-only');
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(
+      queryClient.getQueryData(queryKeys.details('anilist:42', 101)),
+    ).toEqual(cached);
+    expect(queryClient.getQueryData(queryKeys.details('guest', 101))).toEqual(
+      guestCached,
+    );
   });
 
   it('optimistically adds real membership with plan-to-watch defaults', async () => {
@@ -406,7 +459,9 @@ describe('React Query integration', () => {
     if (!anime) throw new Error('Expected catalog anime 30.');
     const addToList = jest.spyOn(dependencies.userListRepository, 'addToList');
     const queryClient = createAppQueryClient();
-    queryClient.setQueryData<UnifiedAnime>(queryKeys.details(30), { anime });
+    queryClient.setQueryData<UnifiedAnime>(queryKeys.details('guest', 30), {
+      anime,
+    });
     const { result } = await renderHook(() => useAddToList(), {
       wrapper: createTestWrapper(dependencies, queryClient),
     });
@@ -414,7 +469,7 @@ describe('React Query integration', () => {
     await act(async () => result.current.mutate({ animeId: 30 }));
     await waitFor(() =>
       expect(
-        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(30))
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details('guest', 30))
           ?.userEntry,
       ).toMatchObject({
         animeId: 30,
@@ -440,7 +495,7 @@ describe('React Query integration', () => {
     );
     const queryClient = createAppQueryClient();
     const cached: UnifiedAnime = { anime };
-    queryClient.setQueryData(queryKeys.details(30), cached);
+    queryClient.setQueryData(queryKeys.details('guest', 30), cached);
     const { result } = await renderHook(() => useAddToList(), {
       wrapper: createTestWrapper(dependencies, queryClient),
     });
@@ -448,20 +503,22 @@ describe('React Query integration', () => {
     await act(async () => result.current.mutate({ animeId: 30 }));
     await waitFor(() =>
       expect(
-        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(30))
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details('guest', 30))
           ?.userEntry,
       ).toBeDefined(),
     );
     await act(async () => rejectAdd(new Error('Add failed')));
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(queryClient.getQueryData(queryKeys.details(30))).toEqual(cached);
+    expect(queryClient.getQueryData(queryKeys.details('guest', 30))).toEqual(
+      cached,
+    );
   });
 
   it('optimistically removes membership and keeps it removed on success', async () => {
     const dependencies = createTestDependencies();
     const queryClient = createAppQueryClient();
     queryClient.setQueryData(
-      queryKeys.details(1),
+      queryKeys.details('guest', 1),
       buildWatchingAnime({ id: 1 }),
     );
     const { result } = await renderHook(() => useRemoveFromList(), {
@@ -471,7 +528,8 @@ describe('React Query integration', () => {
     await act(async () => result.current.mutate({ animeId: 1 }));
     await waitFor(() =>
       expect(
-        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(1))?.userEntry,
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details('guest', 1))
+          ?.userEntry,
       ).toBeUndefined(),
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -491,7 +549,7 @@ describe('React Query integration', () => {
     );
     const queryClient = createAppQueryClient();
     const cached = buildWatchingAnime({ id: 1 });
-    queryClient.setQueryData(queryKeys.details(1), cached);
+    queryClient.setQueryData(queryKeys.details('guest', 1), cached);
     const { result } = await renderHook(() => useRemoveFromList(), {
       wrapper: createTestWrapper(dependencies, queryClient),
     });
@@ -499,12 +557,15 @@ describe('React Query integration', () => {
     await act(async () => result.current.mutate({ animeId: 1 }));
     await waitFor(() =>
       expect(
-        queryClient.getQueryData<UnifiedAnime>(queryKeys.details(1))?.userEntry,
+        queryClient.getQueryData<UnifiedAnime>(queryKeys.details('guest', 1))
+          ?.userEntry,
       ).toBeUndefined(),
     );
     await act(async () => rejectRemoval(new Error('Remove failed')));
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(queryClient.getQueryData(queryKeys.details(1))).toEqual(cached);
+    expect(queryClient.getQueryData(queryKeys.details('guest', 1))).toEqual(
+      cached,
+    );
   });
 
   it('updates a later infinite page and restores it after failure', async () => {
@@ -526,7 +587,7 @@ describe('React Query integration', () => {
       pages,
       pageParams: [1, 2, 3, 4],
     };
-    queryClient.setQueryData(queryKeys.infiniteUserList(), cached);
+    queryClient.setQueryData(queryKeys.infiniteUserList('guest'), cached);
     let rejectUpdate: (error: Error) => void = () => undefined;
     dependencies.userListRepository.updateProgress = jest.fn(
       () =>
@@ -541,7 +602,7 @@ describe('React Query integration', () => {
     await act(async () => result.current.mutate({ animeId: 104, episodes: 8 }));
     await waitFor(() => {
       const optimistic = queryClient.getQueryData<typeof cached>(
-        queryKeys.infiniteUserList(),
+        queryKeys.infiniteUserList('guest'),
       );
       expect(optimistic?.pages[3]?.items[0]?.userEntry?.watchedEpisodes).toBe(
         8,
@@ -550,9 +611,9 @@ describe('React Query integration', () => {
     });
     await act(async () => rejectUpdate(new Error('Mutation failed')));
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(queryClient.getQueryData(queryKeys.infiniteUserList())).toEqual(
-      cached,
-    );
+    expect(
+      queryClient.getQueryData(queryKeys.infiniteUserList('guest')),
+    ).toEqual(cached);
   });
 
   it('removes a status transition from a filtered infinite cache', async () => {
@@ -577,7 +638,7 @@ describe('React Query integration', () => {
     await waitFor(() => expect(mutation.result.current.isSuccess).toBe(true));
     const cached = queryClient.getQueryData<
       InfiniteData<PageResult<UnifiedAnime>, number>
-    >(queryKeys.infiniteUserList('watching'));
+    >(queryKeys.infiniteUserList('guest', 'watching'));
     expect(
       cached?.pages
         .flatMap((page) => page.items)

@@ -112,6 +112,8 @@ export const ptBR = {
   'errors.notFound': 'Anime não encontrado.',
   'errors.configuration': 'O fallback do MyAnimeList não está configurado.',
   'errors.unauthorized': 'O MyAnimeList rejeitou o Client ID do aplicativo.',
+  'errors.sessionExpired':
+    'Sua sessão do AniList expirou. Reconecte sua conta e tente novamente.',
   'errors.http':
     'O catálogo de anime não conseguiu concluir a solicitação. Tente novamente.',
   'errors.invalidResponse':
@@ -184,6 +186,8 @@ export const ptBR = {
   'details.completedScorePrompt': 'Anime concluído. Quer dar uma nota?',
   'details.updateFailed':
     'A atualização falhou. Os valores anteriores foram restaurados.',
+  'details.anilistReadOnly':
+    'Sua lista do AniList é somente leitura nesta versão do Puriki.',
   'details.synopsis': 'Sinopse',
   'details.whereToWatch': 'Onde assistir',
   'details.streamingServiceA11y': 'Disponível na {{name}}',

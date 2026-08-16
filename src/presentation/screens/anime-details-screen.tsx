@@ -49,6 +49,7 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Separator } from '@/presentation/components/ui/separator';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
+import { useRepositories } from '@/presentation/providers/repository-provider';
 
 function DetailsBackButton({ onPress }: { onPress(): void }) {
   const { t } = useTranslation();
@@ -76,6 +77,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   const { language } = useAppLanguage();
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const { canMutateUserList } = useRepositories();
   const [alternativeTitlesOpen, setAlternativeTitlesOpen] = useState(false);
   const details = useAnimeDetails(animeId);
   const progress = useUpdateProgress();
@@ -134,6 +136,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   const busy = addToList.isPending || removeFromList.isPending;
 
   const confirmRemoval = () => {
+    if (!canMutateUserList) return;
     Alert.alert(
       t('details.removeConfirmTitle'),
       t('details.removeConfirmDescription', { title: anime.title }),
@@ -204,6 +207,18 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           </View>
         </View>
 
+        {!canMutateUserList ? (
+          <View
+            accessible
+            accessibilityRole="text"
+            className="rounded-xl border border-primary/40 bg-primary/10 p-4"
+          >
+            <Text className="text-primary-emphasis">
+              {t('details.anilistReadOnly')}
+            </Text>
+          </View>
+        ) : null}
+
         {userEntry ? (
           <Card className="gap-5 border-0 p-4 py-4">
             <View className="flex-row items-center justify-between gap-3">
@@ -233,7 +248,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               <EpisodeProgressControl
                 current={userEntry.watchedEpisodes}
                 total={anime.totalEpisodes}
-                disabled={busy}
+                disabled={busy || !canMutateUserList}
                 onChange={(episodes) => progress.mutate({ animeId, episodes })}
               />
             </View>
@@ -244,7 +259,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               </Text>
               <AnimeStatusSelector
                 value={userEntry.status}
-                disabled={busy}
+                disabled={busy || !canMutateUserList}
                 onChange={(nextStatus) =>
                   status.mutate({ animeId, status: nextStatus })
                 }
@@ -263,7 +278,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               ) : null}
               <AnimeScoreSelector
                 value={userEntry.userScore}
-                disabled={busy}
+                disabled={busy || !canMutateUserList}
                 onChange={(nextScore) =>
                   score.mutate({ animeId, score: nextScore })
                 }
@@ -278,7 +293,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             ) : (
               <Button
                 variant="ghost"
-                disabled={busy}
+                disabled={busy || !canMutateUserList}
                 accessibilityLabel={t('details.removeA11y', {
                   title: anime.title,
                 })}
@@ -294,7 +309,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
         ) : (
           <Button
             size="lg"
-            disabled={busy}
+            disabled={busy || !canMutateUserList}
             accessibilityLabel={
               removeFromList.isPending
                 ? t('details.removing')

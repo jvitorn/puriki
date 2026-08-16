@@ -112,6 +112,8 @@ export const es = {
   'errors.notFound': 'Anime no encontrado.',
   'errors.configuration': 'El respaldo de MyAnimeList no está configurado.',
   'errors.unauthorized': 'MyAnimeList rechazó el Client ID de la aplicación.',
+  'errors.sessionExpired':
+    'Tu sesión de AniList caducó. Vuelve a conectar tu cuenta e inténtalo de nuevo.',
   'errors.http':
     'El catálogo de anime no pudo completar la solicitud. Inténtalo de nuevo.',
   'errors.invalidResponse':
@@ -183,6 +185,8 @@ export const es = {
   'details.completedScorePrompt': 'Anime completado. ¿Quieres puntuarlo?',
   'details.updateFailed':
     'La actualización falló. Se restauraron los valores anteriores.',
+  'details.anilistReadOnly':
+    'Tu lista de AniList es de solo lectura en esta versión de Puriki.',
   'details.synopsis': 'Sinopsis',
   'details.whereToWatch': 'Dónde ver',
   'details.streamingServiceA11y': 'Disponible en {{name}}',
