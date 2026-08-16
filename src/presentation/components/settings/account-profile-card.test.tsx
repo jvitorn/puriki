@@ -6,10 +6,14 @@ import { renderWithProviders } from '@/tests/render/test-render';
 describe('AccountProfileCard', () => {
   it('renders a truthful disconnected shell without invented identity data', async () => {
     await renderWithProviders(
-      <AccountProfileCard connectionState="disconnected" />,
+      <AccountProfileCard
+        connectionState="disconnected"
+        providerName="AniList"
+        status="Not connected"
+      />,
     );
 
-    expect(screen.getByText('MyAnimeList')).toBeVisible();
+    expect(screen.getByText('AniList')).toBeVisible();
     expect(screen.getByText('Not connected')).toBeVisible();
     expect(screen.getByTestId('account-avatar-fallback')).toBeVisible();
     expect(screen.queryByText('@guest')).not.toBeOnTheScreen();
@@ -20,15 +24,14 @@ describe('AccountProfileCard', () => {
       <AccountProfileCard
         avatarUrl="https://cdn.example.com/avatar.png"
         connectionState="connected"
-        displayName="Aiko Mori"
+        providerName="AniList"
+        status="Connected as aiko"
         username="aiko"
       />,
     );
 
-    expect(screen.getByText('Aiko Mori')).toBeVisible();
-    expect(screen.getByText('@aiko')).toBeVisible();
-    expect(
-      screen.getByLabelText('Profile picture for Aiko Mori'),
-    ).toBeVisible();
+    expect(screen.getByText('AniList')).toBeVisible();
+    expect(screen.getByText('Connected as aiko')).toBeVisible();
+    expect(screen.getByLabelText('Profile picture for aiko')).toBeVisible();
   });
 });

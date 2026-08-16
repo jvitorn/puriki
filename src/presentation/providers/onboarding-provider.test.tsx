@@ -5,14 +5,17 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react-native';
+import type { ReactElement } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 import type { OnboardingStorage } from '@/infrastructure/storage/onboarding-storage';
+import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
 import {
   OnboardingGate,
   OnboardingNavigator,
   useOnboardingCompletion,
 } from '@/presentation/providers/onboarding-provider';
+import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 
 function createStorage(completed: boolean): jest.Mocked<OnboardingStorage> {
   return {
@@ -36,6 +39,15 @@ function CompletionProbe({ status }: { status: string }) {
   );
 }
 
+function renderWithAuth(
+  element: ReactElement,
+  session = new TestAuthSessionController(),
+) {
+  return render(
+    <AuthSessionProvider session={session}>{element}</AuthSessionProvider>,
+  );
+}
+
 describe('OnboardingGate', () => {
   it('keeps content hidden until storage resolves and then hides the splash', async () => {
     let resolveCompletion: ((completed: boolean) => void) | undefined;
@@ -48,7 +60,7 @@ describe('OnboardingGate', () => {
     );
     const splash = { hideAsync: jest.fn(async () => undefined) };
 
-    await render(
+    await renderWithAuth(
       <OnboardingGate storage={storage} splash={splash}>
         {(status) => <Text>{status}</Text>}
       </OnboardingGate>,
@@ -62,11 +74,38 @@ describe('OnboardingGate', () => {
     expect(splash.hideAsync).toHaveBeenCalledTimes(1);
   });
 
+  it('loads onboarding and auth together and keeps the splash until both are ready', async () => {
+    const storage = createStorage(true);
+    const session = new TestAuthSessionController({ phase: 'restoring' });
+    const restore = jest.spyOn(session, 'restore');
+    const splash = { hideAsync: jest.fn(async () => undefined) };
+
+    await renderWithAuth(
+      <OnboardingGate storage={storage} splash={splash}>
+        {(status) => <Text>{status}</Text>}
+      </OnboardingGate>,
+      session,
+    );
+
+    await waitFor(() => {
+      expect(storage.hasCompleted).toHaveBeenCalledTimes(1);
+      expect(restore).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByText('completed')).not.toBeOnTheScreen();
+    expect(splash.hideAsync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      session.update({ ...session.getSnapshot(), phase: 'ready' });
+    });
+    await waitFor(() => expect(screen.getByText('completed')).toBeVisible());
+    expect(splash.hideAsync).toHaveBeenCalledTimes(1);
+  });
+
   it('treats a storage read failure as a first access', async () => {
     const storage = createStorage(false);
     storage.hasCompleted.mockRejectedValueOnce(new Error('unavailable'));
 
-    await render(
+    await renderWithAuth(
       <OnboardingGate
         storage={storage}
         splash={{ hideAsync: jest.fn(async () => undefined) }}
@@ -82,7 +121,7 @@ describe('OnboardingGate', () => {
     const storage = createStorage(false);
     storage.markCompleted.mockRejectedValueOnce(new Error('unavailable'));
 
-    await render(
+    await renderWithAuth(
       <OnboardingGate
         storage={storage}
         splash={{ hideAsync: jest.fn(async () => undefined) }}
@@ -101,7 +140,7 @@ describe('OnboardingGate', () => {
 
 describe('OnboardingNavigator', () => {
   it('exposes only onboarding before completion', async () => {
-    await render(
+    await renderWithAuth(
       <OnboardingNavigator
         storage={createStorage(false)}
         splash={{ hideAsync: jest.fn(async () => undefined) }}
@@ -118,7 +157,7 @@ describe('OnboardingNavigator', () => {
   });
 
   it('exposes app routes only after completion', async () => {
-    await render(
+    await renderWithAuth(
       <OnboardingNavigator
         storage={createStorage(true)}
         splash={{ hideAsync: jest.fn(async () => undefined) }}

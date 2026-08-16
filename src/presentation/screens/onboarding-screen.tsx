@@ -20,7 +20,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AniListIcon from '../../../assets/providers/anilist.png';
 import MyAnimeListIcon from '../../../assets/providers/myanimelist.png';
 
+import type { ProviderSessionSnapshot } from '@/application/auth/auth-contracts';
 import { usePopularAnime } from '@/application/queries/anime-queries';
+import type { AuthProviderId } from '@/domain/models/auth';
+import { localizedAuthFailure } from '@/localization/localized-values';
 import { PurikiLogo } from '@/presentation/components/branding/puriki-logo';
 import { OnboardingHeroPosters } from '@/presentation/components/onboarding/onboarding-hero-posters';
 import {
@@ -34,21 +37,26 @@ import { Icon } from '@/presentation/components/ui/icon';
 import { ProgressBar } from '@/presentation/components/ui/progress-bar';
 import { Screen } from '@/presentation/components/ui/screen';
 import { Text } from '@/presentation/components/ui/text';
+import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 import { useOnboardingCompletion } from '@/presentation/providers/onboarding-provider';
 import { cn } from '@/shared/rnr/utils';
 
 type OnboardingAct = 'welcome' | 'learn' | 'providers';
-type ProviderId = 'anilist' | 'mal';
-
 interface ProviderOption {
-  id: ProviderId;
+  id: AuthProviderId;
   image: ImageSourcePropType;
   name: string;
+  available: boolean;
 }
 
 const PROVIDERS: readonly ProviderOption[] = [
-  { id: 'anilist', image: AniListIcon, name: 'AniList' },
-  { id: 'mal', image: MyAnimeListIcon, name: 'MyAnimeList' },
+  { id: 'anilist', image: AniListIcon, name: 'AniList', available: true },
+  {
+    id: 'mal',
+    image: MyAnimeListIcon,
+    name: 'MyAnimeList',
+    available: false,
+  },
 ];
 
 const CAROUSEL_STEPS = [
@@ -354,55 +362,89 @@ function LearnAct({
 
 function ProviderRow({
   option,
-  selected,
-  onSelect,
+  connected,
+  disabled,
+  status,
+  actionLabel,
+  onPress,
 }: {
   option: ProviderOption;
-  selected: boolean;
-  onSelect(): void;
+  connected: boolean;
+  disabled: boolean;
+  status: string;
+  actionLabel?: string;
+  onPress(): void;
 }) {
-  const { t } = useTranslation();
   return (
     <Pressable
-      accessibilityRole="radio"
+      accessibilityRole="button"
       accessibilityLabel={option.name}
-      accessibilityState={{ checked: selected, selected }}
+      accessibilityState={{ disabled, selected: connected }}
       className={cn(
         'min-h-[72px] flex-row items-center gap-3 rounded-lg border border-border bg-card px-4 active:opacity-80',
-        selected && 'border-primary-emphasis bg-primary/10',
+        connected && 'border-primary-emphasis bg-primary/10',
+        disabled && !connected && 'opacity-60',
       )}
+      disabled={disabled}
       testID={`provider-${option.id}`}
-      onPress={onSelect}
+      onPress={onPress}
     >
       <Image className="size-10 rounded-[10px]" source={option.image} />
       <View className="flex-1">
-        <Text className={cn('font-bold', selected && 'text-primary-emphasis')}>
+        <Text className={cn('font-bold', connected && 'text-primary-emphasis')}>
           {option.name}
         </Text>
         <Text variant="caption" muted>
-          {t('onboarding.connectAccount')}
+          {status}
         </Text>
       </View>
-      <Icon as={ChevronRight} className="size-5 text-muted-foreground" />
+      {option.available && !connected ? (
+        actionLabel ? (
+          <Text
+            className="font-semibold text-primary-emphasis"
+            variant="caption"
+          >
+            {actionLabel}
+          </Text>
+        ) : (
+          <Icon as={ChevronRight} className="size-5 text-muted-foreground" />
+        )
+      ) : null}
     </Pressable>
   );
 }
 
 function ProvidersAct({
-  selectedProvider,
+  anilistConnection,
   isCompleting,
   onBack,
   onComplete,
-  onSelectProvider,
+  onAniListAction,
 }: {
-  selectedProvider: ProviderId | null;
+  anilistConnection: ProviderSessionSnapshot;
   isCompleting: boolean;
   onBack(): void;
   onComplete(): void;
-  onSelectProvider(provider: ProviderId): void;
+  onAniListAction(): void;
 }) {
   const { t } = useTranslation();
   const { bottom } = useSafeAreaInsets();
+  const connected = anilistConnection.state === 'connected';
+  const authBusy = anilistConnection.operation !== 'idle';
+  const anilistStatus = connected
+    ? t('auth.connectedAs', {
+        username: anilistConnection.account?.username ?? t('common.unknown'),
+      })
+    : anilistConnection.canRetry
+      ? t('auth.validationPending')
+      : anilistConnection.state === 'reconnect_required'
+        ? t('auth.reconnectRequired')
+        : authBusy
+          ? anilistConnection.operation === 'restoring'
+            ? t('auth.checking')
+            : t('auth.connecting')
+          : t('onboarding.connectAccount');
+
   return (
     <Screen padded={false} testID="providers-act">
       <View className="flex-1 px-6">
@@ -424,10 +466,35 @@ function ProvidersAct({
             <ProviderRow
               key={option.id}
               option={option}
-              selected={selectedProvider === option.id}
-              onSelect={() => onSelectProvider(option.id)}
+              connected={option.id === 'anilist' && connected}
+              disabled={!option.available || authBusy || connected}
+              actionLabel={
+                option.id !== 'anilist'
+                  ? undefined
+                  : anilistConnection.canRetry
+                    ? t('auth.retry')
+                    : anilistConnection.state === 'reconnect_required'
+                      ? t('auth.reconnect')
+                      : undefined
+              }
+              status={
+                option.id === 'anilist' ? anilistStatus : t('auth.comingSoon')
+              }
+              onPress={
+                option.id === 'anilist' ? onAniListAction : () => undefined
+              }
             />
           ))}
+          {anilistConnection.failure ? (
+            <Text
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+              className="px-1 text-destructive"
+              variant="caption"
+            >
+              {localizedAuthFailure(anilistConnection.failure, t)}
+            </Text>
+          ) : null}
           <View
             accessible
             className="min-h-11 flex-row items-center gap-3 px-1"
@@ -444,31 +511,37 @@ function ProvidersAct({
           className="gap-3 pt-3"
           style={{ paddingBottom: Math.max(bottom, 16) }}
         >
-          <View className="flex-row items-center gap-3">
-            <View className="h-px flex-1 bg-border" />
-            <Text variant="caption" muted>
-              {t('onboarding.or')}
-            </Text>
-            <View className="h-px flex-1 bg-border" />
-          </View>
+          {!connected ? (
+            <View className="flex-row items-center gap-3">
+              <View className="h-px flex-1 bg-border" />
+              <Text variant="caption" muted>
+                {t('onboarding.or')}
+              </Text>
+              <View className="h-px flex-1 bg-border" />
+            </View>
+          ) : null}
           <OnboardingButton
-            accessibilityState={{ disabled: isCompleting }}
-            disabled={isCompleting}
-            variant="outline"
+            accessibilityState={{ disabled: isCompleting || authBusy }}
+            disabled={isCompleting || authBusy}
+            variant={connected ? 'default' : 'outline'}
             onPress={onComplete}
           >
             <Text>
               {isCompleting
                 ? t('onboarding.entering')
-                : t('onboarding.continueGuest')}
+                : connected
+                  ? t('onboarding.continue')
+                  : t('onboarding.continueGuest')}
             </Text>
           </OnboardingButton>
-          <View className="flex-row items-start gap-2" accessible>
-            <Icon as={Info} className="mt-0.5 size-4 text-warning" />
-            <Text variant="caption" className="flex-1 text-muted-foreground">
-              {t('onboarding.guestWarning')}
-            </Text>
-          </View>
+          {!connected ? (
+            <View className="flex-row items-start gap-2" accessible>
+              <Icon as={Info} className="mt-0.5 size-4 text-warning" />
+              <Text variant="caption" className="flex-1 text-muted-foreground">
+                {t('onboarding.guestWarning')}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </Screen>
@@ -482,13 +555,12 @@ export function OnboardingContent({
   completeOnboarding(): Promise<void>;
   random?: () => number;
 }) {
+  const { snapshot, retry, signIn } = useAuthSession();
   const [act, setAct] = useState<OnboardingAct>('welcome');
   const [carouselStep, setCarouselStep] = useState(0);
   const [demoProgress, setDemoProgress] = useState(13);
-  const [selectedProvider, setSelectedProvider] = useState<ProviderId | null>(
-    null,
-  );
   const [isCompleting, setIsCompleting] = useState(false);
+  const anilistConnection = snapshot.connections.anilist;
 
   if (act === 'welcome') {
     return (
@@ -515,7 +587,7 @@ export function OnboardingContent({
   }
   return (
     <ProvidersAct
-      selectedProvider={selectedProvider}
+      anilistConnection={anilistConnection}
       isCompleting={isCompleting}
       onBack={() => {
         setCarouselStep(2);
@@ -526,7 +598,10 @@ export function OnboardingContent({
         setIsCompleting(true);
         void completeOnboarding();
       }}
-      onSelectProvider={setSelectedProvider}
+      onAniListAction={() => {
+        if (anilistConnection.canRetry) void retry('anilist');
+        else void signIn('anilist');
+      }}
     />
   );
 }

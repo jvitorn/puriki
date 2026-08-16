@@ -4,15 +4,18 @@ import type { RenderOptions } from '@testing-library/react-native';
 import type { PropsWithChildren, ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import type { AuthSessionController } from '@/application/auth/auth-contracts';
 import { appI18n } from '@/localization/i18n';
 import type { LanguagePreference } from '@/localization/languages';
 import { resolveEffectiveLanguage } from '@/localization/languages';
 import { LocalizationProvider } from '@/localization/localization-provider';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
+import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
+import { createTestAuthSession } from '@/tests/auth/test-auth-session';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
 interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
@@ -20,6 +23,7 @@ interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   queryClient?: QueryClient;
   languagePreference?: LanguagePreference;
   translationDependencies?: SynopsisTranslationDependencies;
+  authSession?: AuthSessionController;
 }
 
 export function createTestWrapper(
@@ -27,6 +31,7 @@ export function createTestWrapper(
   queryClient: QueryClient = createAppQueryClient(),
   languagePreference: LanguagePreference = 'en',
   translationDependencies?: SynopsisTranslationDependencies,
+  authSession: AuthSessionController = createTestAuthSession(),
 ) {
   const resolvedDependencies = dependencies ?? createTestDependencies();
   void appI18n.changeLanguage(
@@ -41,15 +46,17 @@ export function createTestWrapper(
         }}
       >
         <LocalizationProvider initialPreference={languagePreference}>
-          <QueryClientProvider client={queryClient}>
-            <RepositoryProvider dependencies={resolvedDependencies}>
-              <SynopsisTranslationProvider
-                dependencies={translationDependencies}
-              >
-                {children}
-              </SynopsisTranslationProvider>
-            </RepositoryProvider>
-          </QueryClientProvider>
+          <AuthSessionProvider session={authSession}>
+            <QueryClientProvider client={queryClient}>
+              <RepositoryProvider dependencies={resolvedDependencies}>
+                <SynopsisTranslationProvider
+                  dependencies={translationDependencies}
+                >
+                  {children}
+                </SynopsisTranslationProvider>
+              </RepositoryProvider>
+            </QueryClientProvider>
+          </AuthSessionProvider>
         </LocalizationProvider>
       </SafeAreaProvider>
     );
@@ -65,6 +72,7 @@ export async function renderWithProviders(
     queryClient = createAppQueryClient(),
     languagePreference = 'en',
     translationDependencies,
+    authSession,
     ...renderOptions
   } = options;
   const renderResult = await render(ui, {
@@ -73,6 +81,7 @@ export async function renderWithProviders(
       queryClient,
       languagePreference,
       translationDependencies,
+      authSession,
     ),
     ...renderOptions,
   });

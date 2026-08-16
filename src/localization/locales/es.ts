@@ -7,6 +7,42 @@ export const es = {
   'settings.circuitOpen': 'abierto',
   'settings.circuitHalfOpen': 'semiabierto',
   'common.loadingContent': 'Cargando contenido',
+  'auth.anilist': 'AniList',
+  'auth.mal': 'MyAnimeList',
+  'auth.notConnected': 'No conectada',
+  'auth.connectedAs': 'Conectada como {{username}}',
+  'auth.reconnectRequired': 'Es necesario volver a conectar',
+  'auth.validationPending':
+    'No se pudo validar esta cuenta. Inténtalo de nuevo cuando el servicio esté disponible.',
+  'auth.comingSoon': 'Próximamente',
+  'auth.connect': 'Conectar',
+  'auth.connecting': 'Conectando…',
+  'auth.reconnect': 'Volver a conectar',
+  'auth.retry': 'Intentar de nuevo',
+  'auth.checking': 'Verificando…',
+  'auth.disconnect': 'Desconectar',
+  'auth.disconnecting': 'Desconectando…',
+  'auth.disconnectConfirmTitle': '¿Desconectar AniList?',
+  'auth.disconnectConfirmDescription':
+    'Esto elimina la sesión de AniList de este dispositivo. Tu catálogo y tus datos locales se conservarán.',
+  'auth.error.configuration':
+    'El inicio de sesión de AniList no está configurado en esta compilación.',
+  'auth.error.unsupportedEnvironment':
+    'El inicio de sesión de AniList requiere un Development Build nativo de Puriki.',
+  'auth.error.redirect':
+    'El retorno de AniList no está configurado correctamente.',
+  'auth.error.network':
+    'No se pudo validar la cuenta de AniList. Comprueba tu conexión e inténtalo de nuevo.',
+  'auth.error.timeout':
+    'AniList tardó demasiado en validar la cuenta. Inténtalo de nuevo.',
+  'auth.error.unavailable':
+    'El inicio de sesión de AniList no está disponible temporalmente. Inténtalo más tarde.',
+  'auth.error.invalidToken': 'La sesión de AniList ya no es válida.',
+  'auth.error.invalidResponse':
+    'AniList devolvió una respuesta de inicio de sesión inesperada. Inténtalo de nuevo.',
+  'auth.error.storage':
+    'Puriki no pudo actualizar de forma segura la sesión de AniList en este dispositivo.',
+  'auth.error.unknown': 'No se pudo completar el inicio de sesión de AniList.',
   'nav.home': 'Inicio',
   'nav.search': 'Buscar',
   'nav.myList': 'Mi lista',
@@ -54,7 +90,7 @@ export const es = {
   'onboarding.moreServices': 'Más servicios en el futuro',
   'onboarding.or': 'O',
   'onboarding.entering': 'Entrando…',
-  'onboarding.continueGuest': 'Continuar sin cuenta',
+  'onboarding.continueGuest': 'Continuar sin una cuenta',
   'onboarding.guestWarning':
     'Prueba Puriki sin conectar una cuenta. Tus datos permanecen solo en este dispositivo por ahora y pueden perderse.',
   'status.watching': 'Viendo',

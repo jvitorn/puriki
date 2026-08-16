@@ -73,6 +73,28 @@ MAL requests use React Native's global `fetch`, a 12-second timeout, `Accept: ap
 
 The fallback uses the official API v2 search, anime details, popularity ranking, upcoming ranking, and current-season endpoints. It maps provider DTOs into the same `AnimeCatalogItem` contract and supplies Prequel/Sequel continuity from `related_anime`. See the [official MyAnimeList API v2 reference](https://myanimelist.net/apiconfig/references/api/v2).
 
+## AniList account session
+
+AniList is the first authenticated account provider. Configure its public application Client ID in the local `.env` file:
+
+```env
+EXPO_PUBLIC_ANILIST_CLIENT_ID=
+```
+
+Register this exact redirect URL in the AniList developer settings:
+
+```text
+puriki://auth/anilist
+```
+
+Puriki uses AniList's OAuth Implicit Grant because a native client cannot securely keep a Client Secret. No Client Secret belongs in `.env`, `EXPO_PUBLIC_*`, the application bundle, or repository. AniList returns to a native Puriki Development/Release Build through the registered custom scheme; Expo Go and web intentionally report that account connection is unavailable.
+
+The access token is stored only in Expo SecureStore under a versioned provider key. It is never written to AsyncStorage, React Query, diagnostics, or logs. On launch, Puriki checks token expiration and validates the authenticated identity through `Viewer`. Expired or definitively rejected credentials require reconnection; temporary network failures retain the credential and expose a retry that does not reopen OAuth.
+
+Account connection currently proves login, restoration, `Viewer`, logout, and reconnection only. The catalog and personal-list dependency graph remain unchanged: My List continues to use the temporary guest repository, and signing in does not import, migrate, or synchronize an AniList list.
+
+Upstream contracts: [AniList authentication](https://docs.anilist.co/guide/auth/), [Implicit Grant](https://docs.anilist.co/guide/auth/implicit), [authenticated requests](https://docs.anilist.co/guide/auth/authenticated-requests), and [Expo AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/).
+
 ## Settings and diagnostics
 
 Public Settings contains Account, Language, and About. Developer Tools is hidden by default and is enabled by tapping the About description five times within the three-second inactivity window.
@@ -96,7 +118,7 @@ Membership is explicit: adding creates a Plan to Watch entry; progress, status, 
 
 Progress, status, and score changes update React Query immediately and are persisted in a dedicated AsyncStorage queue before delivery. A small Sync Engine coalesces repeated changes to the same anime field, waits for 400 ms of inactivity, tracks success independently per target, and retains failed work for conservative retry. The queue is separate from catalog caches and is restored when the dependency graph is rebuilt.
 
-The current target applies changes to the guest-list repository. Provider-neutral target and operation contracts leave explicit extension points for future authenticated AniList and MyAnimeList targets without adding OAuth or credentials in this phase.
+The current target applies changes to the guest-list repository. Provider-neutral target and operation contracts leave explicit extension points for future authenticated AniList and MyAnimeList targets, but account login does not change sync targets in this phase.
 
 ## Localization and synopsis translation
 
@@ -107,8 +129,9 @@ On Android Development/Release Builds, Portuguese and Spanish users can explicit
 ## Architecture
 
 - `domain` owns provider-neutral models, repository contracts, errors, and rules.
-- `application` owns React Query hooks, mutations, and use cases.
+- `application` owns React Query hooks, mutations, use cases, and provider-neutral session contracts/coordinators.
 - `infrastructure` owns AniList and MAL transports, DTO validation, mapping, caches, request coordination, circuit breaking, and repositories.
+- `infrastructure/auth` owns SecureStore credentials, AniList OAuth, authenticated `Viewer`, and concrete auth-provider composition.
 - `infrastructure/sync` owns pending-operation persistence, coalescing, retry, and concrete sync targets.
 - `presentation` receives repositories through `RepositoryProvider` and consumes domain models only.
 - `tests` owns deterministic fixtures and in-memory repository doubles.
@@ -155,6 +178,8 @@ npx expo run:android --device
 npm run start:dev-client
 ```
 
+AniList account connection also requires a native Puriki Development Build so the registered `puriki://auth/anilist` callback can return to the app.
+
 The persistent Android application identifier is `com.jvitorn.puriki`. Generated `android/` and `ios/` directories are intentionally not committed.
 
 ## Quality commands
@@ -175,10 +200,11 @@ npm run test:ci
 ## Current limitations
 
 - Guest-list data, catalog caches, and diagnostic results are not persisted.
+- AniList login does not yet import or synchronize the authenticated user's remote list; My List remains guest/local for this phase.
 - Public catalog availability and artwork depend on AniList or the configured MAL fallback.
 - AniList media without `idMal` cannot enter the current domain model.
 - On-device synopsis translation is Android-only and may require a one-time Wi-Fi model download.
-- MAL OAuth, login, profile access, authenticated provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
+- MAL OAuth, authenticated provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
 - Puriki is not affiliated with AniList or MyAnimeList.
 
 ## Troubleshooting
@@ -194,3 +220,7 @@ Check its classified message and HTTP status. HTTP 401 or 403 means MAL rejected
 ### MyAnimeList Client ID is not configured
 
 Add `EXPO_PUBLIC_MAL_CLIENT_ID` to `.env`, then restart Metro with `npx expo start --clear`. The runtime continues with AniList and its valid cache until the public MAL fallback is configured. Do not add a Client Secret.
+
+### AniList sign-in is not configured
+
+Add `EXPO_PUBLIC_ANILIST_CLIENT_ID` to `.env`, register `puriki://auth/anilist` for the AniList application, and restart Metro with `npx expo start --clear`. Test the flow in a native Development Build, not Expo Go or web. Do not add the AniList Client Secret.

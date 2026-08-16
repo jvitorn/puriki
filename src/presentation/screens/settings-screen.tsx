@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
+
+import AniListIcon from '../../../assets/providers/anilist.png';
+import MyAnimeListIcon from '../../../assets/providers/myanimelist.png';
 
 import { getAppVersion } from '@/application/config/app-version';
 import type { DeveloperSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import { developerSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import type { LanguagePreference } from '@/localization/languages';
 import { useAppLanguage } from '@/localization/localization-provider';
+import { localizedAuthFailure } from '@/localization/localized-values';
 import { AccountProfileCard } from '@/presentation/components/settings/account-profile-card';
 import { DeveloperToolsPanel } from '@/presentation/components/settings/developer-tools-panel';
 import { Badge } from '@/presentation/components/ui/badge';
+import { Button } from '@/presentation/components/ui/button';
 import { Card } from '@/presentation/components/ui/card';
 import {
   RadioGroup,
@@ -17,6 +22,7 @@ import {
 } from '@/presentation/components/ui/radio-group';
 import { Screen } from '@/presentation/components/ui/screen';
 import { Text } from '@/presentation/components/ui/text';
+import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 import { cn } from '@/shared/rnr/utils';
 
 const LANGUAGE_OPTIONS: readonly {
@@ -49,6 +55,116 @@ function SettingsSection({
         {description ? <Text muted>{description}</Text> : null}
       </View>
       {children}
+    </View>
+  );
+}
+
+function AccountSettings() {
+  const { t } = useTranslation();
+  const { snapshot, retry, signIn, signOut } = useAuthSession();
+  const connection = snapshot.connections.anilist;
+  const busy = connection.operation !== 'idle';
+  const connected = connection.state === 'connected';
+
+  const status = connected
+    ? t('auth.connectedAs', {
+        username: connection.account?.username ?? t('common.unknown'),
+      })
+    : connection.canRetry
+      ? t('auth.validationPending')
+      : connection.state === 'reconnect_required'
+        ? t('auth.reconnectRequired')
+        : t('auth.notConnected');
+
+  const confirmDisconnect = () => {
+    Alert.alert(
+      t('auth.disconnectConfirmTitle'),
+      t('auth.disconnectConfirmDescription'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('auth.disconnect'),
+          style: 'destructive',
+          onPress: () => void signOut('anilist'),
+        },
+      ],
+    );
+  };
+
+  const primaryLabel =
+    connection.operation === 'signing_in'
+      ? t('auth.connecting')
+      : connection.operation === 'restoring'
+        ? t('auth.checking')
+        : connection.operation === 'signing_out'
+          ? t('auth.disconnecting')
+          : connected
+            ? t('auth.disconnect')
+            : connection.canRetry
+              ? t('auth.retry')
+              : connection.state === 'reconnect_required'
+                ? t('auth.reconnect')
+                : t('auth.connect');
+
+  const runPrimaryAction = () => {
+    if (connected) {
+      confirmDisconnect();
+    } else if (connection.canRetry) {
+      void retry('anilist');
+    } else {
+      void signIn('anilist');
+    }
+  };
+
+  return (
+    <View className="gap-3">
+      <AccountProfileCard
+        avatarUrl={connection.account?.avatarUrl}
+        connectionState={connection.state}
+        providerImage={AniListIcon}
+        providerName={t('auth.anilist')}
+        status={status}
+        username={connection.account?.username}
+      >
+        {connection.canRetry ? (
+          <Button
+            accessibilityLabel={t('auth.disconnect')}
+            disabled={busy}
+            size="sm"
+            variant="ghost"
+            onPress={confirmDisconnect}
+          >
+            <Text>{t('auth.disconnect')}</Text>
+          </Button>
+        ) : null}
+        <Button
+          accessibilityLabel={primaryLabel}
+          disabled={busy}
+          size="sm"
+          variant={connected ? 'outline' : 'default'}
+          onPress={runPrimaryAction}
+        >
+          <Text>{primaryLabel}</Text>
+        </Button>
+      </AccountProfileCard>
+
+      {connection.failure ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          accessibilityRole="alert"
+          className="px-1 text-destructive"
+          variant="caption"
+        >
+          {localizedAuthFailure(connection.failure, t)}
+        </Text>
+      ) : null}
+
+      <AccountProfileCard
+        connectionState="coming_soon"
+        providerImage={MyAnimeListIcon}
+        providerName={t('auth.mal')}
+        status={t('auth.comingSoon')}
+      />
     </View>
   );
 }
@@ -143,7 +259,7 @@ export function SettingsScreen({
       </View>
 
       <SettingsSection title={t('settings.account')}>
-        <AccountProfileCard connectionState="disconnected" />
+        <AccountSettings />
       </SettingsSection>
 
       <SettingsSection

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next';
 
+import type { AuthFailureCode } from '@/application/auth/auth-contracts';
 import { DataSourceError } from '@/domain/errors/domain-error';
 import type { AnimeListStatus } from '@/domain/models/anime';
 import type { AppLanguage } from '@/localization/languages';
@@ -15,6 +16,19 @@ const ERROR_KEYS = {
   http: 'errors.http',
   invalid_response: 'errors.invalidResponse',
 } as const;
+
+const AUTH_ERROR_KEYS: Record<Exclude<AuthFailureCode, 'cancelled'>, string> = {
+  configuration: 'auth.error.configuration',
+  unsupported_environment: 'auth.error.unsupportedEnvironment',
+  redirect: 'auth.error.redirect',
+  network: 'auth.error.network',
+  timeout: 'auth.error.timeout',
+  provider_unavailable: 'auth.error.unavailable',
+  invalid_token: 'auth.error.invalidToken',
+  invalid_response: 'auth.error.invalidResponse',
+  storage: 'auth.error.storage',
+  unknown: 'auth.error.unknown',
+};
 
 const STATUS_KEYS: Record<AnimeListStatus, string> = {
   watching: 'status.watching',
@@ -34,6 +48,15 @@ export function localizedError(error: unknown, t: TFunction): string {
   return error instanceof DataSourceError
     ? t(ERROR_KEYS[error.code])
     : t('errors.generic');
+}
+
+export function localizedAuthFailure(
+  failure: AuthFailureCode,
+  t: TFunction,
+): string {
+  return failure === 'cancelled'
+    ? t('common.cancel')
+    : t(AUTH_ERROR_KEYS[failure]);
 }
 
 export function localizedStatus(status: AnimeListStatus, t: TFunction): string {

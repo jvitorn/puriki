@@ -6,6 +6,7 @@ import {
   pickOnboardingPosters,
 } from '@/presentation/components/onboarding/onboarding-hero-posters';
 import { OnboardingContent } from '@/presentation/screens/onboarding-screen';
+import { createTestAuthSession } from '@/tests/auth/test-auth-session';
 import { buildTestAnimeDataset } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
@@ -52,6 +53,13 @@ describe('pickOnboardingPosters', () => {
 });
 
 describe('OnboardingContent', () => {
+  async function moveToProviders() {
+    await fireEvent.press(screen.getByRole('button', { name: 'Get started' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+  }
+
   it('keeps welcome copy and its CTA usable while posters are loading', async () => {
     const dependencies = createTestDependencies();
     let resolvePopular: (() => void) | undefined;
@@ -96,8 +104,11 @@ describe('OnboardingContent', () => {
 
   it('advances through every act and keeps progress interactions local', async () => {
     const completeOnboarding = jest.fn(async () => undefined);
+    const authSession = createTestAuthSession();
+    const signIn = jest.spyOn(authSession, 'signIn');
     await renderWithProviders(
       <OnboardingContent completeOnboarding={completeOnboarding} />,
+      { authSession },
     );
 
     await fireEvent.press(screen.getByRole('button', { name: 'Get started' }));
@@ -112,15 +123,100 @@ describe('OnboardingContent', () => {
     expect(screen.getByTestId('providers-act')).toBeVisible();
 
     await fireEvent.press(screen.getByLabelText('AniList'));
-    expect(
-      screen.getByLabelText('AniList').props.accessibilityState,
-    ).toMatchObject({ checked: true, selected: true });
+    expect(signIn).toHaveBeenCalledWith('anilist');
     expect(completeOnboarding).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('MyAnimeList')).toBeDisabled();
+    expect(screen.getByText('Coming soon')).toBeVisible();
 
     await fireEvent.press(
       screen.getByRole('button', { name: 'Continue without an account' }),
     );
     expect(completeOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a validated AniList account before explicitly completing onboarding', async () => {
+    const completeOnboarding = jest.fn(async () => undefined);
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'aiko',
+        avatarUrl: null,
+        expiresAt: '2027-08-16T12:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={completeOnboarding} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(screen.getByText('Connected as aiko')).toBeVisible();
+    expect(
+      screen.getByLabelText('AniList').props.accessibilityState,
+    ).toMatchObject({ disabled: true, selected: true });
+    expect(
+      screen.queryByRole('button', { name: 'Continue without an account' }),
+    ).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+    expect(completeOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries transient Viewer validation without opening OAuth', async () => {
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('anilist', {
+      state: 'disconnected',
+      account: null,
+      operation: 'idle',
+      failure: 'network',
+      canRetry: true,
+    });
+    const retry = jest.spyOn(authSession, 'retry');
+    const signIn = jest.spyOn(authSession, 'signIn');
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={jest.fn(async () => undefined)} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(
+      screen.getByText(
+        'Unable to verify the AniList account. Check your connection and try again.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByText('Try again')).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('AniList'));
+    expect(retry).toHaveBeenCalledWith('anilist');
+    expect(signIn).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: 'Continue without an account' }),
+    ).toBeVisible();
+  });
+
+  it('keeps provider and guest actions disabled during an OAuth operation', async () => {
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('anilist', {
+      state: 'disconnected',
+      account: null,
+      operation: 'signing_in',
+      failure: null,
+      canRetry: false,
+    });
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={jest.fn(async () => undefined)} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(screen.getByLabelText('AniList')).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Continue without an account' }),
+    ).toBeDisabled();
   });
 
   it('supports swipe progress and back navigation across acts', async () => {

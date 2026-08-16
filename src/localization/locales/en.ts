@@ -22,6 +22,41 @@ export const en = {
   'common.banner': 'Banner for {{title}}',
   'common.nothingToShow': 'Nothing to show yet.',
   'common.loadingContent': 'Loading content',
+  'auth.anilist': 'AniList',
+  'auth.mal': 'MyAnimeList',
+  'auth.notConnected': 'Not connected',
+  'auth.connectedAs': 'Connected as {{username}}',
+  'auth.reconnectRequired': 'Reconnection required',
+  'auth.validationPending':
+    "We couldn't verify this account. Try again when the service is available.",
+  'auth.comingSoon': 'Coming soon',
+  'auth.connect': 'Connect',
+  'auth.connecting': 'Connecting…',
+  'auth.reconnect': 'Reconnect',
+  'auth.retry': 'Try again',
+  'auth.checking': 'Checking…',
+  'auth.disconnect': 'Disconnect',
+  'auth.disconnecting': 'Disconnecting…',
+  'auth.disconnectConfirmTitle': 'Disconnect AniList?',
+  'auth.disconnectConfirmDescription':
+    'This removes the AniList session from this device. Your catalog and local data will be kept.',
+  'auth.error.configuration':
+    'AniList sign-in is not configured for this build.',
+  'auth.error.unsupportedEnvironment':
+    'AniList sign-in requires a native Puriki Development Build.',
+  'auth.error.redirect': 'The AniList callback is not configured correctly.',
+  'auth.error.network':
+    'Unable to verify the AniList account. Check your connection and try again.',
+  'auth.error.timeout':
+    'AniList took too long to verify the account. Try again.',
+  'auth.error.unavailable':
+    'AniList sign-in is temporarily unavailable. Try again later.',
+  'auth.error.invalidToken': 'The AniList session is no longer valid.',
+  'auth.error.invalidResponse':
+    'AniList returned an unexpected sign-in response. Try again.',
+  'auth.error.storage':
+    'Puriki could not securely update the AniList session on this device.',
+  'auth.error.unknown': 'AniList sign-in could not be completed.',
   'onboarding.back': 'Go back',
   'onboarding.posterFallback': 'Anime',
   'onboarding.episodeMarked': 'Episode marked',

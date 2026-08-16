@@ -14,6 +14,7 @@ import {
   onboardingStorage,
   type OnboardingStorage,
 } from '@/infrastructure/storage/onboarding-storage';
+import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 import { colors } from '@/presentation/theme/tokens';
 
 type OnboardingStatus = 'unknown' | 'completed' | 'notCompleted';
@@ -43,6 +44,7 @@ export function OnboardingGate({
   splash = SplashScreen,
 }: OnboardingGateProps) {
   const [status, setStatus] = useState<OnboardingStatus>('unknown');
+  const { snapshot: authSession } = useAuthSession();
 
   useEffect(() => {
     let active = true;
@@ -60,8 +62,10 @@ export function OnboardingGate({
   }, [storage]);
 
   useEffect(() => {
-    if (status !== 'unknown') void splash.hideAsync().catch(() => undefined);
-  }, [splash, status]);
+    if (status !== 'unknown' && authSession.phase === 'ready') {
+      void splash.hideAsync().catch(() => undefined);
+    }
+  }, [authSession.phase, splash, status]);
 
   const completeOnboarding = useCallback(async () => {
     try {
@@ -78,7 +82,7 @@ export function OnboardingGate({
     [completeOnboarding],
   );
 
-  if (status === 'unknown') return null;
+  if (status === 'unknown' || authSession.phase !== 'ready') return null;
 
   return (
     <OnboardingContext.Provider value={value}>

@@ -7,6 +7,42 @@ export const ptBR = {
   'settings.circuitOpen': 'aberto',
   'settings.circuitHalfOpen': 'semiaberto',
   'common.loadingContent': 'Carregando conteúdo',
+  'auth.anilist': 'AniList',
+  'auth.mal': 'MyAnimeList',
+  'auth.notConnected': 'Não conectado',
+  'auth.connectedAs': 'Conectado como {{username}}',
+  'auth.reconnectRequired': 'Reconexão necessária',
+  'auth.validationPending':
+    'Não foi possível validar esta conta. Tente novamente quando o serviço estiver disponível.',
+  'auth.comingSoon': 'Em breve',
+  'auth.connect': 'Conectar',
+  'auth.connecting': 'Conectando…',
+  'auth.reconnect': 'Reconectar',
+  'auth.retry': 'Tentar novamente',
+  'auth.checking': 'Verificando…',
+  'auth.disconnect': 'Desconectar',
+  'auth.disconnecting': 'Desconectando…',
+  'auth.disconnectConfirmTitle': 'Desconectar o AniList?',
+  'auth.disconnectConfirmDescription':
+    'Isso remove a sessão do AniList deste dispositivo. Seu catálogo e dados locais serão mantidos.',
+  'auth.error.configuration':
+    'O login do AniList não está configurado nesta compilação.',
+  'auth.error.unsupportedEnvironment':
+    'O login do AniList exige um Development Build nativo do Puriki.',
+  'auth.error.redirect':
+    'O retorno do AniList não está configurado corretamente.',
+  'auth.error.network':
+    'Não foi possível validar a conta do AniList. Verifique sua conexão e tente novamente.',
+  'auth.error.timeout':
+    'O AniList demorou demais para validar a conta. Tente novamente.',
+  'auth.error.unavailable':
+    'O login do AniList está temporariamente indisponível. Tente mais tarde.',
+  'auth.error.invalidToken': 'A sessão do AniList não é mais válida.',
+  'auth.error.invalidResponse':
+    'O AniList retornou uma resposta de login inesperada. Tente novamente.',
+  'auth.error.storage':
+    'O Puriki não conseguiu atualizar a sessão do AniList com segurança neste dispositivo.',
+  'auth.error.unknown': 'Não foi possível concluir o login do AniList.',
   'nav.home': 'Início',
   'nav.search': 'Buscar',
   'nav.myList': 'Minha Lista',
@@ -54,7 +90,7 @@ export const ptBR = {
   'onboarding.moreServices': 'Mais serviços no futuro',
   'onboarding.or': 'OU',
   'onboarding.entering': 'Entrando…',
-  'onboarding.continueGuest': 'Continuar sem conta',
+  'onboarding.continueGuest': 'Continuar sem uma conta',
   'onboarding.guestWarning':
     'Experimente o Puriki sem conectar uma conta. Seus dados ficam apenas neste dispositivo por enquanto e podem ser perdidos.',
   'status.watching': 'Assistindo',

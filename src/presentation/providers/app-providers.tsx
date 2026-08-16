@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LocalizationProvider } from '@/localization/localization-provider';
+import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 
@@ -30,13 +31,15 @@ export function AppProviders({ children }: PropsWithChildren) {
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
         <LocalizationProvider>
-          <QueryClientProvider client={queryClient}>
-            <RepositoryProvider>
-              <SynopsisTranslationProvider>
-                {children}
-              </SynopsisTranslationProvider>
-            </RepositoryProvider>
-          </QueryClientProvider>
+          <AuthSessionProvider>
+            <QueryClientProvider client={queryClient}>
+              <RepositoryProvider>
+                <SynopsisTranslationProvider>
+                  {children}
+                </SynopsisTranslationProvider>
+              </RepositoryProvider>
+            </QueryClientProvider>
+          </AuthSessionProvider>
         </LocalizationProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

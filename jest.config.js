@@ -10,7 +10,9 @@ module.exports = {
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@rn-primitives/.*|expo(nent)?|@expo(nent)?/.*|expo-.*|@expo/.*|@react-navigation/.*|react-native-svg|nativewind|react-native-css-interop)/)',
   ],
   collectCoverageFrom: [
+    'src/application/auth/**/*.ts',
     'src/domain/rules/**/*.ts',
+    'src/infrastructure/auth/**/*.ts',
     'src/infrastructure/api/mal/**/*.ts',
     'src/infrastructure/api/anilist/**/*.ts',
     'src/infrastructure/repositories/anilist/**/*.ts',

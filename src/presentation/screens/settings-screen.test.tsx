@@ -1,9 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 
+import type { ProviderSessionSnapshot } from '@/application/auth/auth-contracts';
 import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
 import type { DeveloperSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import { SettingsScreen } from '@/presentation/screens/settings-screen';
+import {
+  createTestAuthSession,
+  type TestAuthSessionController,
+} from '@/tests/auth/test-auth-session';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
@@ -90,6 +96,21 @@ function createDiagnosticDependencies() {
   return dependencies;
 }
 
+function createSettingsAuthSession(
+  overrides: Partial<ProviderSessionSnapshot> = {},
+): TestAuthSessionController {
+  const authSession = createTestAuthSession();
+  authSession.updateConnection('anilist', {
+    state: 'disconnected',
+    account: null,
+    operation: 'idle',
+    failure: null,
+    canRetry: false,
+    ...overrides,
+  });
+  return authSession;
+}
+
 async function tapAbout(times = 5) {
   for (let index = 0; index < times; index += 1) {
     await fireEvent.press(screen.getByText(aboutDescription));
@@ -116,9 +137,12 @@ describe('SettingsScreen', () => {
     );
 
     expect(screen.getByText('Account')).toBeVisible();
+    expect(screen.getByText('AniList')).toBeVisible();
     expect(screen.getByText('MyAnimeList')).toBeVisible();
     expect(screen.getByText('Not connected')).toBeVisible();
-    expect(screen.getByTestId('account-avatar-fallback')).toBeVisible();
+    expect(screen.getByText('Coming soon')).toBeVisible();
+    expect(screen.getAllByTestId('account-avatar-fallback')).toHaveLength(2);
+    expect(screen.getByLabelText('Connect')).toBeVisible();
     expect(screen.getByText('Language')).toBeVisible();
     expect(screen.getByText('About')).toBeVisible();
     expect(screen.getByText('Version 2.4.1')).toBeVisible();
@@ -126,6 +150,111 @@ describe('SettingsScreen', () => {
     expect(screen.queryByText('Session / Storage')).not.toBeOnTheScreen();
     expect(screen.queryByText('Developer tools')).not.toBeOnTheScreen();
     expect(screen.queryByLabelText('Test AniList API')).not.toBeOnTheScreen();
+  });
+
+  it('connects and reconnects AniList without exposing MAL actions', async () => {
+    const disconnected = createSettingsAuthSession();
+    const signIn = jest.spyOn(disconnected, 'signIn');
+    const firstRendered = await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession: disconnected },
+    );
+    await fireEvent.press(screen.getByLabelText('Connect'));
+    expect(signIn).toHaveBeenCalledWith('anilist');
+    expect(
+      screen.queryByLabelText('Connect MyAnimeList'),
+    ).not.toBeOnTheScreen();
+    await firstRendered.unmount();
+
+    const reconnect = createSettingsAuthSession({
+      state: 'reconnect_required',
+      failure: 'invalid_token',
+    });
+    const reconnectSignIn = jest.spyOn(reconnect, 'signIn');
+    const rendered = await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession: reconnect },
+    );
+    expect(screen.getByText('Reconnection required')).toBeVisible();
+    expect(
+      screen.getByText('The AniList session is no longer valid.'),
+    ).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('Reconnect'));
+    expect(reconnectSignIn).toHaveBeenCalledWith('anilist');
+    await rendered.unmount();
+  });
+
+  it('retries transient Viewer validation without reopening OAuth', async () => {
+    const authSession = createSettingsAuthSession({
+      failure: 'network',
+      canRetry: true,
+    });
+    const retry = jest.spyOn(authSession, 'retry');
+    const signIn = jest.spyOn(authSession, 'signIn');
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession },
+    );
+
+    expect(
+      screen.getByText(
+        "We couldn't verify this account. Try again when the service is available.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'Unable to verify the AniList account. Check your connection and try again.',
+      ),
+    ).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('Try again'));
+    expect(retry).toHaveBeenCalledWith('anilist');
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it('confirms logout and preserves catalog dependencies', async () => {
+    const authSession = createSettingsAuthSession({
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'aiko',
+        avatarUrl: null,
+        expiresAt: '2027-08-16T12:00:00.000Z',
+      },
+    });
+    const signOut = jest.spyOn(authSession, 'signOut');
+    const dependencies = createTestDependencies();
+    const clearCatalog = jest.spyOn(dependencies, 'clearCatalogCache');
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession, dependencies },
+    );
+
+    expect(screen.getByText('Connected as aiko')).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('Disconnect'));
+    expect(alert).toHaveBeenCalledWith(
+      'Disconnect AniList?',
+      expect.stringContaining('catalog and local data will be kept'),
+      expect.any(Array),
+    );
+    const buttons = alert.mock.calls[0]?.[2];
+    buttons?.find((button) => button.style === 'destructive')?.onPress?.();
+    expect(signOut).toHaveBeenCalledWith('anilist');
+    expect(clearCatalog).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it('disables account actions while an auth operation is active', async () => {
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      {
+        authSession: createSettingsAuthSession({ operation: 'signing_in' }),
+      },
+    );
+    expect(screen.getByLabelText('Connecting…')).toBeDisabled();
   });
 
   it('supports System default as the selected language preference', async () => {
