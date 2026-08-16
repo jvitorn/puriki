@@ -1,10 +1,7 @@
-import { AuthRequest, makeRedirectUri, ResponseType } from 'expo-auth-session';
-import type {
-  AuthDiscoveryDocument,
-  AuthRequestConfig,
-  AuthSessionResult,
-} from 'expo-auth-session';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
+import type { WebBrowserAuthSessionResult } from 'expo-web-browser';
 import { Platform } from 'react-native';
 
 import { AuthOperationError } from '@/application/auth/auth-contracts';
@@ -16,10 +13,7 @@ import {
 } from '@/infrastructure/auth/anilist/anilist-auth-config';
 
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
-
-const ANILIST_AUTH_DISCOVERY: AuthDiscoveryDocument = {
-  authorizationEndpoint: ANILIST_AUTHORIZATION_ENDPOINT,
-};
+const ANILIST_RESPONSE_TYPE = 'token' as const;
 
 export interface AniListOAuthCredential {
   accessToken: string;
@@ -30,8 +24,11 @@ export interface AniListOAuthClientPort {
   authorize(): Promise<AniListOAuthCredential>;
 }
 
-interface AuthRequestPort {
-  promptAsync(discovery: AuthDiscoveryDocument): Promise<AuthSessionResult>;
+export interface AniListAuthorizationDiagnostic {
+  clientId: string;
+  redirectUri: string;
+  responseType: typeof ANILIST_RESPONSE_TYPE;
+  authorizationUrl: string;
 }
 
 export interface ExpoAniListOAuthClientOptions {
@@ -39,8 +36,54 @@ export interface ExpoAniListOAuthClientOptions {
   platform?: string;
   now?: () => number;
   makeRedirectUriImpl?: typeof makeRedirectUri;
-  authRequestFactory?: (config: AuthRequestConfig) => AuthRequestPort;
+  openAuthSessionImpl?: typeof WebBrowser.openAuthSessionAsync;
+  stateFactory?: () => string;
   completeAuthSession?: () => unknown;
+  isDevelopment?: boolean;
+  diagnosticLogger?: (diagnostic: AniListAuthorizationDiagnostic) => void;
+}
+
+function buildAuthorizationUrl(clientId: string, state: string): string {
+  const url = new URL(ANILIST_AUTHORIZATION_ENDPOINT);
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('response_type', ANILIST_RESPONSE_TYPE);
+  url.searchParams.set('state', state);
+  return url.toString();
+}
+
+function sanitizedAuthorizationUrl(authorizationUrl: string): string {
+  try {
+    const url = new URL(authorizationUrl);
+    for (const parameter of ['access_token', 'client_secret']) {
+      if (url.searchParams.has(parameter)) {
+        url.searchParams.set(parameter, '[REDACTED]');
+      }
+    }
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return '[invalid authorization URL]';
+  }
+}
+
+function returnParameters(returnUrl: string): Record<string, string> | null {
+  try {
+    const url = new URL(returnUrl);
+    if (
+      url.protocol !== 'puriki:' ||
+      url.hostname !== 'auth' ||
+      url.pathname !== '/anilist'
+    ) {
+      return null;
+    }
+    const params = Object.fromEntries(url.searchParams);
+    new URLSearchParams(url.hash.replace(/^#/, '')).forEach((value, key) => {
+      params[key] = value;
+    });
+    return params;
+  } catch {
+    return null;
+  }
 }
 
 function positiveNumber(value: unknown): number | null {
@@ -53,17 +96,26 @@ export class ExpoAniListOAuthClient implements AniListOAuthClientPort {
   private readonly platform: string;
   private readonly now: () => number;
   private readonly makeRedirect: typeof makeRedirectUri;
-  private readonly createRequest: (
-    config: AuthRequestConfig,
-  ) => AuthRequestPort;
+  private readonly openAuthSession: typeof WebBrowser.openAuthSessionAsync;
+  private readonly createState: () => string;
+  private readonly diagnosticLogger:
+    ((diagnostic: AniListAuthorizationDiagnostic) => void) | null;
 
   constructor(options: ExpoAniListOAuthClientOptions = {}) {
     this.clientId = options.clientId ?? ANILIST_CLIENT_ID;
     this.platform = options.platform ?? Platform.OS;
     this.now = options.now ?? Date.now;
     this.makeRedirect = options.makeRedirectUriImpl ?? makeRedirectUri;
-    this.createRequest =
-      options.authRequestFactory ?? ((config) => new AuthRequest(config));
+    this.openAuthSession =
+      options.openAuthSessionImpl ?? WebBrowser.openAuthSessionAsync;
+    this.createState = options.stateFactory ?? Crypto.randomUUID;
+    const isDevelopment = options.isDevelopment ?? __DEV__;
+    this.diagnosticLogger = isDevelopment
+      ? (options.diagnosticLogger ??
+        ((diagnostic) => {
+          console.info('[AniList OAuth] Authorization request', diagnostic);
+        }))
+      : null;
     try {
       (options.completeAuthSession ?? WebBrowser.maybeCompleteAuthSession)();
     } catch {
@@ -90,16 +142,23 @@ export class ExpoAniListOAuthClient implements AniListOAuthClientPort {
       throw new AuthOperationError(failureCode);
     }
 
-    const request = this.createRequest({
-      clientId: this.clientId,
-      redirectUri,
-      responseType: ResponseType.Token,
-      usePKCE: false,
-    });
-
-    let result: AuthSessionResult;
+    let result: WebBrowserAuthSessionResult;
+    let state: string;
     try {
-      result = await request.promptAsync(ANILIST_AUTH_DISCOVERY);
+      state = this.createState();
+      if (state.trim().length === 0) throw new Error('Invalid OAuth state');
+      const authorizationUrl = buildAuthorizationUrl(this.clientId, state);
+      try {
+        this.diagnosticLogger?.({
+          clientId: this.clientId,
+          redirectUri,
+          responseType: ANILIST_RESPONSE_TYPE,
+          authorizationUrl: sanitizedAuthorizationUrl(authorizationUrl),
+        });
+      } catch {
+        // Diagnostics must never interrupt sign-in.
+      }
+      result = await this.openAuthSession(authorizationUrl, redirectUri);
     } catch {
       throw new AuthOperationError('provider_unavailable', { canRetry: true });
     }
@@ -107,25 +166,28 @@ export class ExpoAniListOAuthClient implements AniListOAuthClientPort {
     if (result.type === 'cancel' || result.type === 'dismiss') {
       throw new AuthOperationError('cancelled', { cancelled: true });
     }
-    if (result.type === 'error' && result.params.error === 'access_denied') {
-      throw new AuthOperationError('cancelled', { cancelled: true });
-    }
     if (result.type !== 'success') {
       throw new AuthOperationError('invalid_response');
     }
 
-    const accessToken =
-      result.authentication?.accessToken ?? result.params.access_token;
+    const params = returnParameters(result.url);
+    if (!params || params.state !== state) {
+      throw new AuthOperationError('invalid_response');
+    }
+    if (params.error === 'access_denied') {
+      throw new AuthOperationError('cancelled', { cancelled: true });
+    }
+    if (params.error) {
+      throw new AuthOperationError('invalid_response');
+    }
+
+    const accessToken = params.access_token;
     if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
       throw new AuthOperationError('invalid_response');
     }
 
-    const issuedAt =
-      positiveNumber(result.authentication?.issuedAt) ?? this.now() / 1_000;
-    const expiresIn =
-      positiveNumber(result.authentication?.expiresIn) ??
-      positiveNumber(result.params.expires_in) ??
-      ONE_YEAR_SECONDS;
+    const issuedAt = this.now() / 1_000;
+    const expiresIn = positiveNumber(params.expires_in) ?? ONE_YEAR_SECONDS;
 
     return {
       accessToken,
