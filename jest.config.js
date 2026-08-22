@@ -11,6 +11,7 @@ module.exports = {
   ],
   collectCoverageFrom: [
     'src/application/auth/**/*.ts',
+    'src/application/user-list/**/*.ts',
     'src/domain/rules/**/*.ts',
     'src/infrastructure/auth/**/*.ts',
     'src/infrastructure/api/mal/**/*.ts',

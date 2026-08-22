@@ -14,23 +14,28 @@ import Animated, {
 import { MotionPressable } from '@/presentation/components/ui/motion-pressable';
 import { Text } from '@/presentation/components/ui/text';
 import { colors } from '@/presentation/theme/tokens';
+import { cn } from '@/shared/rnr/utils';
+
+type TabEdgeAlign = 'start' | 'center' | 'end';
 
 function PurikiTabItem({
   route,
   descriptor,
   focused,
   navigation,
+  edgeAlign,
 }: {
   route: BottomTabBarProps['state']['routes'][number];
   descriptor: NonNullable<BottomTabBarProps['descriptors'][string]>;
   focused: boolean;
   navigation: BottomTabBarProps['navigation'];
+  edgeAlign: TabEdgeAlign;
 }) {
   const reduceMotion = useReducedMotion();
   const active = useSharedValue(focused ? 1 : 0);
   const options = descriptor.options;
   const label = typeof options.title === 'string' ? options.title : route.name;
-  const activeWidth = Math.min(164, Math.max(94, label.length * 8 + 64));
+  const activeWidth = Math.min(144, Math.max(88, label.length * 7 + 58));
 
   useEffect(() => {
     active.value = withTiming(focused ? 1 : 0, {
@@ -61,7 +66,12 @@ function PurikiTabItem({
         accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
-        className="h-12 w-full items-center justify-center overflow-visible"
+        className={cn(
+          'h-12 w-full justify-center overflow-visible',
+          edgeAlign === 'start' && 'items-start',
+          edgeAlign === 'end' && 'items-end',
+          edgeAlign === 'center' && 'items-center',
+        )}
         hitSlop={4}
         onLongPress={() =>
           navigation.emit({ type: 'tabLongPress', target: route.key })
@@ -72,7 +82,11 @@ function PurikiTabItem({
         <Animated.View
           pointerEvents="none"
           className="absolute h-11 flex-row items-center justify-center gap-2 rounded-full"
-          style={pillStyle}
+          style={[
+            pillStyle,
+            edgeAlign === 'start' && { left: 0 },
+            edgeAlign === 'end' && { right: 0 },
+          ]}
         >
           {options.tabBarIcon?.({
             focused,
@@ -113,10 +127,17 @@ export function PurikiTabBar({
       <View className="h-16 flex-row overflow-visible rounded-[26px] border border-border bg-card px-1">
         {state.routes.map((route, index) => {
           const descriptor = descriptors[route.key];
+          const edgeAlign: TabEdgeAlign =
+            index === 0
+              ? 'start'
+              : index === state.routes.length - 1
+                ? 'end'
+                : 'center';
           return descriptor ? (
             <PurikiTabItem
               key={route.key}
               descriptor={descriptor}
+              edgeAlign={edgeAlign}
               focused={state.index === index}
               navigation={navigation}
               route={route}

@@ -5,18 +5,21 @@ import type { PropsWithChildren, ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import type { AuthSessionController } from '@/application/auth/auth-contracts';
+import type { PrimaryListProviderController } from '@/application/user-list/primary-list-provider-contracts';
 import { appI18n } from '@/localization/i18n';
 import type { LanguagePreference } from '@/localization/languages';
 import { resolveEffectiveLanguage } from '@/localization/languages';
 import { LocalizationProvider } from '@/localization/localization-provider';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
+import { PrimaryListProviderProvider } from '@/presentation/providers/primary-list-provider-provider';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
 import { createTestAuthSession } from '@/tests/auth/test-auth-session';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
+import { createTestPrimaryListProvider } from '@/tests/user-list/test-primary-list-provider';
 
 interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   dependencies?: RepositoryDependencies;
@@ -24,6 +27,7 @@ interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   languagePreference?: LanguagePreference;
   translationDependencies?: SynopsisTranslationDependencies;
   authSession?: AuthSessionController;
+  primaryListProvider?: PrimaryListProviderController;
 }
 
 export function createTestWrapper(
@@ -32,6 +36,7 @@ export function createTestWrapper(
   languagePreference: LanguagePreference = 'en',
   translationDependencies?: SynopsisTranslationDependencies,
   authSession: AuthSessionController = createTestAuthSession(),
+  primaryListProvider: PrimaryListProviderController = createTestPrimaryListProvider(),
 ) {
   const resolvedDependencies = dependencies ?? createTestDependencies();
   void appI18n.changeLanguage(
@@ -47,15 +52,17 @@ export function createTestWrapper(
       >
         <LocalizationProvider initialPreference={languagePreference}>
           <AuthSessionProvider session={authSession}>
-            <QueryClientProvider client={queryClient}>
-              <RepositoryProvider dependencies={resolvedDependencies}>
-                <SynopsisTranslationProvider
-                  dependencies={translationDependencies}
-                >
-                  {children}
-                </SynopsisTranslationProvider>
-              </RepositoryProvider>
-            </QueryClientProvider>
+            <PrimaryListProviderProvider controller={primaryListProvider}>
+              <QueryClientProvider client={queryClient}>
+                <RepositoryProvider dependencies={resolvedDependencies}>
+                  <SynopsisTranslationProvider
+                    dependencies={translationDependencies}
+                  >
+                    {children}
+                  </SynopsisTranslationProvider>
+                </RepositoryProvider>
+              </QueryClientProvider>
+            </PrimaryListProviderProvider>
           </AuthSessionProvider>
         </LocalizationProvider>
       </SafeAreaProvider>
@@ -73,6 +80,7 @@ export async function renderWithProviders(
     languagePreference = 'en',
     translationDependencies,
     authSession,
+    primaryListProvider,
     ...renderOptions
   } = options;
   const renderResult = await render(ui, {
@@ -82,6 +90,7 @@ export async function renderWithProviders(
       languagePreference,
       translationDependencies,
       authSession,
+      primaryListProvider,
     ),
     ...renderOptions,
   });

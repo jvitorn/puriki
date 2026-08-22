@@ -22,27 +22,28 @@ export const es = {
   'auth.checking': 'Verificando…',
   'auth.disconnect': 'Desconectar',
   'auth.disconnecting': 'Desconectando…',
-  'auth.disconnectConfirmTitle': '¿Desconectar AniList?',
+  'auth.disconnectConfirmTitle': '¿Desconectar {{provider}}?',
   'auth.disconnectConfirmDescription':
-    'Esto elimina la sesión de AniList de este dispositivo. Tu catálogo y tus datos locales se conservarán.',
+    'Esto elimina la sesión de {{provider}} de este dispositivo. Tu catálogo y tus datos locales se conservarán.',
   'auth.error.configuration':
-    'El inicio de sesión de AniList no está configurado en esta compilación.',
+    'El inicio de sesión de {{provider}} no está configurado en esta compilación.',
   'auth.error.unsupportedEnvironment':
-    'El inicio de sesión de AniList requiere un Development Build nativo de Puriki.',
+    'El inicio de sesión de {{provider}} requiere un Development Build nativo de Puriki.',
   'auth.error.redirect':
-    'El retorno de AniList no está configurado correctamente.',
+    'El retorno de {{provider}} no está configurado correctamente.',
   'auth.error.network':
-    'No se pudo validar la cuenta de AniList. Comprueba tu conexión e inténtalo de nuevo.',
+    'No se pudo validar la cuenta de {{provider}}. Comprueba tu conexión e inténtalo de nuevo.',
   'auth.error.timeout':
-    'AniList tardó demasiado en validar la cuenta. Inténtalo de nuevo.',
+    '{{provider}} tardó demasiado en validar la cuenta. Inténtalo de nuevo.',
   'auth.error.unavailable':
-    'El inicio de sesión de AniList no está disponible temporalmente. Inténtalo más tarde.',
-  'auth.error.invalidToken': 'La sesión de AniList ya no es válida.',
+    'El inicio de sesión de {{provider}} no está disponible temporalmente. Inténtalo más tarde.',
+  'auth.error.invalidToken': 'La sesión de {{provider}} ya no es válida.',
   'auth.error.invalidResponse':
-    'AniList devolvió una respuesta de inicio de sesión inesperada. Inténtalo de nuevo.',
+    '{{provider}} devolvió una respuesta de inicio de sesión inesperada. Inténtalo de nuevo.',
   'auth.error.storage':
-    'Puriki no pudo actualizar de forma segura la sesión de AniList en este dispositivo.',
-  'auth.error.unknown': 'No se pudo completar el inicio de sesión de AniList.',
+    'Puriki no pudo actualizar de forma segura la sesión de {{provider}} en este dispositivo.',
+  'auth.error.unknown':
+    'No se pudo completar el inicio de sesión de {{provider}}.',
   'nav.home': 'Inicio',
   'nav.search': 'Buscar',
   'nav.myList': 'Mi lista',
@@ -117,6 +118,8 @@ export const es = {
   'errors.unauthorized': 'MyAnimeList rechazó el Client ID de la aplicación.',
   'errors.sessionExpired':
     'Tu sesión de AniList caducó. Vuelve a conectar tu cuenta e inténtalo de nuevo.',
+  'errors.primaryProviderRequired':
+    'Elige qué cuenta es tu lista principal para continuar.',
   'errors.http':
     'El catálogo de anime no pudo completar la solicitud. Inténtalo de nuevo.',
   'errors.invalidResponse':
@@ -163,6 +166,11 @@ export const es = {
   'myList.emptyMessage': 'Los animes de esta categoría aparecerán aquí.',
   'myList.emptyAll': 'Tu lista está vacía.',
   'myList.emptyAllMessage': 'Explora animes y añade lo que quieras ver.',
+  'myList.primaryProviderBannerTitle': 'Elige tu lista principal',
+  'myList.primaryProviderBannerMessage':
+    'Estás conectado tanto a AniList como a MyAnimeList. Elige cuál debe usar Puriki para Mi Lista y las actualizaciones de episodios. Puedes cambiarlo después en Configuración.',
+  'myList.primaryProviderUseAniList': 'Usar AniList',
+  'myList.primaryProviderUseMal': 'Usar MyAnimeList',
   'details.goBack': 'Volver',
   'details.notFound': 'Anime no encontrado',
   'details.notAvailable':
@@ -249,6 +257,9 @@ export const es = {
   'notFound.returnHome': 'Volver al inicio',
   'settings.title': 'Configuración',
   'settings.account': 'Cuenta',
+  'settings.primaryList': 'Lista principal',
+  'settings.primaryListDescription':
+    'Elige qué cuenta usan Mi Lista y las actualizaciones de episodios.',
   'settings.preferences': 'Preferencias',
   'settings.active': 'Activa',
   'settings.connectedWith': 'Conectada con {{provider}}',

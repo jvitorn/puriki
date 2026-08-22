@@ -37,26 +37,27 @@ export const en = {
   'auth.checking': 'Checking…',
   'auth.disconnect': 'Disconnect',
   'auth.disconnecting': 'Disconnecting…',
-  'auth.disconnectConfirmTitle': 'Disconnect AniList?',
+  'auth.disconnectConfirmTitle': 'Disconnect {{provider}}?',
   'auth.disconnectConfirmDescription':
-    'This removes the AniList session from this device. Your catalog and local data will be kept.',
+    'This removes the {{provider}} session from this device. Your catalog and local data will be kept.',
   'auth.error.configuration':
-    'AniList sign-in is not configured for this build.',
+    '{{provider}} sign-in is not configured for this build.',
   'auth.error.unsupportedEnvironment':
-    'AniList sign-in requires a native Puriki Development Build.',
-  'auth.error.redirect': 'The AniList callback is not configured correctly.',
+    '{{provider}} sign-in requires a native Puriki Development Build.',
+  'auth.error.redirect':
+    'The {{provider}} callback is not configured correctly.',
   'auth.error.network':
-    'Unable to verify the AniList account. Check your connection and try again.',
+    'Unable to verify the {{provider}} account. Check your connection and try again.',
   'auth.error.timeout':
-    'AniList took too long to verify the account. Try again.',
+    '{{provider}} took too long to verify the account. Try again.',
   'auth.error.unavailable':
-    'AniList sign-in is temporarily unavailable. Try again later.',
-  'auth.error.invalidToken': 'The AniList session is no longer valid.',
+    '{{provider}} sign-in is temporarily unavailable. Try again later.',
+  'auth.error.invalidToken': 'The {{provider}} session is no longer valid.',
   'auth.error.invalidResponse':
-    'AniList returned an unexpected sign-in response. Try again.',
+    '{{provider}} returned an unexpected sign-in response. Try again.',
   'auth.error.storage':
-    'Puriki could not securely update the AniList session on this device.',
-  'auth.error.unknown': 'AniList sign-in could not be completed.',
+    'Puriki could not securely update the {{provider}} session on this device.',
+  'auth.error.unknown': '{{provider}} sign-in could not be completed.',
   'onboarding.back': 'Go back',
   'onboarding.posterFallback': 'Anime',
   'onboarding.episodeMarked': 'Episode marked',
@@ -110,6 +111,8 @@ export const en = {
   'errors.unauthorized': 'MyAnimeList rejected the application Client ID.',
   'errors.sessionExpired':
     'Your AniList session expired. Reconnect your account and try again.',
+  'errors.primaryProviderRequired':
+    'Choose which account is your primary list before continuing.',
   'errors.http':
     'The anime catalog could not complete the request. Please try again.',
   'errors.invalidResponse':
@@ -155,6 +158,11 @@ export const en = {
   'myList.emptyMessage': 'Anime in this category will appear here.',
   'myList.emptyAll': 'Your list is empty.',
   'myList.emptyAllMessage': 'Explore anime and add what you want to watch.',
+  'myList.primaryProviderBannerTitle': 'Choose your primary list',
+  'myList.primaryProviderBannerMessage':
+    "You're connected to both AniList and MyAnimeList. Pick which one Puriki should use for My List and episode updates. You can change this later in Settings.",
+  'myList.primaryProviderUseAniList': 'Use AniList',
+  'myList.primaryProviderUseMal': 'Use MyAnimeList',
   'details.goBack': 'Go back',
   'details.notFound': 'Anime not found',
   'details.notAvailable':
@@ -239,6 +247,9 @@ export const en = {
   'notFound.returnHome': 'Return home',
   'settings.title': 'Settings',
   'settings.account': 'Account',
+  'settings.primaryList': 'Primary list',
+  'settings.primaryListDescription':
+    'Choose which account My List and episode updates use.',
   'settings.preferences': 'Preferences',
   'settings.active': 'Active',
   'settings.connectedWith': 'Connected with {{provider}}',

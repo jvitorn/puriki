@@ -98,9 +98,10 @@ function createDiagnosticDependencies() {
 
 function createSettingsAuthSession(
   overrides: Partial<ProviderSessionSnapshot> = {},
+  provider: 'anilist' | 'mal' = 'anilist',
 ): TestAuthSessionController {
   const authSession = createTestAuthSession();
-  authSession.updateConnection('anilist', {
+  authSession.updateConnection(provider, {
     state: 'disconnected',
     account: null,
     operation: 'idle',
@@ -139,10 +140,11 @@ describe('SettingsScreen', () => {
     expect(screen.getByText('Account')).toBeVisible();
     expect(screen.getByText('AniList')).toBeVisible();
     expect(screen.getByText('MyAnimeList')).toBeVisible();
-    expect(screen.getByText('Not connected')).toBeVisible();
-    expect(screen.getByText('Coming soon')).toBeVisible();
+    expect(screen.getAllByText('Not connected')).toHaveLength(2);
     expect(screen.getAllByTestId('account-avatar-fallback')).toHaveLength(2);
     expect(screen.getByLabelText('Connect')).toBeVisible();
+    expect(screen.getByLabelText('Connect MyAnimeList')).toBeVisible();
+    expect(screen.queryByText('Primary list')).not.toBeOnTheScreen();
     expect(screen.getByText('Language')).toBeVisible();
     expect(screen.getByText('Preferences')).toBeVisible();
     expect(screen.getByText('Theme')).toBeVisible();
@@ -155,7 +157,7 @@ describe('SettingsScreen', () => {
     expect(screen.queryByLabelText('Test AniList API')).not.toBeOnTheScreen();
   });
 
-  it('connects and reconnects AniList without exposing MAL actions', async () => {
+  it('connects and reconnects AniList using its bare accessibility labels', async () => {
     const disconnected = createSettingsAuthSession();
     const signIn = jest.spyOn(disconnected, 'signIn');
     const firstRendered = await renderWithProviders(
@@ -164,9 +166,6 @@ describe('SettingsScreen', () => {
     );
     await fireEvent.press(screen.getByLabelText('Connect'));
     expect(signIn).toHaveBeenCalledWith('anilist');
-    expect(
-      screen.queryByLabelText('Connect MyAnimeList'),
-    ).not.toBeOnTheScreen();
     await firstRendered.unmount();
 
     const reconnect = createSettingsAuthSession({
@@ -185,6 +184,67 @@ describe('SettingsScreen', () => {
     await fireEvent.press(screen.getByLabelText('Reconnect'));
     expect(reconnectSignIn).toHaveBeenCalledWith('anilist');
     await rendered.unmount();
+  });
+
+  it('connects and reconnects MyAnimeList using suffixed accessibility labels', async () => {
+    const disconnected = createSettingsAuthSession({}, 'mal');
+    const signIn = jest.spyOn(disconnected, 'signIn');
+    const firstRendered = await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession: disconnected },
+    );
+    await fireEvent.press(screen.getByLabelText('Connect MyAnimeList'));
+    expect(signIn).toHaveBeenCalledWith('mal');
+    await firstRendered.unmount();
+
+    const reconnect = createSettingsAuthSession(
+      { state: 'reconnect_required', failure: 'invalid_token' },
+      'mal',
+    );
+    const reconnectSignIn = jest.spyOn(reconnect, 'signIn');
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession: reconnect },
+    );
+    expect(
+      screen.getByText('The MyAnimeList session is no longer valid.'),
+    ).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('Reconnect MyAnimeList'));
+    expect(reconnectSignIn).toHaveBeenCalledWith('mal');
+  });
+
+  it('shows a Primary list picker only once both providers are connected', async () => {
+    const bothConnected = createTestAuthSession();
+    const connectedSnapshot = (provider: 'anilist' | 'mal') => ({
+      state: 'connected' as const,
+      account: {
+        provider,
+        userId: provider === 'anilist' ? '42' : '7',
+        username: 'aiko',
+        avatarUrl: null,
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      operation: 'idle' as const,
+      failure: null,
+      canRetry: false,
+    });
+    bothConnected.updateConnection('anilist', connectedSnapshot('anilist'));
+    await renderWithProviders(
+      <SettingsScreen developerStorage={createDeveloperStorage()} />,
+      { authSession: bothConnected },
+    );
+    expect(screen.queryByText('Primary list')).not.toBeOnTheScreen();
+
+    await act(async () => {
+      bothConnected.updateConnection('mal', connectedSnapshot('mal'));
+    });
+    expect(screen.getByText('Primary list')).toBeVisible();
+    await fireEvent.press(screen.getByLabelText('MyAnimeList'));
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText('MyAnimeList').props.accessibilityState,
+      ).toMatchObject({ checked: true }),
+    );
   });
 
   it('retries transient Viewer validation without reopening OAuth', async () => {

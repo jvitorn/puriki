@@ -21,6 +21,7 @@ export type DataSourceErrorCode =
   | 'configuration'
   | 'unauthorized'
   | 'session_expired'
+  | 'primary_provider_required'
   | 'http'
   | 'invalid_response';
 
@@ -45,6 +46,8 @@ const SAFE_ERROR_MESSAGES: Record<DataSourceErrorCode, string> = {
   configuration: 'The MyAnimeList fallback is not configured.',
   unauthorized: 'MyAnimeList rejected the application Client ID.',
   session_expired: 'The AniList session is no longer valid.',
+  primary_provider_required:
+    'Choose which account is your primary list before continuing.',
   http: 'The anime catalog could not complete the request. Please try again.',
   invalid_response:
     'The anime catalog returned an unknown response format. Please try again.',

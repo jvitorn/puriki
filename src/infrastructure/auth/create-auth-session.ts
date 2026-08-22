@@ -7,6 +7,9 @@ import { AniListAuthProvider } from '@/infrastructure/auth/anilist/anilist-auth-
 import { AniListViewerClient } from '@/infrastructure/auth/anilist/anilist-viewer-client';
 import { ExpoAniListOAuthClient } from '@/infrastructure/auth/anilist/expo-anilist-oauth-client';
 import { ExpoSecureAuthTokenStore } from '@/infrastructure/auth/expo-secure-auth-token-store';
+import { ExpoMalOAuthClient } from '@/infrastructure/auth/mal/expo-mal-oauth-client';
+import { MalAuthProvider } from '@/infrastructure/auth/mal/mal-auth-provider';
+import { MalViewerClient } from '@/infrastructure/auth/mal/mal-viewer-client';
 
 export interface ProductionAuthSessionOptions {
   tokenStore?: AuthTokenStore;
@@ -21,5 +24,10 @@ export function createProductionAuthSession(
     oauthClient: new ExpoAniListOAuthClient(),
     viewerClient: new AniListViewerClient(),
   });
-  return new AuthSessionCoordinator([anilist]);
+  const mal = new MalAuthProvider({
+    tokenStore,
+    oauthClient: new ExpoMalOAuthClient(),
+    viewerClient: new MalViewerClient(),
+  });
+  return new AuthSessionCoordinator([anilist, mal]);
 }

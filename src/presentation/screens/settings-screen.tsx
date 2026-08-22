@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, Languages, Moon } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeOut,
@@ -12,15 +12,14 @@ import AniListIcon from '../../../assets/providers/anilist.png';
 import MyAnimeListIcon from '../../../assets/providers/myanimelist.png';
 
 import { getAppVersion } from '@/application/config/app-version';
+import type { AuthProviderId } from '@/domain/models/auth';
 import type { DeveloperSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import { developerSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import type { LanguagePreference } from '@/localization/languages';
 import { useAppLanguage } from '@/localization/localization-provider';
-import { localizedAuthFailure } from '@/localization/localized-values';
-import { AccountProfileCard } from '@/presentation/components/settings/account-profile-card';
 import { DeveloperToolsPanel } from '@/presentation/components/settings/developer-tools-panel';
+import { ProviderAccountBlock } from '@/presentation/components/settings/provider-account-block';
 import { Badge } from '@/presentation/components/ui/badge';
-import { Button } from '@/presentation/components/ui/button';
 import { Card } from '@/presentation/components/ui/card';
 import { Icon } from '@/presentation/components/ui/icon';
 import { MotionPressable } from '@/presentation/components/ui/motion-pressable';
@@ -31,6 +30,7 @@ import {
 import { Screen } from '@/presentation/components/ui/screen';
 import { Text } from '@/presentation/components/ui/text';
 import { useAuthSession } from '@/presentation/providers/auth-session-provider';
+import { usePrimaryListProvider } from '@/presentation/providers/primary-list-provider-provider';
 import { cn } from '@/shared/rnr/utils';
 
 const LANGUAGE_OPTIONS: readonly {
@@ -71,109 +71,91 @@ function SettingsSection({
 
 function AccountSettings() {
   const { t } = useTranslation();
-  const { snapshot, retry, signIn, signOut } = useAuthSession();
-  const connection = snapshot.connections.anilist;
-  const busy = connection.operation !== 'idle';
-  const connected = connection.state === 'connected';
-
-  const status = connected
-    ? t('settings.connectedWith', { provider: t('auth.anilist') })
-    : connection.canRetry
-      ? t('auth.validationPending')
-      : connection.state === 'reconnect_required'
-        ? t('auth.reconnectRequired')
-        : t('auth.notConnected');
-
-  const confirmDisconnect = () => {
-    Alert.alert(
-      t('auth.disconnectConfirmTitle'),
-      t('auth.disconnectConfirmDescription'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('auth.disconnect'),
-          style: 'destructive',
-          onPress: () => void signOut('anilist'),
-        },
-      ],
-    );
-  };
-
-  const primaryLabel =
-    connection.operation === 'signing_in'
-      ? t('auth.connecting')
-      : connection.operation === 'restoring'
-        ? t('auth.checking')
-        : connection.operation === 'signing_out'
-          ? t('auth.disconnecting')
-          : connected
-            ? t('auth.disconnect')
-            : connection.canRetry
-              ? t('auth.retry')
-              : connection.state === 'reconnect_required'
-                ? t('auth.reconnect')
-                : t('auth.connect');
-
-  const runPrimaryAction = () => {
-    if (connected) {
-      confirmDisconnect();
-    } else if (connection.canRetry) {
-      void retry('anilist');
-    } else {
-      void signIn('anilist');
-    }
-  };
-
   return (
     <View className="gap-3">
-      <AccountProfileCard
-        avatarUrl={connection.account?.avatarUrl}
-        connectionState={connection.state}
+      <ProviderAccountBlock
+        provider="anilist"
         providerImage={AniListIcon}
         providerName={t('auth.anilist')}
-        status={status}
-        username={connection.account?.username}
-      >
-        {connection.canRetry ? (
-          <Button
-            accessibilityLabel={t('auth.disconnect')}
-            disabled={busy}
-            size="sm"
-            variant="ghost"
-            onPress={confirmDisconnect}
-          >
-            <Text>{t('auth.disconnect')}</Text>
-          </Button>
-        ) : null}
-        <Button
-          accessibilityLabel={primaryLabel}
-          disabled={busy}
-          size="sm"
-          variant={connected ? 'outline' : 'default'}
-          onPress={runPrimaryAction}
-        >
-          <Text>{primaryLabel}</Text>
-        </Button>
-      </AccountProfileCard>
-
-      {connection.failure ? (
-        <Text
-          accessibilityLiveRegion="polite"
-          accessibilityRole="alert"
-          className="px-1 text-destructive"
-          variant="caption"
-        >
-          {localizedAuthFailure(connection.failure, t)}
-        </Text>
-      ) : null}
-
-      <AccountProfileCard
-        connectionState="coming_soon"
+      />
+      <ProviderAccountBlock
+        provider="mal"
         providerImage={MyAnimeListIcon}
         providerName={t('auth.mal')}
-        status={t('auth.comingSoon')}
+        suffixAccessibilityLabels
       />
+      <PrimaryListProviderSection />
     </View>
+  );
+}
+
+const PRIMARY_LIST_PROVIDER_OPTIONS: readonly {
+  value: AuthProviderId;
+  labelKey: string;
+}[] = [
+  { value: 'anilist', labelKey: 'auth.anilist' },
+  { value: 'mal', labelKey: 'auth.mal' },
+];
+
+function PrimaryListProviderSection() {
+  const { t } = useTranslation();
+  const { snapshot: authSnapshot } = useAuthSession();
+  const { snapshot: primarySnapshot, select } = usePrimaryListProvider();
+  const bothConnected =
+    authSnapshot.connections.anilist.state === 'connected' &&
+    authSnapshot.connections.mal.state === 'connected';
+
+  if (!bothConnected) return null;
+
+  const disabled = primarySnapshot.phase === 'loading';
+
+  return (
+    <Card className="gap-3 border-0 p-4 py-4">
+      <View className="gap-1">
+        <Text className="font-bold">{t('settings.primaryList')}</Text>
+        <Text variant="caption" muted>
+          {t('settings.primaryListDescription')}
+        </Text>
+      </View>
+      <RadioGroup
+        value={primarySnapshot.selected ?? undefined}
+        onValueChange={(value) => void select(value as AuthProviderId)}
+      >
+        {PRIMARY_LIST_PROVIDER_OPTIONS.map((option) => {
+          const label = t(option.labelKey);
+          const selected = primarySnapshot.selected === option.value;
+          return (
+            <MotionPressable
+              key={option.value}
+              accessibilityLabel={label}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected, disabled }}
+              className={cn(
+                'min-h-12 flex-row items-center gap-3 rounded-lg px-3',
+                selected && 'bg-primary/10',
+                disabled && 'opacity-60',
+              )}
+              disabled={disabled}
+              onPress={() => void select(option.value)}
+            >
+              <Text
+                className={cn(
+                  'flex-1 font-semibold',
+                  selected && 'text-primary-emphasis',
+                )}
+              >
+                {label}
+              </Text>
+              <RadioGroupItem
+                accessible={false}
+                pointerEvents="none"
+                value={option.value}
+              />
+            </MotionPressable>
+          );
+        })}
+      </RadioGroup>
+    </Card>
   );
 }
 

@@ -2,6 +2,7 @@ import type { InfiniteData } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
 import { queryKeys } from '@/application/queries/query-keys';
+import { DataSourceError } from '@/domain/errors/domain-error';
 import type { UnifiedAnime } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
@@ -12,6 +13,7 @@ import {
 } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
+import { createTestPrimaryListProvider } from '@/tests/user-list/test-primary-list-provider';
 
 function connectedAniListSession(): TestAuthSessionController {
   const session = new TestAuthSessionController();
@@ -20,6 +22,24 @@ function connectedAniListSession(): TestAuthSessionController {
     account: {
       provider: 'anilist',
       userId: '42',
+      username: 'reader',
+      avatarUrl: null,
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    },
+    operation: 'idle',
+    failure: null,
+    canRetry: false,
+  });
+  return session;
+}
+
+function connectedBothSession(): TestAuthSessionController {
+  const session = connectedAniListSession();
+  session.updateConnection('mal', {
+    state: 'connected',
+    account: {
+      provider: 'mal',
+      userId: '7',
       username: 'reader',
       avatarUrl: null,
       expiresAt: '2099-01-01T00:00:00.000Z',
@@ -151,6 +171,40 @@ describe('MyListScreen', () => {
     );
     expect(screen.queryByText('Your list is empty.')).not.toBeOnTheScreen();
     fireEvent.press(screen.getByText('Try again'));
+    await waitFor(() =>
+      expect(screen.getByText('Your list is empty.')).toBeVisible(),
+    );
+  });
+
+  it('shows the primary-provider banner and loads the chosen list after resolving it', async () => {
+    const dependencies = createTestDependencies(
+      buildUserListDataset({ size: 0 }),
+    );
+    dependencies.userListRepository.getPage = jest
+      .fn()
+      .mockRejectedValueOnce(
+        new DataSourceError(
+          'primary_provider_required',
+          'Choose which account is your primary list before continuing.',
+        ),
+      )
+      .mockResolvedValue({ items: [], page: 1, nextPage: null, totalCount: 0 });
+    const primaryListProvider = createTestPrimaryListProvider();
+    const select = jest.spyOn(primaryListProvider, 'select');
+
+    await renderWithProviders(<MyListScreen />, {
+      authSession: connectedBothSession(),
+      dependencies,
+      primaryListProvider,
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText('Choose your primary list')).toBeVisible(),
+    );
+    expect(screen.queryByText('Your list is empty.')).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText('Use MyAnimeList'));
+    expect(select).toHaveBeenCalledWith('mal');
     await waitFor(() =>
       expect(screen.getByText('Your list is empty.')).toBeVisible(),
     );

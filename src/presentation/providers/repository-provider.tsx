@@ -21,6 +21,12 @@ import type {
   SyncTarget,
   UserAnimeSync,
 } from '@/application/sync/user-anime-sync';
+import type {
+  PrimaryListProviderController,
+  PrimaryListProviderSnapshot,
+} from '@/application/user-list/primary-list-provider-contracts';
+import { DefaultPrimaryListProviderController } from '@/application/user-list/primary-list-provider-controller';
+import { resolveUserListProvider } from '@/application/user-list/resolve-user-list-provider';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import type { PendingSyncStore } from '@/domain/repositories/pending-sync-store';
 import type { UserAnimeListRepository } from '@/domain/repositories/user-anime-list-repository';
@@ -36,11 +42,16 @@ import {
   type AniListMediaIdentityResolver,
 } from '@/infrastructure/api/anilist/anilist-media-identity';
 import { AniListRequestCoordinator } from '@/infrastructure/api/anilist/anilist-request-coordinator';
+import { MalAuthenticatedClient } from '@/infrastructure/api/mal/mal-authenticated-client';
 import { isMalConfigured } from '@/infrastructure/api/mal/mal-config';
+import { MalUnauthorizedError } from '@/infrastructure/api/mal/mal-errors';
+import { ExpoMalOAuthClient } from '@/infrastructure/auth/mal/expo-mal-oauth-client';
+import type { MalOAuthClientPort } from '@/infrastructure/auth/mal/expo-mal-oauth-client';
 import { AniListAnimeCatalogRepository } from '@/infrastructure/repositories/anilist/anilist-anime-catalog-repository';
 import { AniListUserAnimeListRepository } from '@/infrastructure/repositories/anilist/anilist-user-anime-list-repository';
 import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { MalAnimeCatalogRepository } from '@/infrastructure/repositories/mal/mal-anime-catalog-repository';
+import { MalUserAnimeListRepository } from '@/infrastructure/repositories/mal/mal-user-anime-list-repository';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
 import {
@@ -55,10 +66,12 @@ import {
   type ResilientCatalogRuntimeSnapshot,
 } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
 import { SessionAwareUserAnimeListRepository } from '@/infrastructure/repositories/session-aware-user-anime-list-repository';
+import { primaryListProviderStorage } from '@/infrastructure/storage/primary-list-provider-storage';
 import { AsyncStoragePendingSyncStore } from '@/infrastructure/sync/async-storage-pending-sync-store';
 import { SyncEngine } from '@/infrastructure/sync/sync-engine';
 import { UserAnimeListSyncTarget } from '@/infrastructure/sync/user-anime-list-sync-target';
 import { useAuthSession } from '@/presentation/providers/auth-session-provider';
+import { usePrimaryListProvider } from '@/presentation/providers/primary-list-provider-provider';
 
 export interface CatalogOperationRuntimeStatus {
   circuitState: CircuitState;
@@ -113,31 +126,49 @@ export interface ProductionDependenciesOptions {
   authSession?: AuthSessionController;
   authTokenStore?: AuthTokenStore;
   anilistMediaIdentityResolver?: AniListMediaIdentityResolver;
+  primaryListProvider?: PrimaryListProviderController;
+  malOAuthClient?: MalOAuthClientPort;
 }
 
 const RepositoryContext = createContext<RepositoryDependencies | null>(null);
 
-export function userListAccessFromSnapshot(snapshot: AuthSessionSnapshot): {
+export function userListAccessFromSnapshot(
+  snapshot: AuthSessionSnapshot,
+  primary: PrimaryListProviderSnapshot,
+): {
   scope: string;
   canMutate: boolean;
   updateMode: UserListUpdateMode;
 } {
-  const connection = snapshot.connections.anilist;
-  if (connection.state === 'connected' && connection.account) {
-    return {
-      scope: `anilist:${connection.account.userId}`,
-      canMutate: true,
-      updateMode: 'direct',
-    };
+  const resolution = resolveUserListProvider(snapshot.connections, primary);
+  switch (resolution.kind) {
+    case 'guest':
+      return { scope: 'guest', canMutate: true, updateMode: 'queued' };
+    case 'active':
+      return {
+        scope: `${resolution.provider}:${resolution.account.userId}`,
+        canMutate: true,
+        updateMode: 'direct',
+      };
+    case 'reconnect_required':
+      return {
+        scope: `reconnect-required:${resolution.providers.join(',')}`,
+        canMutate: false,
+        updateMode: 'unavailable',
+      };
+    case 'primary_required':
+      return {
+        scope: 'primary-required',
+        canMutate: false,
+        updateMode: 'unavailable',
+      };
+    case 'loading':
+      return {
+        scope: 'primary-loading',
+        canMutate: false,
+        updateMode: 'unavailable',
+      };
   }
-  if (connection.state === 'reconnect_required') {
-    return {
-      scope: 'anilist:reconnect-required',
-      canMutate: false,
-      updateMode: 'unavailable',
-    };
-  }
-  return { scope: 'guest', canMutate: true, updateMode: 'queued' };
 }
 
 function createStatusChannel(initial: CatalogRuntimeStatus): StatusChannel {
@@ -233,28 +264,63 @@ export function createProductionDependencies(
   const guestUserListRepository = new GuestUserAnimeListRepository(
     catalogRepository,
   );
+  const malOAuthClient = options.malOAuthClient ?? new ExpoMalOAuthClient();
+  const malAccessTokenProvider = async (): Promise<string> => {
+    const record = await options.authTokenStore?.get('mal');
+    if (!record) throw new MalUnauthorizedError(401);
+    if (Date.parse(record.expiresAt) > Date.now() + 60_000) {
+      return record.accessToken;
+    }
+    if (!record.refreshToken) throw new MalUnauthorizedError(401);
+    try {
+      const refreshed = await malOAuthClient.refresh(record.refreshToken);
+      await options.authTokenStore?.set('mal', {
+        version: 1,
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken,
+        expiresAt: refreshed.expiresAt,
+      });
+      return refreshed.accessToken;
+    } catch {
+      throw new MalUnauthorizedError(401);
+    }
+  };
+  const primaryListProvider =
+    options.primaryListProvider ??
+    new DefaultPrimaryListProviderController(primaryListProviderStorage);
   const userListRepository =
     options.authSession && options.authTokenStore
       ? new SessionAwareUserAnimeListRepository({
           session: options.authSession,
+          primaryListProvider,
           guestRepository: guestUserListRepository,
-          createAniListRepository: (account) =>
-            new AniListUserAnimeListRepository({
-              client: createAniListClient({
-                coordinator,
-                accessTokenProvider: async () => {
-                  const record = await options.authTokenStore?.get('anilist');
-                  if (!record || Date.parse(record.expiresAt) <= Date.now()) {
-                    throw new AniListUnauthorizedError();
-                  }
-                  return record.accessToken;
-                },
+          createRepository: {
+            anilist: (account) =>
+              new AniListUserAnimeListRepository({
+                client: createAniListClient({
+                  coordinator,
+                  accessTokenProvider: async () => {
+                    const record = await options.authTokenStore?.get('anilist');
+                    if (!record || Date.parse(record.expiresAt) <= Date.now()) {
+                      throw new AniListUnauthorizedError();
+                    }
+                    return record.accessToken;
+                  },
+                }),
+                userId: Number(account.userId),
+                mediaIdentityResolver: anilistMediaIdentityResolver,
+                onUnauthorized: () =>
+                  options.authSession?.markReconnectRequired('anilist'),
               }),
-              userId: Number(account.userId),
-              mediaIdentityResolver: anilistMediaIdentityResolver,
-              onUnauthorized: () =>
-                options.authSession?.markReconnectRequired('anilist'),
-            }),
+            mal: () =>
+              new MalUserAnimeListRepository({
+                client: new MalAuthenticatedClient({
+                  accessTokenProvider: malAccessTokenProvider,
+                }),
+                onUnauthorized: () =>
+                  options.authSession?.markReconnectRequired('mal'),
+              }),
+          },
         })
       : guestUserListRepository;
   const syncEngine = new SyncEngine(
@@ -297,8 +363,12 @@ export function RepositoryProvider({
 }: RepositoryProviderProps) {
   const queryClient = useQueryClient();
   const { snapshot: authSnapshot } = useAuthSession();
+  const { snapshot: primarySnapshot } = usePrimaryListProvider();
   const [source] = useState(() => dependencies ?? createDefaultDependencies());
-  const userListAccess = userListAccessFromSnapshot(authSnapshot);
+  const userListAccess = userListAccessFromSnapshot(
+    authSnapshot,
+    primarySnapshot,
+  );
   const previousUserListScope = useRef(userListAccess.scope);
   useEffect(() => {
     if (previousUserListScope.current === userListAccess.scope) return;

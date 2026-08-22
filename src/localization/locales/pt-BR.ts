@@ -22,27 +22,27 @@ export const ptBR = {
   'auth.checking': 'Verificando…',
   'auth.disconnect': 'Desconectar',
   'auth.disconnecting': 'Desconectando…',
-  'auth.disconnectConfirmTitle': 'Desconectar o AniList?',
+  'auth.disconnectConfirmTitle': 'Desconectar o {{provider}}?',
   'auth.disconnectConfirmDescription':
-    'Isso remove a sessão do AniList deste dispositivo. Seu catálogo e dados locais serão mantidos.',
+    'Isso remove a sessão do {{provider}} deste dispositivo. Seu catálogo e dados locais serão mantidos.',
   'auth.error.configuration':
-    'O login do AniList não está configurado nesta compilação.',
+    'O login do {{provider}} não está configurado nesta compilação.',
   'auth.error.unsupportedEnvironment':
-    'O login do AniList exige um Development Build nativo do Puriki.',
+    'O login do {{provider}} exige um Development Build nativo do Puriki.',
   'auth.error.redirect':
-    'O retorno do AniList não está configurado corretamente.',
+    'O retorno do {{provider}} não está configurado corretamente.',
   'auth.error.network':
-    'Não foi possível validar a conta do AniList. Verifique sua conexão e tente novamente.',
+    'Não foi possível validar a conta do {{provider}}. Verifique sua conexão e tente novamente.',
   'auth.error.timeout':
-    'O AniList demorou demais para validar a conta. Tente novamente.',
+    'O {{provider}} demorou demais para validar a conta. Tente novamente.',
   'auth.error.unavailable':
-    'O login do AniList está temporariamente indisponível. Tente mais tarde.',
-  'auth.error.invalidToken': 'A sessão do AniList não é mais válida.',
+    'O login do {{provider}} está temporariamente indisponível. Tente mais tarde.',
+  'auth.error.invalidToken': 'A sessão do {{provider}} não é mais válida.',
   'auth.error.invalidResponse':
-    'O AniList retornou uma resposta de login inesperada. Tente novamente.',
+    'O {{provider}} retornou uma resposta de login inesperada. Tente novamente.',
   'auth.error.storage':
-    'O Puriki não conseguiu atualizar a sessão do AniList com segurança neste dispositivo.',
-  'auth.error.unknown': 'Não foi possível concluir o login do AniList.',
+    'O Puriki não conseguiu atualizar a sessão do {{provider}} com segurança neste dispositivo.',
+  'auth.error.unknown': 'Não foi possível concluir o login do {{provider}}.',
   'nav.home': 'Início',
   'nav.search': 'Buscar',
   'nav.myList': 'Minha Lista',
@@ -117,6 +117,8 @@ export const ptBR = {
   'errors.unauthorized': 'O MyAnimeList rejeitou o Client ID do aplicativo.',
   'errors.sessionExpired':
     'Sua sessão do AniList expirou. Reconecte sua conta e tente novamente.',
+  'errors.primaryProviderRequired':
+    'Escolha qual conta é a sua lista principal para continuar.',
   'errors.http':
     'O catálogo de anime não conseguiu concluir a solicitação. Tente novamente.',
   'errors.invalidResponse':
@@ -164,6 +166,11 @@ export const ptBR = {
   'myList.emptyAll': 'Sua lista está vazia.',
   'myList.emptyAllMessage':
     'Explore animes e adicione o que você quer assistir.',
+  'myList.primaryProviderBannerTitle': 'Escolha sua lista principal',
+  'myList.primaryProviderBannerMessage':
+    'Você está conectado ao AniList e ao MyAnimeList. Escolha qual deles o Puriki deve usar para Minha Lista e as atualizações de episódios. Você pode mudar isso depois em Configurações.',
+  'myList.primaryProviderUseAniList': 'Usar o AniList',
+  'myList.primaryProviderUseMal': 'Usar o MyAnimeList',
   'details.goBack': 'Voltar',
   'details.notFound': 'Anime não encontrado',
   'details.notAvailable': 'Este título não está disponível no catálogo ativo.',
@@ -250,6 +257,9 @@ export const ptBR = {
   'notFound.returnHome': 'Voltar ao início',
   'settings.title': 'Configurações',
   'settings.account': 'Conta',
+  'settings.primaryList': 'Lista principal',
+  'settings.primaryListDescription':
+    'Escolha qual conta a Minha Lista e as atualizações de episódios devem usar.',
   'settings.preferences': 'Preferências',
   'settings.active': 'Ativa',
   'settings.connectedWith': 'Conectado com {{provider}}',

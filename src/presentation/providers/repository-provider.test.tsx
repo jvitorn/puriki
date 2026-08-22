@@ -48,9 +48,13 @@ function SyncStatusProbe() {
 }
 
 describe('repository dependency creation', () => {
+  const readyPrimary = { phase: 'ready' as const, selected: null };
+
   it('selects queued guest writes, direct AniList writes, and unavailable reconnect state', () => {
     const session = new TestAuthSessionController();
-    expect(userListAccessFromSnapshot(session.getSnapshot())).toEqual({
+    expect(
+      userListAccessFromSnapshot(session.getSnapshot(), readyPrimary),
+    ).toEqual({
       scope: 'guest',
       canMutate: true,
       updateMode: 'queued',
@@ -69,7 +73,9 @@ describe('repository dependency creation', () => {
       failure: null,
       canRetry: false,
     });
-    expect(userListAccessFromSnapshot(session.getSnapshot())).toEqual({
+    expect(
+      userListAccessFromSnapshot(session.getSnapshot(), readyPrimary),
+    ).toEqual({
       scope: 'anilist:42',
       canMutate: true,
       updateMode: 'direct',
@@ -82,11 +88,56 @@ describe('repository dependency creation', () => {
       failure: 'invalid_token',
       canRetry: false,
     });
-    expect(userListAccessFromSnapshot(session.getSnapshot())).toEqual({
-      scope: 'anilist:reconnect-required',
+    expect(
+      userListAccessFromSnapshot(session.getSnapshot(), readyPrimary),
+    ).toEqual({
+      scope: 'reconnect-required:anilist',
       canMutate: false,
       updateMode: 'unavailable',
     });
+  });
+
+  it('requires a primary choice when both providers are connected without a stored preference', () => {
+    const session = new TestAuthSessionController();
+    session.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'reader',
+        avatarUrl: null,
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    session.updateConnection('mal', {
+      state: 'connected',
+      account: {
+        provider: 'mal',
+        userId: '7',
+        username: 'reader',
+        avatarUrl: null,
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    expect(
+      userListAccessFromSnapshot(session.getSnapshot(), readyPrimary),
+    ).toEqual({
+      scope: 'primary-required',
+      canMutate: false,
+      updateMode: 'unavailable',
+    });
+    expect(
+      userListAccessFromSnapshot(session.getSnapshot(), {
+        phase: 'ready',
+        selected: 'mal',
+      }),
+    ).toEqual({ scope: 'mal:7', canMutate: true, updateMode: 'direct' });
   });
 
   it('always creates the production repository graph', () => {

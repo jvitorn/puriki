@@ -14,6 +14,7 @@ const ERROR_KEYS = {
   configuration: 'errors.configuration',
   unauthorized: 'errors.unauthorized',
   session_expired: 'errors.sessionExpired',
+  primary_provider_required: 'errors.primaryProviderRequired',
   http: 'errors.http',
   invalid_response: 'errors.invalidResponse',
 } as const;
@@ -57,10 +58,11 @@ export function localizedError(error: unknown, t: TFunction): string {
 export function localizedAuthFailure(
   failure: AuthFailureCode,
   t: TFunction,
+  provider: string = 'AniList',
 ): string {
   return failure === 'cancelled'
     ? t('common.cancel')
-    : t(AUTH_ERROR_KEYS[failure]);
+    : t(AUTH_ERROR_KEYS[failure], { provider });
 }
 
 export function localizedStatus(status: AnimeListStatus, t: TFunction): string {

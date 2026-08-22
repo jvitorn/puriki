@@ -5,12 +5,14 @@ import { FlatList, ScrollView, View } from 'react-native';
 
 import { useInfiniteUnifiedUserList } from '@/application/queries/anime-queries';
 import { flattenUniqueAnimePages } from '@/application/use-cases/infinite-user-list';
+import { DataSourceError } from '@/domain/errors/domain-error';
 import type { AnimeListStatus } from '@/domain/models/anime';
 import {
   localizedError,
   localizedStatus,
 } from '@/localization/localized-values';
 import { AnimeListItem } from '@/presentation/components/anime/anime-list-item';
+import { PrimaryListProviderBanner } from '@/presentation/components/settings/primary-list-provider-banner';
 import { Button } from '@/presentation/components/ui/button';
 import { EmptyState, ErrorState } from '@/presentation/components/ui/feedback';
 import { Screen } from '@/presentation/components/ui/screen';
@@ -20,6 +22,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@/presentation/components/ui/toggle-group';
+import { usePrimaryListProvider } from '@/presentation/providers/primary-list-provider-provider';
 import { formatUserListCount } from '@/presentation/utils/user-list-count';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 import { cn } from '@/shared/rnr/utils';
@@ -46,10 +49,15 @@ function AnimeListSkeletonRows({ count = 3 }: { count?: number }) {
 export function MyListScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { select: selectPrimaryListProvider } = usePrimaryListProvider();
   const [filter, setFilter] = useState<ListFilter>('all');
   const list = useInfiniteUnifiedUserList(
     filter === 'all' ? undefined : filter,
   );
+  const needsPrimaryProviderChoice =
+    list.isError &&
+    list.error instanceof DataSourceError &&
+    list.error.code === 'primary_provider_required';
   const filters: ListFilter[] = ['all', ...ANIME_STATUSES];
   const filterLabel =
     filter === 'all' ? t('myList.all') : localizedStatus(filter, t);
@@ -140,6 +148,10 @@ export function MyListScreen() {
         <View className="gap-2 px-4 md:px-6">
           <AnimeListSkeletonRows />
         </View>
+      ) : needsPrimaryProviderChoice ? (
+        <PrimaryListProviderBanner
+          onSelect={(provider) => selectPrimaryListProvider(provider)}
+        />
       ) : list.isError && !list.data ? (
         <ErrorState
           message={localizedError(list.error, t)}
