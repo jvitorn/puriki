@@ -1,7 +1,9 @@
 package expo.modules.purikukitranslation
 
 import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.TranslateRemoteModel
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
@@ -51,7 +53,7 @@ class PurikukiTranslationModule : Module() {
       try {
         translator.downloadModelIfNeeded(conditions)
           .addOnSuccessListener {
-            translate(request.text, translator, promise)
+            translate(request.text, translator, promise, sourceLanguage, targetLanguage)
           }
           .addOnFailureListener { error ->
             try {
@@ -78,12 +80,19 @@ class PurikukiTranslationModule : Module() {
     }
   }
 
-  private fun translate(text: String, translator: Translator, promise: Promise) {
+  private fun translate(
+    text: String,
+    translator: Translator,
+    promise: Promise,
+    sourceLanguage: String,
+    targetLanguage: String
+  ) {
     try {
       translator.translate(text)
         .addOnSuccessListener { translatedText ->
           try {
             if (translatedText.isBlank()) {
+              deleteDownloadedModels(sourceLanguage, targetLanguage)
               promise.reject("ERR_EMPTY_TRANSLATION", "Translation result was empty.", null)
             } else {
               promise.resolve(mapOf("translatedText" to translatedText))
@@ -93,6 +102,7 @@ class PurikukiTranslationModule : Module() {
           }
         }
         .addOnFailureListener { error ->
+          deleteDownloadedModels(sourceLanguage, targetLanguage)
           try {
             promise.reject("ERR_TRANSLATION_FAILED", "Translation failed.", error)
           } finally {
@@ -100,11 +110,27 @@ class PurikukiTranslationModule : Module() {
           }
         }
     } catch (error: Exception) {
+      deleteDownloadedModels(sourceLanguage, targetLanguage)
       try {
         promise.reject("ERR_TRANSLATION_FAILED", "Translation failed.", error)
       } finally {
         translator.close()
       }
+    }
+  }
+
+  /**
+   * A model that finished downloading can still have corrupted files on disk
+   * (e.g. an interrupted write). ML Kit then reports the model as already
+   * present forever, so every future translation keeps failing the exact
+   * same way with no way to recover. Deleting the model here forces a clean
+   * re-download on the next attempt instead of leaving translation broken
+   * permanently.
+   */
+  private fun deleteDownloadedModels(sourceLanguage: String, targetLanguage: String) {
+    val modelManager = RemoteModelManager.getInstance()
+    for (language in setOf(sourceLanguage, targetLanguage)) {
+      modelManager.deleteDownloadedModel(TranslateRemoteModel.Builder(language).build())
     }
   }
 
