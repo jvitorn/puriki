@@ -11,14 +11,16 @@ import { cn } from '@/shared/rnr/utils';
 export function EpisodeProgressControl({
   current,
   total,
-  onChange,
+  onIncrease,
+  onDecrease,
   disabled = false,
   saveState = 'idle',
   onRetry,
 }: {
   current: number;
   total: number | null;
-  onChange(value: number): void;
+  onIncrease(): void;
+  onDecrease(): void;
   disabled?: boolean;
   saveState?: 'idle' | 'saving' | 'saved' | 'error';
   onRetry?: () => void;
@@ -34,7 +36,7 @@ export function EpisodeProgressControl({
           disabled={!canDecrease}
           icon={Minus}
           label={t('details.decreaseEpisodes')}
-          onPress={() => onChange(current - 1)}
+          onPress={() => onDecrease()}
         />
         <View className="min-w-20 flex-1 items-center">
           <Text className="text-2xl font-black">{current}</Text>
@@ -49,7 +51,7 @@ export function EpisodeProgressControl({
           disabled={!canIncrease}
           icon={Plus}
           label={t('details.increaseEpisodes')}
-          onPress={() => onChange(current + 1)}
+          onPress={() => onIncrease()}
         />
       </View>
       {total !== null && total > 0 ? (

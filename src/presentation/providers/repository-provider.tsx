@@ -317,6 +317,7 @@ export function createProductionDependencies(
                 client: new MalAuthenticatedClient({
                   accessTokenProvider: malAccessTokenProvider,
                 }),
+                catalogRepository,
                 onUnauthorized: () =>
                   options.authSession?.markReconnectRequired('mal'),
               }),

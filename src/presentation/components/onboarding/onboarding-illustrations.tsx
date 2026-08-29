@@ -5,6 +5,10 @@ import { Image, View } from 'react-native';
 import AniListIcon from '../../../../assets/providers/anilist.png';
 import MyAnimeListIcon from '../../../../assets/providers/myanimelist.png';
 
+import {
+  decrementProgress,
+  incrementProgress,
+} from '@/domain/rules/anime-progress';
 import { EpisodeProgressControl } from '@/presentation/components/anime/episode-progress-control';
 import { Badge } from '@/presentation/components/ui/badge';
 import { Card } from '@/presentation/components/ui/card';
@@ -75,7 +79,8 @@ export function ProgressIllustration({
         <EpisodeProgressControl
           current={progress}
           total={24}
-          onChange={onChange}
+          onIncrease={() => onChange(incrementProgress(progress, 24))}
+          onDecrease={() => onChange(decrementProgress(progress))}
         />
         <View className="gap-2">
           <ProgressBar value={progress / 24} />

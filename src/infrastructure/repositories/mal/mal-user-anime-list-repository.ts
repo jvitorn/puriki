@@ -6,6 +6,7 @@ import type {
 } from '@/domain/models/anime';
 import { validatePageRequest } from '@/domain/models/pagination';
 import type { PageResult } from '@/domain/models/pagination';
+import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import type {
   UserAnimeListPageRequest,
   UserAnimeListRepository,
@@ -27,13 +28,10 @@ import {
 const DEFAULT_CACHE_TTL_MS = 30_000;
 const MAL_LIST_PAGE_SIZE = 100;
 const MAXIMUM_LIST_PAGES = 100;
-const TRACKING_CONTEXT: AnimeTrackingContext = {
-  totalEpisodes: null,
-  airingStatus: 'unknown',
-};
 
 export interface MalUserAnimeListRepositoryOptions {
   client: MalAuthenticatedClientPort;
+  catalogRepository: AnimeCatalogRepository;
   cacheTtlMs?: number;
   now?: () => number;
   onUnauthorized?: () => Promise<void> | void;
@@ -45,6 +43,7 @@ function cloneEntry(entry: UserAnimeEntry): UserAnimeEntry {
 
 export class MalUserAnimeListRepository implements UserAnimeListRepository {
   private readonly client: MalAuthenticatedClientPort;
+  private readonly catalogRepository: AnimeCatalogRepository;
   private readonly cacheTtlMs: number;
   private readonly now: () => number;
   private readonly onUnauthorized?: () => Promise<void> | void;
@@ -56,9 +55,22 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
 
   constructor(options: MalUserAnimeListRepositoryOptions) {
     this.client = options.client;
+    this.catalogRepository = options.catalogRepository;
     this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS);
     this.now = options.now ?? Date.now;
     this.onUnauthorized = options.onUnauthorized;
+  }
+
+  private async trackingContext(
+    animeId: number,
+  ): Promise<AnimeTrackingContext> {
+    const known = this.catalogRepository.getKnownById(animeId);
+    const [resolved] = known
+      ? []
+      : await this.catalogRepository.getManyByIds([animeId]);
+    const anime = known ?? resolved;
+    if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
+    return { totalEpisodes: anime.totalEpisodes, airingStatus: anime.airingStatus };
   }
 
   invalidateCache(): void {
@@ -107,7 +119,7 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
           updatedAt: new Date(this.now()).toISOString(),
         },
         status,
-        TRACKING_CONTEXT,
+        await this.trackingContext(animeId),
       );
       if (!transition.allowed) {
         throw new DomainError(
@@ -148,7 +160,11 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
   updateProgress(animeId: number, episodes: number): Promise<UserAnimeEntry> {
     return this.serializeMutation(animeId, async () => {
       const current = await this.requireEntry(animeId);
-      const desired = applyProgress(current, episodes, TRACKING_CONTEXT);
+      const desired = applyProgress(
+        current,
+        episodes,
+        await this.trackingContext(animeId),
+      );
       const body: Record<string, string | number> = {
         num_watched_episodes: desired.watchedEpisodes,
       };
@@ -166,7 +182,11 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
     return this.serializeMutation(animeId, async () => {
       const current = await this.requireEntry(animeId);
       if (current.status === status) return cloneEntry(current);
-      const transition = transitionStatus(current, status, TRACKING_CONTEXT);
+      const transition = transitionStatus(
+        current,
+        status,
+        await this.trackingContext(animeId),
+      );
       if (!transition.allowed) {
         throw new DomainError(
           `Status transition blocked: ${transition.reason}.`,

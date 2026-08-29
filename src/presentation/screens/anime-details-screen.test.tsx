@@ -44,6 +44,8 @@ function createTranslationDependencies(options?: {
 }
 
 describe('AnimeDetailsScreen', () => {
+  afterEach(() => jest.useRealTimers());
+
   it('enables direct list edits while an AniList account is connected', async () => {
     const authSession = new TestAuthSessionController();
     authSession.updateConnection('anilist', {
@@ -172,14 +174,19 @@ describe('AnimeDetailsScreen', () => {
     await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
       dependencies,
     });
+    const increaseButton = await screen.findByLabelText(
+      'Increase watched episodes',
+    );
 
-    await fireEvent.press(
-      await screen.findByLabelText('Increase watched episodes'),
-    );
-    await waitFor(() =>
-      expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible(),
-    );
+    jest.useFakeTimers();
+    await fireEvent.press(increaseButton);
+    expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible();
     expect(screen.getByLabelText('Increase watched episodes')).toBeEnabled();
+    expect(dependencies.syncEngine.enqueue).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(400);
+    });
     expect(dependencies.syncEngine.enqueue).toHaveBeenCalledWith({
       animeId: 1,
       type: 'SET_PROGRESS',
@@ -187,6 +194,54 @@ describe('AnimeDetailsScreen', () => {
     });
 
     await act(async () => finishPersistence?.());
+  });
+
+  it('coalesces a rapid multitap burst into a single provider update', async () => {
+    const authSession = new TestAuthSessionController();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'viewer',
+        avatarUrl: null,
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    const dataset = createTestScenario('default');
+    const entry = dataset.userEntries.find((item) => item.animeId === 1);
+    if (!entry) throw new Error('Expected a seeded list entry.');
+    entry.watchedEpisodes = 2;
+    const dependencies = createTestDependencies(dataset);
+    const updateProgress = jest.spyOn(
+      dependencies.userListRepository,
+      'updateProgress',
+    );
+    await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {
+      authSession,
+      dependencies,
+    });
+    const increaseButton = await screen.findByLabelText(
+      'Increase watched episodes',
+    );
+
+    jest.useFakeTimers();
+    for (const expected of [3, 4, 5, 6, 7]) {
+      await fireEvent.press(increaseButton);
+      expect(
+        screen.getByLabelText(`Episode progress: ${expected} of 12`),
+      ).toBeVisible();
+    }
+    expect(updateProgress).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(400);
+    });
+    expect(updateProgress).toHaveBeenCalledTimes(1);
+    expect(updateProgress).toHaveBeenCalledWith(1, 7);
   });
 
   it('updates and clears a score', async () => {

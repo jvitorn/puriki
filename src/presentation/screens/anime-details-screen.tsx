@@ -57,6 +57,7 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Separator } from '@/presentation/components/ui/separator';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
+import { useEpisodeProgressIntent } from '@/presentation/hooks/use-episode-progress-intent';
 import { useRepositories } from '@/presentation/providers/repository-provider';
 
 function DetailsBackButton({ onPress }: { onPress(): void }) {
@@ -91,6 +92,12 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
     useState<StatusTransitionBlockedReason | null>(null);
   const details = useAnimeDetails(animeId);
   const progress = useUpdateProgress();
+  const episodeIntent = useEpisodeProgressIntent({
+    animeId,
+    confirmedProgress: details.data?.userEntry?.watchedEpisodes ?? 0,
+    totalEpisodes: details.data?.anime.totalEpisodes ?? null,
+    mutateAsync: progress.mutateAsync,
+  });
   const status = useUpdateStatus();
   const score = useUpdateScore();
   const addToList = useAddToList();
@@ -250,11 +257,12 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 {t('details.episodeProgress')}
               </Text>
               <EpisodeProgressControl
-                current={userEntry.watchedEpisodes}
+                current={episodeIntent.displayedProgress}
                 total={anime.totalEpisodes}
                 disabled={busy || !canMutateUserList}
                 saveState={progress.saveState}
-                onChange={(episodes) => progress.mutate({ animeId, episodes })}
+                onIncrease={episodeIntent.increase}
+                onDecrease={episodeIntent.decrease}
                 onRetry={progress.retryLastIntent}
               />
             </View>
