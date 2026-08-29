@@ -52,7 +52,7 @@ function tabBarProps(index = 0) {
 }
 
 describe('PurikiTabBar', () => {
-  it('keeps four accessible slots and shows a label only for the active tab', async () => {
+  it('keeps four accessible slots and always shows every label', async () => {
     const { props } = tabBarProps();
     await renderWithProviders(<PurikiTabBar {...props} />);
 
@@ -61,12 +61,15 @@ describe('PurikiTabBar', () => {
       paddingBottom: 24,
     });
     expect(screen.getByText('Home')).toBeVisible();
-    expect(screen.queryByText('Search')).not.toBeOnTheScreen();
-    expect(screen.queryByText('My List')).not.toBeOnTheScreen();
-    expect(screen.queryByText('Settings')).not.toBeOnTheScreen();
+    expect(screen.getByText('Search')).toBeVisible();
+    expect(screen.getByText('My List')).toBeVisible();
+    expect(screen.getByText('Settings')).toBeVisible();
     expect(
       screen.getByLabelText('Home').props.accessibilityState,
     ).toMatchObject({ selected: true });
+    expect(
+      screen.getByLabelText('Search').props.accessibilityState,
+    ).toMatchObject({ selected: false });
   });
 
   it('preserves tab press and long-press navigation events', async () => {
