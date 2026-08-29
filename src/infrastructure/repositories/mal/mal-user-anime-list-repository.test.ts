@@ -1,7 +1,10 @@
 import type { AnimeCatalogItem } from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import type { MalAuthenticatedClientPort } from '@/infrastructure/api/mal/mal-authenticated-client';
-import { MalNotFoundError, MalUnauthorizedError } from '@/infrastructure/api/mal/mal-errors';
+import {
+  MalNotFoundError,
+  MalUnauthorizedError,
+} from '@/infrastructure/api/mal/mal-errors';
 import { MalUserAnimeListRepository } from '@/infrastructure/repositories/mal/mal-user-anime-list-repository';
 import { makeAnime } from '@/tests/builders/anime-builder';
 
@@ -10,7 +13,12 @@ function createCatalogRepository(
 ): AnimeCatalogRepository {
   const notUsed = () => Promise.reject(new Error('not used in these tests'));
   const known = (id: number): AnimeCatalogItem =>
-    makeAnime({ totalEpisodes: null, airingStatus: 'unknown', ...overrides[id], id });
+    makeAnime({
+      totalEpisodes: null,
+      airingStatus: 'unknown',
+      ...overrides[id],
+      id,
+    });
   return {
     getFeatured: notUsed,
     getPopular: notUsed,
@@ -46,14 +54,22 @@ function listPage(
     paging:
       nextOffset === null
         ? {}
-        : { next: `https://api.myanimelist.net/v2/users/@me/animelist?offset=${nextOffset}` },
+        : {
+            next: `https://api.myanimelist.net/v2/users/@me/animelist?offset=${nextOffset}`,
+          },
   };
 }
 
 function createClient(): jest.Mocked<MalAuthenticatedClientPort> {
   return {
-    get: jest.fn(async (_path, _params) => ({ data: listPage([]), status: 200 })),
-    patch: jest.fn(async (_path, _formBody) => ({ data: statusDto(), status: 200 })),
+    get: jest.fn(async (_path, _params) => ({
+      data: listPage([]),
+      status: 200,
+    })),
+    patch: jest.fn(async (_path, _formBody) => ({
+      data: statusDto(),
+      status: 200,
+    })),
     delete: jest.fn(async (_path) => ({ data: null, status: 200 })),
   };
 }
@@ -67,7 +83,9 @@ describe('MalUserAnimeListRepository', () => {
         status: 200,
       })
       .mockResolvedValueOnce({
-        data: listPage([{ id: 2, list_status: statusDto({ status: 'completed' }) }]),
+        data: listPage([
+          { id: 2, list_status: statusDto({ status: 'completed' }) },
+        ]),
         status: 200,
       });
     const repository = new MalUserAnimeListRepository({
@@ -116,7 +134,11 @@ describe('MalUserAnimeListRepository', () => {
     });
 
     const added = await repository.addToList(21, 'watching');
-    expect(added).toMatchObject({ animeId: 21, status: 'watching', watchedEpisodes: 3 });
+    expect(added).toMatchObject({
+      animeId: 21,
+      status: 'watching',
+      watchedEpisodes: 3,
+    });
     expect(client.patch).toHaveBeenCalledWith('/anime/21/my_list_status', {
       status: 'watching',
     });
@@ -136,7 +158,11 @@ describe('MalUserAnimeListRepository', () => {
     expect(statusUpdated.status).toBe('completed');
 
     client.patch.mockResolvedValueOnce({
-      data: statusDto({ status: 'completed', num_episodes_watched: 10, score: 9 }),
+      data: statusDto({
+        status: 'completed',
+        num_episodes_watched: 10,
+        score: 9,
+      }),
       status: 200,
     });
     const scored = await repository.updateScore(21, 9);
@@ -152,7 +178,10 @@ describe('MalUserAnimeListRepository', () => {
       data: listPage([
         {
           id: 21,
-          list_status: statusDto({ status: 'watching', num_episodes_watched: 5 }),
+          list_status: statusDto({
+            status: 'watching',
+            num_episodes_watched: 5,
+          }),
         },
       ]),
       status: 200,
@@ -221,7 +250,10 @@ describe('MalUserAnimeListRepository', () => {
         () =>
           new Promise((resolve) => {
             resolveFirst = () =>
-              resolve({ data: statusDto({ num_episodes_watched: 1 }), status: 200 });
+              resolve({
+                data: statusDto({ num_episodes_watched: 1 }),
+                status: 200,
+              });
           }),
       )
       .mockResolvedValueOnce({
@@ -249,9 +281,9 @@ describe('MalUserAnimeListRepository', () => {
       onUnauthorized,
     });
 
-    await expect(repository.getPage({ page: 1, pageSize: 25 })).rejects.toBeInstanceOf(
-      MalUnauthorizedError,
-    );
+    await expect(
+      repository.getPage({ page: 1, pageSize: 25 }),
+    ).rejects.toBeInstanceOf(MalUnauthorizedError);
     expect(onUnauthorized).toHaveBeenCalledTimes(1);
   });
 });

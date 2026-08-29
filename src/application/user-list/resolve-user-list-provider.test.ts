@@ -54,7 +54,10 @@ const loadingPrimary: PrimaryListProviderSnapshot = {
   phase: 'loading',
   selected: null,
 };
-const noPrimary: PrimaryListProviderSnapshot = { phase: 'ready', selected: null };
+const noPrimary: PrimaryListProviderSnapshot = {
+  phase: 'ready',
+  selected: null,
+};
 
 describe('resolveUserListProvider', () => {
   it('resolves guest when nothing is connected or reconnecting', () => {
@@ -155,5 +158,4 @@ describe('resolveUserListProvider', () => {
       candidates: ['anilist', 'mal'],
     });
   });
-
 });

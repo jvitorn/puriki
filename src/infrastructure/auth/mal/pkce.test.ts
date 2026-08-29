@@ -15,8 +15,8 @@ describe('createCodeVerifier', () => {
   });
 
   it('uses the injected random byte source deterministically', () => {
-    const randomBytes = jest.fn(
-      (byteCount: number) => new Uint8Array(byteCount).fill(0),
+    const randomBytes = jest.fn((byteCount: number) =>
+      new Uint8Array(byteCount).fill(0),
     );
     const verifier = createCodeVerifier(randomBytes);
     expect(randomBytes).toHaveBeenCalledWith(64);

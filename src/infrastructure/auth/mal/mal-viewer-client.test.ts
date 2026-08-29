@@ -15,7 +15,11 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('MalViewerClient', () => {
   it('uses a Bearer token and maps the neutral viewer identity', async () => {
     const fetchImpl = jest.fn(async () =>
-      jsonResponse({ id: 42, name: 'aiko', picture: 'https://cdn.example.com/aiko.png' }),
+      jsonResponse({
+        id: 42,
+        name: 'aiko',
+        picture: 'https://cdn.example.com/aiko.png',
+      }),
     );
     const client = new MalViewerClient({
       fetchImpl: fetchImpl as unknown as typeof fetch,
@@ -54,17 +58,20 @@ describe('MalViewerClient', () => {
   it.each([
     [401, {}],
     [403, {}],
-  ] as const)('classifies status %i as an invalid token', async (status, body) => {
-    const client = new MalViewerClient({
-      fetchImpl: jest.fn(async () =>
-        jsonResponse(body, status),
-      ) as unknown as typeof fetch,
-    });
-    await expect(client.getViewer('token')).rejects.toMatchObject({
-      code: 'invalid_token',
-      reconnectRequired: true,
-    });
-  });
+  ] as const)(
+    'classifies status %i as an invalid token',
+    async (status, body) => {
+      const client = new MalViewerClient({
+        fetchImpl: jest.fn(async () =>
+          jsonResponse(body, status),
+        ) as unknown as typeof fetch,
+      });
+      await expect(client.getViewer('token')).rejects.toMatchObject({
+        code: 'invalid_token',
+        reconnectRequired: true,
+      });
+    },
+  );
 
   it.each([
     [500, 'provider_unavailable'],

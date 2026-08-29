@@ -72,7 +72,10 @@ describe('MalAuthenticatedClient', () => {
     );
     expect(init).toMatchObject({
       method: 'GET',
-      headers: { Accept: 'application/json', Authorization: 'Bearer user-token' },
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer user-token',
+      },
     });
   });
 
@@ -143,9 +146,9 @@ describe('MalAuthenticatedClient', () => {
   ] as const)('maps HTTP status %i to %s', async (status, errorClass) => {
     const fetchImpl = mockFetch(testResponse('{}', { status }));
     const client = createClient(fetchImpl);
-    await expect(client.delete('/anime/21/my_list_status')).rejects.toBeInstanceOf(
-      errorClass,
-    );
+    await expect(
+      client.delete('/anime/21/my_list_status'),
+    ).rejects.toBeInstanceOf(errorClass);
   });
 
   it('maps a network failure', async () => {
@@ -153,9 +156,9 @@ describe('MalAuthenticatedClient', () => {
       throw new TypeError('Network request failed');
     }) as unknown as jest.MockedFunction<typeof fetch>;
     const client = createClient(fetchImpl);
-    await expect(client.delete('/anime/21/my_list_status')).rejects.toBeInstanceOf(
-      MalNetworkError,
-    );
+    await expect(
+      client.delete('/anime/21/my_list_status'),
+    ).rejects.toBeInstanceOf(MalNetworkError);
   });
 
   it('maps an aborted request to a timeout', async () => {
@@ -169,9 +172,9 @@ describe('MalAuthenticatedClient', () => {
       accessTokenProvider: async () => 'user-token',
       timeoutMs: 5,
     });
-    await expect(client.delete('/anime/21/my_list_status')).rejects.toBeInstanceOf(
-      MalTimeoutError,
-    );
+    await expect(
+      client.delete('/anime/21/my_list_status'),
+    ).rejects.toBeInstanceOf(MalTimeoutError);
   });
 
   it('propagates a rejected access token provider without wrapping it', async () => {

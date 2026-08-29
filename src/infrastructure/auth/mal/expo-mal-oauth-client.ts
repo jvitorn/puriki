@@ -123,8 +123,7 @@ export class ExpoMalOAuthClient implements MalOAuthClientPort {
   private readonly createState: () => string;
   private readonly createCodeVerifierImpl: () => string;
   private readonly diagnosticLogger:
-    | ((diagnostic: MalAuthorizationDiagnostic) => void)
-    | null;
+    ((diagnostic: MalAuthorizationDiagnostic) => void) | null;
 
   constructor(options: ExpoMalOAuthClientOptions = {}) {
     this.clientId = options.clientId ?? MAL_CLIENT_ID;
@@ -274,9 +273,7 @@ export class ExpoMalOAuthClient implements MalOAuthClientPort {
         payload = JSON.parse(await response.text()) as unknown;
       } catch {
         throw new AuthOperationError(
-          response.status >= 500
-            ? 'provider_unavailable'
-            : 'invalid_response',
+          response.status >= 500 ? 'provider_unavailable' : 'invalid_response',
           { canRetry: response.status >= 500 },
         );
       }

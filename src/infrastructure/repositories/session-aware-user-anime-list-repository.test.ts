@@ -45,13 +45,15 @@ const disconnected = {
   canRetry: false,
 };
 
-function buildSubject(overrides: {
-  session?: TestAuthSessionController;
-  primaryListProvider?: ReturnType<typeof createTestPrimaryListProvider>;
-  guest?: jest.Mocked<UserAnimeListRepository>;
-  anilist?: jest.Mocked<UserAnimeListRepository>;
-  mal?: jest.Mocked<UserAnimeListRepository>;
-} = {}) {
+function buildSubject(
+  overrides: {
+    session?: TestAuthSessionController;
+    primaryListProvider?: ReturnType<typeof createTestPrimaryListProvider>;
+    guest?: jest.Mocked<UserAnimeListRepository>;
+    anilist?: jest.Mocked<UserAnimeListRepository>;
+    mal?: jest.Mocked<UserAnimeListRepository>;
+  } = {},
+) {
   const session = overrides.session ?? new TestAuthSessionController();
   const primaryListProvider =
     overrides.primaryListProvider ?? createTestPrimaryListProvider();
@@ -136,7 +138,10 @@ describe('SessionAwareUserAnimeListRepository', () => {
       session,
       primaryListProvider: createTestPrimaryListProvider(),
       guestRepository: guest,
-      createRepository: { anilist: createAniList, mal: jest.fn(() => repository()) },
+      createRepository: {
+        anilist: createAniList,
+        mal: jest.fn(() => repository()),
+      },
     });
 
     session.updateConnection('anilist', connected('anilist', '1'));

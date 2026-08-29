@@ -62,7 +62,9 @@ describe('ProviderAccountBlock', () => {
     const authSession = new TestAuthSessionController();
     authSession.updateConnection('mal', connectedSnapshot('mal'));
     const signOut = jest.spyOn(authSession, 'signOut');
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const alert = jest
+      .spyOn(Alert, 'alert')
+      .mockImplementation(() => undefined);
     await renderWithProviders(
       <ProviderAccountBlock
         provider="mal"

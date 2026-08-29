@@ -56,7 +56,9 @@ export function AppProviders({ children }: PropsWithChildren) {
       <SafeAreaProvider>
         <LocalizationProvider>
           <AuthSessionProvider session={runtime.authSession}>
-            <PrimaryListProviderProvider controller={runtime.primaryListProvider}>
+            <PrimaryListProviderProvider
+              controller={runtime.primaryListProvider}
+            >
               <QueryClientProvider client={queryClient}>
                 <RepositoryProvider dependencies={runtime.dependencies}>
                   <SynopsisTranslationProvider>

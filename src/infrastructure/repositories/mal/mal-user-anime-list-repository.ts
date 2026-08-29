@@ -15,7 +15,10 @@ import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
 import type { MalAuthenticatedClientPort } from '@/infrastructure/api/mal/mal-authenticated-client';
-import { MalNotFoundError, MalUnauthorizedError } from '@/infrastructure/api/mal/mal-errors';
+import {
+  MalNotFoundError,
+  MalUnauthorizedError,
+} from '@/infrastructure/api/mal/mal-errors';
 import {
   parseMalSavedListStatus,
   parseMalUserListPage,
@@ -70,7 +73,10 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
       : await this.catalogRepository.getManyByIds([animeId]);
     const anime = known ?? resolved;
     if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
-    return { totalEpisodes: anime.totalEpisodes, airingStatus: anime.airingStatus };
+    return {
+      totalEpisodes: anime.totalEpisodes,
+      airingStatus: anime.airingStatus,
+    };
   }
 
   invalidateCache(): void {
@@ -285,7 +291,10 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
       this.client.patch(this.entryPath(animeId), body),
     );
     try {
-      return mapMalUserListEntry(animeId, parseMalSavedListStatus(response.data));
+      return mapMalUserListEntry(
+        animeId,
+        parseMalSavedListStatus(response.data),
+      );
     } catch (error: unknown) {
       this.invalidateCache();
       throw error;

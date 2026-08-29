@@ -1,5 +1,8 @@
 import { buildMalUrl } from '@/infrastructure/api/mal/mal-client';
-import { MAL_BASE_URL, normalizeMalBaseUrl } from '@/infrastructure/api/mal/mal-config';
+import {
+  MAL_BASE_URL,
+  normalizeMalBaseUrl,
+} from '@/infrastructure/api/mal/mal-config';
 import {
   MalHttpError,
   MalNetworkError,
@@ -100,11 +103,13 @@ function responseDiagnostic(
     return {
       status,
       error: typeof record.error === 'string' ? record.error : undefined,
-      message:
-        typeof record.message === 'string' ? record.message : undefined,
+      message: typeof record.message === 'string' ? record.message : undefined,
     };
   }
-  return { status, message: rawText.length > 0 ? rawText.slice(0, 500) : undefined };
+  return {
+    status,
+    message: rawText.length > 0 ? rawText.slice(0, 500) : undefined,
+  };
 }
 
 function retryAfterMilliseconds(
@@ -164,7 +169,8 @@ function retryDelay(error: unknown, random: () => number): number {
   }
   const jitter = Math.min(1, Math.max(0, random()));
   if (error instanceof MalRateLimitError) return 1_500 + jitter * 1_000;
-  if (error instanceof MalServiceUnavailableError) return 1_000 + jitter * 1_000;
+  if (error instanceof MalServiceUnavailableError)
+    return 1_000 + jitter * 1_000;
   return 500 + jitter * 500;
 }
 
@@ -248,7 +254,10 @@ export class MalAuthenticatedClient implements MalAuthenticatedClientPort {
           response: responseDiagnostic(response.status, parsedBody, rawText),
         };
         if (!response.ok) throw mapHttpError(response, diagnostic, this.now);
-        return { data: parsedBody.parsed ? parsedBody.value : null, status: response.status };
+        return {
+          data: parsedBody.parsed ? parsedBody.value : null,
+          status: response.status,
+        };
       } catch (error: unknown) {
         let mapped: unknown = error;
         if (!isMappedMalError(error)) {

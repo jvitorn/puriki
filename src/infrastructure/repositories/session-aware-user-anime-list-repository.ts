@@ -28,7 +28,10 @@ export class SessionAwareUserAnimeListRepository implements UserAnimeListReposit
     AuthProviderId,
     (account: ConnectedAccount) => UserAnimeListRepository
   >;
-  private readonly remoteRepositories = new Map<string, UserAnimeListRepository>();
+  private readonly remoteRepositories = new Map<
+    string,
+    UserAnimeListRepository
+  >();
 
   constructor(options: SessionAwareUserAnimeListRepositoryOptions) {
     this.session = options.session;
@@ -39,7 +42,9 @@ export class SessionAwareUserAnimeListRepository implements UserAnimeListReposit
 
   invalidateCache(): void {
     this.guestRepository.invalidateCache();
-    this.remoteRepositories.forEach((repository) => repository.invalidateCache());
+    this.remoteRepositories.forEach((repository) =>
+      repository.invalidateCache(),
+    );
   }
 
   async getPage(

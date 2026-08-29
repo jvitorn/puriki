@@ -46,7 +46,8 @@ function parseStatusDto(value: unknown): MalUserListStatusDto {
     score: typeof score === 'number' ? score : 0,
     numEpisodesWatched:
       typeof numEpisodesWatched === 'number' ? numEpisodesWatched : 0,
-    updatedAt: typeof updatedAt === 'string' ? updatedAt : new Date(0).toISOString(),
+    updatedAt:
+      typeof updatedAt === 'string' ? updatedAt : new Date(0).toISOString(),
   };
 }
 

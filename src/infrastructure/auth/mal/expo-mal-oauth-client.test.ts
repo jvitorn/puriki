@@ -69,8 +69,13 @@ function createClient(
 
 describe('ExpoMalOAuthClient', () => {
   it('opens the PKCE authorization URL and exchanges the returned code', async () => {
-    const { client, completeAuthSession, openAuthSession, stateFactory, fetchImpl } =
-      createClient();
+    const {
+      client,
+      completeAuthSession,
+      openAuthSession,
+      stateFactory,
+      fetchImpl,
+    } = createClient();
 
     await expect(client.authorize()).resolves.toEqual({
       accessToken: 'access-token',

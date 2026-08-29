@@ -4,13 +4,16 @@ import type {
 } from '@/application/user-list/primary-list-provider-contracts';
 import type { AuthProviderId } from '@/domain/models/auth';
 
-export class TestPrimaryListProviderController
-  implements PrimaryListProviderController
-{
+export class TestPrimaryListProviderController implements PrimaryListProviderController {
   private readonly listeners = new Set<() => void>();
   private snapshot: PrimaryListProviderSnapshot;
 
-  constructor(initialSnapshot: PrimaryListProviderSnapshot = { phase: 'ready', selected: null }) {
+  constructor(
+    initialSnapshot: PrimaryListProviderSnapshot = {
+      phase: 'ready',
+      selected: null,
+    },
+  ) {
     this.snapshot = initialSnapshot;
   }
 

@@ -5,9 +5,7 @@ import type {
 } from '@/application/user-list/primary-list-provider-contracts';
 import type { AuthProviderId } from '@/domain/models/auth';
 
-export class DefaultPrimaryListProviderController
-  implements PrimaryListProviderController
-{
+export class DefaultPrimaryListProviderController implements PrimaryListProviderController {
   private readonly store: PrimaryListProviderStore;
   private readonly listeners = new Set<() => void>();
   private snapshot: PrimaryListProviderSnapshot = {
