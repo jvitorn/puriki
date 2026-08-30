@@ -3,8 +3,6 @@ import type { PropsWithChildren } from 'react';
 
 import type { SynopsisTranslationCache } from '@/domain/repositories/synopsis-translation-cache';
 import type { SynopsisTranslator } from '@/domain/services/synopsis-translator';
-import { AsyncStorageSynopsisTranslationCache } from '@/infrastructure/translation/async-storage-synopsis-translation-cache';
-import { MlKitSynopsisTranslator } from '@/infrastructure/translation/ml-kit-synopsis-translator';
 
 export interface SynopsisTranslationDependencies {
   translator: SynopsisTranslator;
@@ -12,20 +10,15 @@ export interface SynopsisTranslationDependencies {
 }
 
 interface SynopsisTranslationProviderProps extends PropsWithChildren {
-  dependencies?: SynopsisTranslationDependencies;
+  dependencies: SynopsisTranslationDependencies;
 }
-
-const defaultDependencies: SynopsisTranslationDependencies = {
-  translator: new MlKitSynopsisTranslator(),
-  cache: new AsyncStorageSynopsisTranslationCache(),
-};
 
 const SynopsisTranslationContext =
   createContext<SynopsisTranslationDependencies | null>(null);
 
 export function SynopsisTranslationProvider({
   children,
-  dependencies = defaultDependencies,
+  dependencies,
 }: SynopsisTranslationProviderProps) {
   return (
     <SynopsisTranslationContext.Provider value={dependencies}>

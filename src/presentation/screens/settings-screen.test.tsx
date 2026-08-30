@@ -3,8 +3,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import type { ProviderSessionSnapshot } from '@/application/auth/auth-contracts';
-import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
-import type { DeveloperSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
+import type { DeveloperSettingsStore } from '@/application/runtime/application-runtime';
 import { SettingsScreen } from '@/presentation/screens/settings-screen';
 import {
   createTestAuthSession,
@@ -12,10 +11,6 @@ import {
 } from '@/tests/auth/test-auth-session';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
-
-jest.mock('@/infrastructure/api/mal/mal-diagnostics', () => ({
-  runMalConnectivityDiagnostic: jest.fn(),
-}));
 
 const aboutDescription =
   'A modern anime list client designed for focused, everyday tracking.';
@@ -77,7 +72,7 @@ const anilistSuccess = {
 
 function createDeveloperStorage(
   initialValue = false,
-): DeveloperSettingsStorage & {
+): DeveloperSettingsStore & {
   getDeveloperToolsEnabled: jest.Mock;
   setDeveloperToolsEnabled: jest.Mock;
 } {
@@ -93,6 +88,7 @@ function createDeveloperStorage(
 function createDiagnosticDependencies() {
   const dependencies = createTestDependencies();
   dependencies.runAniListDiagnostic = jest.fn(async () => anilistSuccess);
+  dependencies.runMalDiagnostic = jest.fn(async () => malSuccess);
   return dependencies;
 }
 
@@ -119,10 +115,6 @@ async function tapAbout(times = 5) {
 }
 
 describe('SettingsScreen', () => {
-  beforeEach(() => {
-    jest.mocked(runMalConnectivityDiagnostic).mockResolvedValue(malSuccess);
-  });
-
   afterEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
@@ -344,7 +336,7 @@ describe('SettingsScreen', () => {
 
     expect(subscribe).not.toHaveBeenCalled();
     expect(dependencies.runAniListDiagnostic).not.toHaveBeenCalled();
-    expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
+    expect(dependencies.runMalDiagnostic).not.toHaveBeenCalled();
   });
 
   it('unlocks developer tools on the fifth About tap with progressive feedback', async () => {
@@ -442,9 +434,10 @@ describe('SettingsScreen', () => {
   });
 
   it('runs MAL directly and renders an accessible success result', async () => {
+    const dependencies = createDiagnosticDependencies();
     await renderWithProviders(
       <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
-      { dependencies: createDiagnosticDependencies() },
+      { dependencies },
     );
     await waitFor(() =>
       expect(screen.getByLabelText('Test MyAnimeList API')).toBeVisible(),
@@ -454,7 +447,7 @@ describe('SettingsScreen', () => {
     await waitFor(() =>
       expect(screen.getByText('MyAnimeList API is operational.')).toBeVisible(),
     );
-    expect(runMalConnectivityDiagnostic).toHaveBeenCalledTimes(1);
+    expect(dependencies.runMalDiagnostic).toHaveBeenCalledTimes(1);
     expect(screen.getByText('HTTP 200 • 420 ms')).toBeVisible();
     expect(screen.getByText('Sample result: Sousou no Frieren')).toBeVisible();
     expect(screen.getByRole('alert')).toBeVisible();
@@ -462,13 +455,13 @@ describe('SettingsScreen', () => {
 
   it('prevents duplicate and concurrent diagnostics while one is pending', async () => {
     let resolveDiagnostic: ((value: typeof malSuccess) => void) | undefined;
-    jest.mocked(runMalConnectivityDiagnostic).mockImplementationOnce(
+    const dependencies = createDiagnosticDependencies();
+    jest.mocked(dependencies.runMalDiagnostic).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveDiagnostic = resolve;
         }),
     );
-    const dependencies = createDiagnosticDependencies();
     await renderWithProviders(
       <SettingsScreen developerStorage={createDeveloperStorage(true)} />,
       { dependencies },
@@ -483,7 +476,7 @@ describe('SettingsScreen', () => {
     );
     await fireEvent.press(screen.getByLabelText('Testing MyAnimeList API…'));
     await fireEvent.press(screen.getByLabelText('Test AniList API'));
-    expect(runMalConnectivityDiagnostic).toHaveBeenCalledTimes(1);
+    expect(dependencies.runMalDiagnostic).toHaveBeenCalledTimes(1);
     expect(dependencies.runAniListDiagnostic).not.toHaveBeenCalled();
     resolveDiagnostic?.(malSuccess);
     await waitFor(() =>
@@ -508,7 +501,7 @@ describe('SettingsScreen', () => {
       ).toBeVisible(),
     );
     expect(dependencies.runAniListDiagnostic).toHaveBeenCalledTimes(1);
-    expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
+    expect(dependencies.runMalDiagnostic).not.toHaveBeenCalled();
     expect(screen.getAllByText(/200.*210 ms.*25/)).toHaveLength(5);
   });
 

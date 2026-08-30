@@ -3,15 +3,12 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, View } from 'react-native';
 
-import type { AniListRunAllResult } from '@/infrastructure/api/anilist/anilist-diagnostics';
-import {
-  runMalConnectivityDiagnostic,
-  type MalConnectivityResult,
-} from '@/infrastructure/api/mal/mal-diagnostics';
 import type {
+  AniListDiagnosticReport,
   CatalogOperationFamily,
+  MalConnectivityReport,
   PrimaryCatalogHealth,
-} from '@/infrastructure/repositories/resilient/catalog-operation-family';
+} from '@/application/runtime/application-runtime';
 import { useAppLanguage } from '@/localization/localization-provider';
 import { formatDateTime, formatNumber } from '@/localization/localized-values';
 import { Button } from '@/presentation/components/ui/button';
@@ -71,17 +68,21 @@ export function DeveloperToolsPanel({
   const { t } = useTranslation();
   const { language } = useAppLanguage();
   const runtimeStatus = useCatalogRuntimeStatus();
-  const { clearCatalogCache, resetPrimaryCircuits, runAniListDiagnostic } =
-    useRepositories();
+  const {
+    clearCatalogCache,
+    resetPrimaryCircuits,
+    runAniListDiagnostic,
+    runMalDiagnostic,
+  } = useRepositories();
   const diagnosticLock = useRef(false);
   const [pendingDiagnostic, setPendingDiagnostic] = useState<
     'mal' | 'anilist' | null
   >(null);
   const [anilistDiagnostic, setAniListDiagnostic] = useState<
-    AniListRunAllResult | 'failed' | null
+    AniListDiagnosticReport | 'failed' | null
   >(null);
   const [malDiagnostic, setMalDiagnostic] =
-    useState<MalConnectivityResult | null>(null);
+    useState<MalConnectivityReport | null>(null);
   const diagnosticPending = pendingDiagnostic !== null;
 
   const runExclusive = async <T,>(
@@ -112,7 +113,7 @@ export function DeveloperToolsPanel({
   const testMal = async () => {
     setMalDiagnostic(null);
     try {
-      const result = await runExclusive('mal', runMalConnectivityDiagnostic);
+      const result = await runExclusive('mal', runMalDiagnostic);
       if (result) setMalDiagnostic(result);
     } catch {
       setMalDiagnostic(null);

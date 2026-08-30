@@ -13,7 +13,6 @@ import type {
   AuthSessionSnapshot,
 } from '@/application/auth/auth-contracts';
 import type { AuthProviderId } from '@/domain/models/auth';
-import { createProductionAuthSession } from '@/infrastructure/auth/create-auth-session';
 
 export interface AuthSessionContextValue {
   snapshot: AuthSessionSnapshot;
@@ -24,7 +23,7 @@ export interface AuthSessionContextValue {
 }
 
 interface AuthSessionProviderProps extends PropsWithChildren {
-  session?: AuthSessionController;
+  session: AuthSessionController;
 }
 
 const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
@@ -33,7 +32,7 @@ export function AuthSessionProvider({
   children,
   session,
 }: AuthSessionProviderProps) {
-  const [controller] = useState(() => session ?? createProductionAuthSession());
+  const [controller] = useState(() => session);
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,

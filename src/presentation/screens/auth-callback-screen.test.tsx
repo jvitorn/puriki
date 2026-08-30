@@ -1,13 +1,13 @@
 import { act, render, waitFor } from '@testing-library/react-native';
 
-import type { OnboardingStorage } from '@/infrastructure/storage/onboarding-storage';
+import type { OnboardingStore } from '@/application/runtime/application-runtime';
 import { LocalizationProvider } from '@/localization/localization-provider';
 import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
 import { OnboardingGate } from '@/presentation/providers/onboarding-provider';
 import { AuthCallbackScreen } from '@/presentation/screens/auth-callback-screen';
 import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 
-function storage(completed: boolean): jest.Mocked<OnboardingStorage> {
+function storage(completed: boolean): jest.Mocked<OnboardingStore> {
   return {
     hasCompleted: jest.fn(async () => completed),
     markCompleted: jest.fn(async () => undefined),

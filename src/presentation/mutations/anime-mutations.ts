@@ -7,7 +7,6 @@ import type {
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { LatestProgressIntentCoordinator } from '@/application/mutations/latest-progress-intent';
-import { queryKeys } from '@/application/queries/query-keys';
 import { RepositoryError } from '@/domain/errors/domain-error';
 import type {
   AnimeCatalogItem,
@@ -19,6 +18,7 @@ import type { PageResult } from '@/domain/models/pagination';
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { transitionStatus } from '@/domain/rules/anime-status';
 import { useRepositories } from '@/presentation/providers/repository-provider';
+import { queryKeys } from '@/presentation/queries/query-keys';
 
 interface CacheSnapshot {
   queryKey: QueryKey;

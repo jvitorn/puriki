@@ -2,20 +2,6 @@ import type { InfiniteData } from '@tanstack/react-query';
 import { QueryClient } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
-import {
-  useAddToList,
-  useRemoveFromList,
-  useUpdateProgress,
-  useUpdateScore,
-  useUpdateStatus,
-} from '@/application/mutations/anime-mutations';
-import {
-  useAnimeSearch,
-  useContinueWatching,
-  useInfiniteUnifiedUserList,
-  usePopularAnime,
-} from '@/application/queries/anime-queries';
-import { queryKeys } from '@/application/queries/query-keys';
 import { flattenUniqueAnimePages } from '@/application/use-cases/infinite-user-list';
 import type {
   AnimeCatalogItem,
@@ -27,7 +13,21 @@ import type { PageResult } from '@/domain/models/pagination';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import { GuestUserAnimeListRepository } from '@/infrastructure/repositories/guest/guest-user-anime-list-repository';
 import { ResilientAnimeCatalogRepository } from '@/infrastructure/repositories/resilient/resilient-anime-catalog-repository';
+import {
+  useAddToList,
+  useRemoveFromList,
+  useUpdateProgress,
+  useUpdateScore,
+  useUpdateStatus,
+} from '@/presentation/mutations/anime-mutations';
 import { createAppQueryClient } from '@/presentation/providers/app-providers';
+import {
+  useAnimeSearch,
+  useContinueWatching,
+  useInfiniteUnifiedUserList,
+  usePopularAnime,
+} from '@/presentation/queries/anime-queries';
+import { queryKeys } from '@/presentation/queries/query-keys';
 import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 import { buildWatchingAnime } from '@/tests/builders/anime-builder';
 import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';

@@ -1,4 +1,4 @@
-import { CATALOG_OPERATION_FAMILIES } from '@/infrastructure/repositories/resilient/catalog-operation-family';
+import { CATALOG_OPERATION_FAMILIES } from '@/application/runtime/application-runtime';
 import type {
   CatalogRuntimeStatus,
   RepositoryDependencies,
@@ -74,6 +74,15 @@ export function createTestDependencies(
         rateLimitResponses: 0,
         stoppedByRateLimit: false,
       },
+    }),
+    runMalDiagnostic: async () => ({
+      ok: true,
+      platform: 'test',
+      status: 200,
+      elapsedMs: 0,
+      errorKind: 'none',
+      message: 'MyAnimeList API is operational.',
+      sampleAnimeTitle: null,
     }),
   };
 }

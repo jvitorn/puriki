@@ -9,10 +9,6 @@ import { createTestScenario } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
 
-jest.mock('@/infrastructure/api/mal/mal-diagnostics', () => ({
-  runMalConnectivityDiagnostic: jest.fn(),
-}));
-
 describe('localized core UI', () => {
   it.each([
     ['en', 'Continue Watching'],

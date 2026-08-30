@@ -5,6 +5,7 @@ import type { PropsWithChildren, ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import type { AuthSessionController } from '@/application/auth/auth-contracts';
+import type { ApplicationRuntime } from '@/application/runtime/application-runtime';
 import type { PrimaryListProviderController } from '@/application/user-list/primary-list-provider-contracts';
 import { appI18n } from '@/localization/i18n';
 import type { LanguagePreference } from '@/localization/languages';
@@ -15,6 +16,7 @@ import { AuthSessionProvider } from '@/presentation/providers/auth-session-provi
 import { PrimaryListProviderProvider } from '@/presentation/providers/primary-list-provider-provider';
 import { RepositoryProvider } from '@/presentation/providers/repository-provider';
 import type { RepositoryDependencies } from '@/presentation/providers/repository-provider';
+import { RuntimeProvider } from '@/presentation/providers/runtime-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 import type { SynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
 import { createTestAuthSession } from '@/tests/auth/test-auth-session';
@@ -39,6 +41,34 @@ export function createTestWrapper(
   primaryListProvider: PrimaryListProviderController = createTestPrimaryListProvider(),
 ) {
   const resolvedDependencies = dependencies ?? createTestDependencies();
+  const resolvedTranslationDependencies = translationDependencies ?? {
+    translator: {
+      isAvailable: () => false,
+      translate: async () => {
+        throw new Error(
+          'Translation is unavailable in the default test runtime.',
+        );
+      },
+    },
+    cache: {
+      get: async () => null,
+      set: async () => undefined,
+    },
+  };
+  const runtime: ApplicationRuntime = {
+    authSession,
+    primaryListProvider,
+    repositories: resolvedDependencies,
+    onboardingStore: {
+      hasCompleted: async () => true,
+      markCompleted: async () => undefined,
+    },
+    developerSettingsStore: {
+      getDeveloperToolsEnabled: async () => false,
+      setDeveloperToolsEnabled: async () => undefined,
+    },
+    synopsisTranslation: resolvedTranslationDependencies,
+  };
   void appI18n.changeLanguage(
     resolveEffectiveLanguage(languagePreference, 'en-US'),
   );
@@ -50,21 +80,23 @@ export function createTestWrapper(
           insets: { top: 44, left: 0, right: 0, bottom: 34 },
         }}
       >
-        <LocalizationProvider initialPreference={languagePreference}>
-          <AuthSessionProvider session={authSession}>
-            <PrimaryListProviderProvider controller={primaryListProvider}>
-              <QueryClientProvider client={queryClient}>
-                <RepositoryProvider dependencies={resolvedDependencies}>
-                  <SynopsisTranslationProvider
-                    dependencies={translationDependencies}
-                  >
-                    {children}
-                  </SynopsisTranslationProvider>
-                </RepositoryProvider>
-              </QueryClientProvider>
-            </PrimaryListProviderProvider>
-          </AuthSessionProvider>
-        </LocalizationProvider>
+        <RuntimeProvider runtime={runtime}>
+          <LocalizationProvider initialPreference={languagePreference}>
+            <AuthSessionProvider session={authSession}>
+              <PrimaryListProviderProvider controller={primaryListProvider}>
+                <QueryClientProvider client={queryClient}>
+                  <RepositoryProvider dependencies={resolvedDependencies}>
+                    <SynopsisTranslationProvider
+                      dependencies={resolvedTranslationDependencies}
+                    >
+                      {children}
+                    </SynopsisTranslationProvider>
+                  </RepositoryProvider>
+                </QueryClientProvider>
+              </PrimaryListProviderProvider>
+            </AuthSessionProvider>
+          </LocalizationProvider>
+        </RuntimeProvider>
       </SafeAreaProvider>
     );
   };

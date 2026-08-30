@@ -4,17 +4,12 @@ import type { PropsWithChildren } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { DefaultPrimaryListProviderController } from '@/application/user-list/primary-list-provider-controller';
-import { createProductionAuthSession } from '@/infrastructure/auth/create-auth-session';
-import { ExpoSecureAuthTokenStore } from '@/infrastructure/auth/expo-secure-auth-token-store';
-import { primaryListProviderStorage } from '@/infrastructure/storage/primary-list-provider-storage';
+import { createProductionApplicationRuntime } from '@/infrastructure/composition/create-production-runtime';
 import { LocalizationProvider } from '@/localization/localization-provider';
 import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
 import { PrimaryListProviderProvider } from '@/presentation/providers/primary-list-provider-provider';
-import {
-  createProductionDependencies,
-  RepositoryProvider,
-} from '@/presentation/providers/repository-provider';
+import { RepositoryProvider } from '@/presentation/providers/repository-provider';
+import { RuntimeProvider } from '@/presentation/providers/runtime-provider';
 import { SynopsisTranslationProvider } from '@/presentation/providers/synopsis-translation-provider';
 
 export function createAppQueryClient(): QueryClient {
@@ -35,40 +30,29 @@ export function createAppQueryClient(): QueryClient {
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(createAppQueryClient);
-  const [runtime] = useState(() => {
-    const tokenStore = new ExpoSecureAuthTokenStore();
-    const authSession = createProductionAuthSession({ tokenStore });
-    const primaryListProvider = new DefaultPrimaryListProviderController(
-      primaryListProviderStorage,
-    );
-    return {
-      authSession,
-      primaryListProvider,
-      dependencies: createProductionDependencies({
-        authSession,
-        authTokenStore: tokenStore,
-        primaryListProvider,
-      }),
-    };
-  });
+  const [runtime] = useState(createProductionApplicationRuntime);
   return (
     <GestureHandlerRootView className="flex-1">
       <SafeAreaProvider>
-        <LocalizationProvider>
-          <AuthSessionProvider session={runtime.authSession}>
-            <PrimaryListProviderProvider
-              controller={runtime.primaryListProvider}
-            >
-              <QueryClientProvider client={queryClient}>
-                <RepositoryProvider dependencies={runtime.dependencies}>
-                  <SynopsisTranslationProvider>
-                    {children}
-                  </SynopsisTranslationProvider>
-                </RepositoryProvider>
-              </QueryClientProvider>
-            </PrimaryListProviderProvider>
-          </AuthSessionProvider>
-        </LocalizationProvider>
+        <RuntimeProvider runtime={runtime}>
+          <LocalizationProvider>
+            <AuthSessionProvider session={runtime.authSession}>
+              <PrimaryListProviderProvider
+                controller={runtime.primaryListProvider}
+              >
+                <QueryClientProvider client={queryClient}>
+                  <RepositoryProvider dependencies={runtime.repositories}>
+                    <SynopsisTranslationProvider
+                      dependencies={runtime.synopsisTranslation}
+                    >
+                      {children}
+                    </SynopsisTranslationProvider>
+                  </RepositoryProvider>
+                </QueryClientProvider>
+              </PrimaryListProviderProvider>
+            </AuthSessionProvider>
+          </LocalizationProvider>
+        </RuntimeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

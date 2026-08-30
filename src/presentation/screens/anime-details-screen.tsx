@@ -17,14 +17,6 @@ import Animated, {
   ReduceMotion,
 } from 'react-native-reanimated';
 
-import {
-  useAddToList,
-  useRemoveFromList,
-  useUpdateProgress,
-  useUpdateScore,
-  useUpdateStatus,
-} from '@/application/mutations/anime-mutations';
-import { useAnimeDetails } from '@/application/queries/anime-queries';
 import type { StatusTransitionBlockedReason } from '@/domain/rules/anime-status';
 import { getAllowedStatusTransitions } from '@/domain/rules/anime-status';
 import { useAppLanguage } from '@/localization/localization-provider';
@@ -58,7 +50,15 @@ import { Separator } from '@/presentation/components/ui/separator';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
 import { useEpisodeProgressIntent } from '@/presentation/hooks/use-episode-progress-intent';
+import {
+  useAddToList,
+  useRemoveFromList,
+  useUpdateProgress,
+  useUpdateScore,
+  useUpdateStatus,
+} from '@/presentation/mutations/anime-mutations';
 import { useRepositories } from '@/presentation/providers/repository-provider';
+import { useAnimeDetails } from '@/presentation/queries/anime-queries';
 
 function DetailsBackButton({ onPress }: { onPress(): void }) {
   const { t } = useTranslation();

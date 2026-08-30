@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, ScrollView, View } from 'react-native';
 
-import { useInfiniteUnifiedUserList } from '@/application/queries/anime-queries';
 import { flattenUniqueAnimePages } from '@/application/use-cases/infinite-user-list';
 import { DataSourceError } from '@/domain/errors/domain-error';
 import type { AnimeListStatus } from '@/domain/models/anime';
@@ -23,6 +22,7 @@ import {
   ToggleGroupItem,
 } from '@/presentation/components/ui/toggle-group';
 import { usePrimaryListProvider } from '@/presentation/providers/primary-list-provider-provider';
+import { useInfiniteUnifiedUserList } from '@/presentation/queries/anime-queries';
 import { formatUserListCount } from '@/presentation/utils/user-list-count';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 import { cn } from '@/shared/rnr/utils';

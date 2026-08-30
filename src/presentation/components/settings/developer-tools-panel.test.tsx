@@ -1,18 +1,14 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import { runMalConnectivityDiagnostic } from '@/infrastructure/api/mal/mal-diagnostics';
 import { DeveloperToolsPanel } from '@/presentation/components/settings/developer-tools-panel';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
-
-jest.mock('@/infrastructure/api/mal/mal-diagnostics', () => ({
-  runMalConnectivityDiagnostic: jest.fn(),
-}));
 
 describe('DeveloperToolsPanel', () => {
   it('shows only AniList and MAL diagnostics and shares one UI lock', async () => {
     let resolveAniList: (() => void) | undefined;
     const dependencies = createTestDependencies();
+    dependencies.runMalDiagnostic = jest.fn(dependencies.runMalDiagnostic);
     dependencies.runAniListDiagnostic = jest.fn(
       () =>
         new Promise((resolve) => {
@@ -50,7 +46,7 @@ describe('DeveloperToolsPanel', () => {
     );
     expect(screen.getByLabelText('Test MyAnimeList API')).toBeDisabled();
     await fireEvent.press(screen.getByLabelText('Test MyAnimeList API'));
-    expect(runMalConnectivityDiagnostic).not.toHaveBeenCalled();
+    expect(dependencies.runMalDiagnostic).not.toHaveBeenCalled();
 
     resolveAniList?.();
     await waitFor(() =>

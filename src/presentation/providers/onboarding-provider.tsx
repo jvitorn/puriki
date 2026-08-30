@@ -10,11 +10,9 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 
-import {
-  onboardingStorage,
-  type OnboardingStorage,
-} from '@/infrastructure/storage/onboarding-storage';
+import type { OnboardingStore } from '@/application/runtime/application-runtime';
 import { useAuthSession } from '@/presentation/providers/auth-session-provider';
+import { useOptionalApplicationRuntime } from '@/presentation/providers/runtime-provider';
 import { colors } from '@/presentation/theme/tokens';
 
 type OnboardingStatus = 'unknown' | 'completed' | 'notCompleted';
@@ -29,7 +27,7 @@ interface SplashController {
 }
 
 interface OnboardingNavigatorProps {
-  storage?: OnboardingStorage;
+  storage?: OnboardingStore;
   splash?: SplashController;
 }
 
@@ -41,9 +39,16 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 
 export function OnboardingGate({
   children,
-  storage = onboardingStorage,
+  storage: storageOverride,
   splash = SplashScreen,
 }: OnboardingGateProps) {
+  const runtime = useOptionalApplicationRuntime();
+  const storage = storageOverride ?? runtime?.onboardingStore;
+  if (!storage) {
+    throw new Error(
+      'OnboardingGate requires a storage override or an ApplicationRuntime.',
+    );
+  }
   const [status, setStatus] = useState<OnboardingStatus>('unknown');
   const { snapshot: authSession } = useAuthSession();
 

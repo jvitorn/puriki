@@ -7,7 +7,6 @@ import {
 import type { InfiniteData } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
-import { queryKeys } from '@/application/queries/query-keys';
 import { unifyAnimeList } from '@/application/use-cases/unify-anime';
 import type {
   AnimeCatalogItem,
@@ -16,6 +15,7 @@ import type {
 } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
 import { useRepositories } from '@/presentation/providers/repository-provider';
+import { queryKeys } from '@/presentation/queries/query-keys';
 import {
   CONTINUE_WATCHING_LIMIT,
   USER_LIST_PAGE_SIZE,

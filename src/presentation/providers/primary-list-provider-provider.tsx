@@ -12,9 +12,7 @@ import type {
   PrimaryListProviderController,
   PrimaryListProviderSnapshot,
 } from '@/application/user-list/primary-list-provider-contracts';
-import { DefaultPrimaryListProviderController } from '@/application/user-list/primary-list-provider-controller';
 import type { AuthProviderId } from '@/domain/models/auth';
-import { primaryListProviderStorage } from '@/infrastructure/storage/primary-list-provider-storage';
 
 export interface PrimaryListProviderContextValue {
   snapshot: PrimaryListProviderSnapshot;
@@ -23,7 +21,7 @@ export interface PrimaryListProviderContextValue {
 }
 
 interface PrimaryListProviderProviderProps extends PropsWithChildren {
-  controller?: PrimaryListProviderController;
+  controller: PrimaryListProviderController;
 }
 
 const PrimaryListProviderContext =
@@ -33,11 +31,7 @@ export function PrimaryListProviderProvider({
   children,
   controller,
 }: PrimaryListProviderProviderProps) {
-  const [instance] = useState(
-    () =>
-      controller ??
-      new DefaultPrimaryListProviderController(primaryListProviderStorage),
-  );
+  const [instance] = useState(() => controller);
   const snapshot = useSyncExternalStore(
     instance.subscribe,
     instance.getSnapshot,

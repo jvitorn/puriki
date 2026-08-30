@@ -1,13 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { OnboardingStore } from '@/application/runtime/application-runtime';
+
 export const ONBOARDING_COMPLETED_KEY = 'purikuki:onboarding-completed:v1';
 
-export interface OnboardingStorage {
-  hasCompleted(): Promise<boolean>;
-  markCompleted(): Promise<void>;
-}
-
-export const onboardingStorage: OnboardingStorage = {
+export const onboardingStorage: OnboardingStore = {
   async hasCompleted() {
     return (await AsyncStorage.getItem(ONBOARDING_COMPLETED_KEY)) === 'true';
   },

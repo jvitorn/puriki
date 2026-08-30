@@ -21,7 +21,6 @@ import AniListIcon from '../../../assets/providers/anilist.png';
 import MyAnimeListIcon from '../../../assets/providers/myanimelist.png';
 
 import type { ProviderSessionSnapshot } from '@/application/auth/auth-contracts';
-import { usePopularAnime } from '@/application/queries/anime-queries';
 import type { AuthProviderId } from '@/domain/models/auth';
 import { localizedAuthFailure } from '@/localization/localized-values';
 import { PurikiLogo } from '@/presentation/components/branding/puriki-logo';
@@ -39,6 +38,7 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Text } from '@/presentation/components/ui/text';
 import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 import { useOnboardingCompletion } from '@/presentation/providers/onboarding-provider';
+import { usePopularAnime } from '@/presentation/queries/anime-queries';
 import { cn } from '@/shared/rnr/utils';
 
 type OnboardingAct = 'welcome' | 'learn' | 'providers';

@@ -8,7 +8,7 @@ import {
 import type { ReactElement } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
-import type { OnboardingStorage } from '@/infrastructure/storage/onboarding-storage';
+import type { OnboardingStore } from '@/application/runtime/application-runtime';
 import { AuthSessionProvider } from '@/presentation/providers/auth-session-provider';
 import {
   OnboardingGate,
@@ -17,7 +17,7 @@ import {
 } from '@/presentation/providers/onboarding-provider';
 import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 
-function createStorage(completed: boolean): jest.Mocked<OnboardingStorage> {
+function createStorage(completed: boolean): jest.Mocked<OnboardingStore> {
   return {
     hasCompleted: jest.fn(async () => completed),
     markCompleted: jest.fn(async () => undefined),

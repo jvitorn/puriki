@@ -1,9 +1,9 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import { queryKeys } from '@/application/queries/query-keys';
 import type { UnifiedAnime } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
+import { queryKeys } from '@/presentation/queries/query-keys';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
 import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';

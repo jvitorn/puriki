@@ -2,13 +2,6 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 
-import {
-  useContinueWatching,
-  useFeaturedAnime,
-  usePopularAnime,
-  useSeasonalAnime,
-  useUpcomingAnime,
-} from '@/application/queries/anime-queries';
 import type { AnimeCatalogItem, UnifiedAnime } from '@/domain/models/anime';
 import { localizedError } from '@/localization/localized-values';
 import { PurikiLogo } from '@/presentation/components/branding/puriki-logo';
@@ -18,6 +11,13 @@ import { ErrorState } from '@/presentation/components/ui/feedback';
 import { Screen } from '@/presentation/components/ui/screen';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
+import {
+  useContinueWatching,
+  useFeaturedAnime,
+  usePopularAnime,
+  useSeasonalAnime,
+  useUpcomingAnime,
+} from '@/presentation/queries/anime-queries';
 
 function asUnified(items: AnimeCatalogItem[] | undefined): UnifiedAnime[] {
   return items?.map((anime) => ({ anime })) ?? [];

@@ -137,11 +137,13 @@ ML Kit model downloads may use any available network by default. The native brid
 ## Architecture
 
 - `domain` owns provider-neutral models, repository contracts, errors, and rules.
-- `application` owns React Query hooks, mutations, use cases, and provider-neutral session contracts/coordinators.
+- `application` owns provider-neutral use cases, runtime/storage ports, session contracts, coordinators, and user-list access resolution.
 - `infrastructure` owns AniList and MAL transports, DTO validation, mapping, caches, request coordination, circuit breaking, and repositories.
+- `infrastructure/composition` constructs the production runtime, repositories, diagnostics, persistence adapters, and Sync Engine.
 - `infrastructure/auth` owns SecureStore credentials, AniList OAuth, authenticated `Viewer`, and concrete auth-provider composition.
 - `infrastructure/sync` owns pending-operation persistence, coalescing, retry, and concrete sync targets.
-- `presentation` receives repositories through `RepositoryProvider` and consumes domain models only.
+- `presentation` owns React Query hooks/cache coordination and receives application runtime services through providers.
+- `AppProviders` is the only presentation composition entrypoint that imports the infrastructure runtime factory; ordinary screens and components do not import infrastructure.
 - `tests` owns deterministic fixtures and in-memory repository doubles.
 - `modules/purikuki-translation` owns the Android Expo Modules bridge to Google ML Kit.
 

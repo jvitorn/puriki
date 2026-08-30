@@ -3,7 +3,6 @@ import { ChevronRight } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
-import { useKnownAnimeByIds } from '@/application/queries/anime-queries';
 import type {
   AnimeContinuityKind,
   AnimeContinuityRelation,
@@ -13,6 +12,7 @@ import { Badge } from '@/presentation/components/ui/badge';
 import { Card } from '@/presentation/components/ui/card';
 import { Icon } from '@/presentation/components/ui/icon';
 import { Text } from '@/presentation/components/ui/text';
+import { useKnownAnimeByIds } from '@/presentation/queries/anime-queries';
 
 function relationLabel(kind: AnimeContinuityKind, t: TFunction): string {
   return t(

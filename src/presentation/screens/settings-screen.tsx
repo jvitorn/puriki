@@ -12,9 +12,8 @@ import AniListIcon from '../../../assets/providers/anilist.png';
 import MyAnimeListIcon from '../../../assets/providers/myanimelist.png';
 
 import { getAppVersion } from '@/application/config/app-version';
+import type { DeveloperSettingsStore } from '@/application/runtime/application-runtime';
 import type { AuthProviderId } from '@/domain/models/auth';
-import type { DeveloperSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
-import { developerSettingsStorage } from '@/infrastructure/storage/developer-settings-storage';
 import type { LanguagePreference } from '@/localization/languages';
 import { useAppLanguage } from '@/localization/localization-provider';
 import { DeveloperToolsPanel } from '@/presentation/components/settings/developer-tools-panel';
@@ -31,6 +30,7 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Text } from '@/presentation/components/ui/text';
 import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 import { usePrimaryListProvider } from '@/presentation/providers/primary-list-provider-provider';
+import { useApplicationRuntime } from '@/presentation/providers/runtime-provider';
 import { cn } from '@/shared/rnr/utils';
 
 const LANGUAGE_OPTIONS: readonly {
@@ -160,14 +160,16 @@ function PrimaryListProviderSection() {
 }
 
 export interface SettingsScreenProps {
-  developerStorage?: DeveloperSettingsStorage;
+  developerStorage?: DeveloperSettingsStore;
   versionReader?: () => string;
 }
 
 export function SettingsScreen({
-  developerStorage = developerSettingsStorage,
+  developerStorage: developerStorageOverride,
   versionReader = getAppVersion,
 }: SettingsScreenProps = {}) {
+  const { developerSettingsStore } = useApplicationRuntime();
+  const developerStorage = developerStorageOverride ?? developerSettingsStore;
   const { t } = useTranslation();
   const { isChangingLanguage, preference, setPreference } = useAppLanguage();
   const appVersion = useMemo(() => versionReader(), [versionReader]);

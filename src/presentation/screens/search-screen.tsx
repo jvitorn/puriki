@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, useWindowDimensions, View } from 'react-native';
 
-import { useAnimeSearch } from '@/application/queries/anime-queries';
 import { localizedError } from '@/localization/localized-values';
 import { AnimeCard } from '@/presentation/components/anime/anime-card';
 import { SearchInput } from '@/presentation/components/anime/search-input';
@@ -12,6 +11,7 @@ import { Screen } from '@/presentation/components/ui/screen';
 import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
 import { useDebouncedValue } from '@/presentation/hooks/use-debounced-value';
+import { useAnimeSearch } from '@/presentation/queries/anime-queries';
 import { getSearchColumnCount } from '@/presentation/utils/responsive-grid';
 import { normalizeSearchText } from '@/shared/utils/search';
 

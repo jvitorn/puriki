@@ -1,10 +1,10 @@
 import type { InfiniteData } from '@tanstack/react-query';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 
-import { queryKeys } from '@/application/queries/query-keys';
 import { DataSourceError } from '@/domain/errors/domain-error';
 import type { UnifiedAnime } from '@/domain/models/anime';
 import type { PageResult } from '@/domain/models/pagination';
+import { queryKeys } from '@/presentation/queries/query-keys';
 import { MyListScreen } from '@/presentation/screens/my-list-screen';
 import { TestAuthSessionController } from '@/tests/auth/test-auth-session';
 import {
