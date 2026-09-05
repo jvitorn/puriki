@@ -36,6 +36,7 @@ describe('AniListMediaIdentityRegistry', () => {
       animeId: 21,
       mediaId: 30_013,
       totalEpisodes: null,
+      releasedEpisodes: null,
       airingStatus: 'finished',
     });
 
@@ -43,6 +44,7 @@ describe('AniListMediaIdentityRegistry', () => {
       animeId: 21,
       mediaId: 30_013,
       totalEpisodes: null,
+      releasedEpisodes: null,
       airingStatus: 'finished',
     });
     expect(client.execute).not.toHaveBeenCalled();
@@ -58,6 +60,7 @@ describe('AniListMediaIdentityRegistry', () => {
               idMal: 21,
               episodes: 1_200,
               status: 'RELEASING',
+              nextAiringEpisode: { episode: 1_151 },
             },
           }),
       ),
@@ -71,6 +74,7 @@ describe('AniListMediaIdentityRegistry', () => {
       animeId: 21,
       mediaId: 30_013,
       totalEpisodes: 1_200,
+      releasedEpisodes: 1_150,
       airingStatus: 'releasing',
     });
     await registry.resolve(21);

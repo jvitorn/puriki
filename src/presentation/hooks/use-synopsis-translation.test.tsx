@@ -147,7 +147,9 @@ describe('useSynopsisTranslation', () => {
     const { result } = await renderTranslationHook(dependencies);
     await act(async () => result.current.translate());
 
-    expect(result.current.displayedText).toBe('Primeira linha.\nSegunda linha.');
+    expect(result.current.displayedText).toBe(
+      'Primeira linha.\nSegunda linha.',
+    );
     expect(dependencies.translator.translate).not.toHaveBeenCalled();
   });
 
@@ -159,7 +161,9 @@ describe('useSynopsisTranslation', () => {
 
     await act(async () => result.current.translate());
 
-    expect(result.current.displayedText).toBe('Primeira linha.\nSegunda linha.');
+    expect(result.current.displayedText).toBe(
+      'Primeira linha.\nSegunda linha.',
+    );
     expect(dependencies.cache.set).toHaveBeenCalledWith(
       expect.objectContaining({
         translatedText: 'Primeira linha.\nSegunda linha.',

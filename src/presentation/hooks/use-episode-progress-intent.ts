@@ -10,7 +10,7 @@ export const EPISODE_PROGRESS_DEBOUNCE_MS = 350;
 export interface UseEpisodeProgressIntentOptions {
   animeId: number;
   confirmedProgress: number;
-  totalEpisodes: number | null;
+  episodeLimit: number | null;
   mutateAsync: (variables: {
     animeId: number;
     episodes: number;
@@ -27,7 +27,7 @@ export interface EpisodeProgressIntent {
 export function useEpisodeProgressIntent({
   animeId,
   confirmedProgress,
-  totalEpisodes,
+  episodeLimit,
   mutateAsync,
   debounceMs = EPISODE_PROGRESS_DEBOUNCE_MS,
 }: UseEpisodeProgressIntentOptions): EpisodeProgressIntent {
@@ -124,7 +124,7 @@ export function useEpisodeProgressIntent({
   return {
     displayedProgress,
     increase: () =>
-      applyStep(incrementProgress(desiredRef.current, totalEpisodes)),
+      applyStep(incrementProgress(desiredRef.current, episodeLimit)),
     decrease: () => applyStep(decrementProgress(desiredRef.current)),
   };
 }

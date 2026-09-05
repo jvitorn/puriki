@@ -72,21 +72,27 @@ const STATUSES: AnimeListStatus[] = [
 ];
 
 export function buildTestAnimeDataset(): TestAnimeDataset {
-  const catalog = TITLES.map((title, index) =>
-    makeAnime({
+  const catalog = TITLES.map((title, index) => {
+    const totalEpisodes = index === 6 ? null : [12, 13, 24, 26][index % 4]!;
+    const airingStatus = index % 3 === 0 ? 'releasing' : 'finished';
+    return makeAnime({
       id: index + 1,
       title,
       alternativeTitles:
         index === 0
           ? ['Gekko no Senjin', 'Moon Vanguard']
           : [`${title} Alternative`],
-      totalEpisodes: index === 6 ? null : [12, 13, 24, 26][index % 4],
+      totalEpisodes,
+      releasedEpisodes:
+        airingStatus === 'releasing'
+          ? Math.min(4, totalEpisodes ?? 4)
+          : totalEpisodes,
       score: 7 + (index % 20) / 10,
       season: ['Winter', 'Spring', 'Summer', 'Fall'][index % 4] ?? 'Spring',
       year: 2015 + (index % 12),
-      airingStatus: index % 3 === 0 ? 'releasing' : 'finished',
-    }),
-  );
+      airingStatus,
+    });
+  });
   const userEntries = catalog.slice(0, 25).map((anime, index) => {
     const status = STATUSES[index % STATUSES.length] ?? 'plan_to_watch';
     const watchedEpisodes =

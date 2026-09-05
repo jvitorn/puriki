@@ -4,6 +4,7 @@ import { Text as NativeText } from 'react-native';
 import { withTiming } from 'react-native-reanimated';
 
 import { PurikiTabBar } from '@/presentation/components/navigation/puriki-tab-bar';
+import { colors } from '@/presentation/theme/tokens';
 import { renderWithProviders } from '@/tests/render/test-render';
 
 function tabBarProps(index = 0) {
@@ -13,6 +14,13 @@ function tabBarProps(index = 0) {
     params: undefined,
   }));
   const labels = ['Home', 'Search', 'My List', 'Settings'];
+  const iconRenderers = routes.map((route) =>
+    jest.fn(({ color }: { color: string }) => (
+      <NativeText style={{ color }} testID={`icon-${route.name}`}>
+        icon
+      </NativeText>
+    )),
+  );
   const descriptors = Object.fromEntries(
     routes.map((route, routeIndex) => [
       route.key,
@@ -20,9 +28,7 @@ function tabBarProps(index = 0) {
         options: {
           title: labels[routeIndex],
           tabBarAccessibilityLabel: labels[routeIndex],
-          tabBarIcon: () => (
-            <NativeText testID={`icon-${route.name}`}>icon</NativeText>
-          ),
+          tabBarIcon: iconRenderers[routeIndex],
         },
       },
     ]),
@@ -48,6 +54,7 @@ function tabBarProps(index = 0) {
       insets: { top: 0, right: 0, bottom: 24, left: 0 },
     } as unknown as BottomTabBarProps,
     navigation,
+    iconRenderers,
   };
 }
 
@@ -89,6 +96,26 @@ describe('PurikiTabBar', () => {
       type: 'tabLongPress',
       target: 'settings-key',
     });
+  });
+
+  it('uses a flat primary active state and muted inactive states without a pill', async () => {
+    const { props, iconRenderers } = tabBarProps(1);
+    await renderWithProviders(<PurikiTabBar {...props} />);
+
+    expect(
+      screen.queryByTestId('puriki-tab-active-pill'),
+    ).not.toBeOnTheScreen();
+    expect(screen.getByTestId('puriki-tab-bar').props.className).not.toContain(
+      'rounded',
+    );
+    expect(iconRenderers[1]).toHaveBeenCalledWith(
+      expect.objectContaining({ focused: true, color: colors.primary }),
+    );
+    expect(iconRenderers[0]).toHaveBeenCalledWith(
+      expect.objectContaining({ focused: false, color: colors.textMuted }),
+    );
+    expect(screen.getByText('Search')).toHaveStyle({ color: colors.primary });
+    expect(screen.getByText('Home')).toHaveStyle({ color: colors.textMuted });
   });
 
   it('uses zero-duration timing when reduced motion is enabled', async () => {

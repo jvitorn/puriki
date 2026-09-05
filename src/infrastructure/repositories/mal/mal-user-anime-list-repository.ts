@@ -14,6 +14,7 @@ import type {
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
+import { createAnimeTrackingContext } from '@/domain/rules/anime-tracking';
 import type { MalAuthenticatedClientPort } from '@/infrastructure/api/mal/mal-authenticated-client';
 import {
   MalNotFoundError,
@@ -73,10 +74,7 @@ export class MalUserAnimeListRepository implements UserAnimeListRepository {
       : await this.catalogRepository.getManyByIds([animeId]);
     const anime = known ?? resolved;
     if (!anime) throw new DomainError(`Anime ${animeId} was not found.`);
-    return {
-      totalEpisodes: anime.totalEpisodes,
-      airingStatus: anime.airingStatus,
-    };
+    return createAnimeTrackingContext(anime);
   }
 
   invalidateCache(): void {

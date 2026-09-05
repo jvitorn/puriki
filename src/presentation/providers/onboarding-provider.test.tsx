@@ -71,7 +71,13 @@ describe('OnboardingGate', () => {
 
     await act(async () => resolveCompletion?.(false));
     await waitFor(() => expect(screen.getByText('notCompleted')).toBeVisible());
-    expect(splash.hideAsync).toHaveBeenCalledTimes(1);
+    fireEvent(
+      screen.getByTestId('app-startup-splash', {
+        includeHiddenElements: true,
+      }),
+      'layout',
+    );
+    await waitFor(() => expect(splash.hideAsync).toHaveBeenCalledTimes(1));
   });
 
   it('loads onboarding and auth together and keeps the splash until both are ready', async () => {
@@ -98,7 +104,13 @@ describe('OnboardingGate', () => {
       session.update({ ...session.getSnapshot(), phase: 'ready' });
     });
     await waitFor(() => expect(screen.getByText('completed')).toBeVisible());
-    expect(splash.hideAsync).toHaveBeenCalledTimes(1);
+    fireEvent(
+      screen.getByTestId('app-startup-splash', {
+        includeHiddenElements: true,
+      }),
+      'layout',
+    );
+    await waitFor(() => expect(splash.hideAsync).toHaveBeenCalledTimes(1));
   });
 
   it('treats a storage read failure as a first access', async () => {

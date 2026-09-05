@@ -13,7 +13,6 @@ import Animated, {
 import { MotionPressable } from '@/presentation/components/ui/motion-pressable';
 import { Text } from '@/presentation/components/ui/text';
 import { colors } from '@/presentation/theme/tokens';
-import { cn } from '@/shared/rnr/utils';
 
 function PurikiTabItem({
   route,
@@ -38,9 +37,9 @@ function PurikiTabItem({
     });
   }, [active, focused, reduceMotion]);
 
-  const pillStyle = useAnimatedStyle(() => ({
-    opacity: active.value,
-    transform: [{ scale: interpolate(active.value, [0, 1], [0.75, 1]) }],
+  const activeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(active.value, [0, 1], [0.78, 1]),
+    transform: [{ scale: interpolate(active.value, [0, 1], [0.96, 1]) }],
   }));
 
   const navigate = () => {
@@ -67,27 +66,26 @@ function PurikiTabItem({
       onPress={navigate}
       testID={options.tabBarButtonTestID}
     >
-      <View className="h-8 w-11 items-center justify-center">
-        <Animated.View
-          pointerEvents="none"
-          className="absolute h-8 w-11 rounded-2xl bg-primary"
-          style={pillStyle}
-        />
-        {options.tabBarIcon?.({
-          focused,
-          color: focused ? colors.foreground : colors.textMuted,
-          size: 21,
-        })}
-      </View>
-      <Text
-        className={cn(
-          'text-[10px] font-extrabold',
-          focused ? 'text-foreground' : 'text-muted-foreground',
-        )}
-        numberOfLines={1}
+      <Animated.View
+        className="items-center justify-center gap-0.5"
+        style={activeStyle}
+        testID={`puriki-tab-content-${route.name}`}
       >
-        {label}
-      </Text>
+        <View className="h-7 items-center justify-center">
+          {options.tabBarIcon?.({
+            focused,
+            color: focused ? colors.primary : colors.textMuted,
+            size: 21,
+          })}
+        </View>
+        <Text
+          className="text-[10px] font-bold"
+          numberOfLines={1}
+          style={{ color: focused ? colors.primary : colors.textMuted }}
+        >
+          {label}
+        </Text>
+      </Animated.View>
     </MotionPressable>
   );
 }
@@ -100,24 +98,22 @@ export function PurikiTabBar({
 }: BottomTabBarProps) {
   return (
     <View
-      className="border-t border-border bg-background px-3 pt-2"
+      className="flex-row border-t border-border bg-card px-2 pt-1"
       style={{ paddingBottom: Math.max(insets.bottom, 8) }}
       testID="puriki-tab-bar"
     >
-      <View className="flex-row rounded-[22px] border border-border bg-card px-1 py-1">
-        {state.routes.map((route, index) => {
-          const descriptor = descriptors[route.key];
-          return descriptor ? (
-            <PurikiTabItem
-              key={route.key}
-              descriptor={descriptor}
-              focused={state.index === index}
-              navigation={navigation}
-              route={route}
-            />
-          ) : null;
-        })}
-      </View>
+      {state.routes.map((route, index) => {
+        const descriptor = descriptors[route.key];
+        return descriptor ? (
+          <PurikiTabItem
+            key={route.key}
+            descriptor={descriptor}
+            focused={state.index === index}
+            navigation={navigation}
+            route={route}
+          />
+        ) : null;
+      })}
     </View>
   );
 }

@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
 import {
   createContext,
   useCallback,
@@ -11,6 +10,10 @@ import {
 import type { ReactNode } from 'react';
 
 import type { OnboardingStore } from '@/application/runtime/application-runtime';
+import {
+  AppStartupSplash,
+  type NativeSplashController,
+} from '@/presentation/components/startup/app-startup-splash';
 import { useAuthSession } from '@/presentation/providers/auth-session-provider';
 import { useOptionalApplicationRuntime } from '@/presentation/providers/runtime-provider';
 import { colors } from '@/presentation/theme/tokens';
@@ -22,13 +25,9 @@ interface OnboardingContextValue {
   onboardingCompleted: boolean;
 }
 
-interface SplashController {
-  hideAsync(): Promise<void>;
-}
-
 interface OnboardingNavigatorProps {
   storage?: OnboardingStore;
-  splash?: SplashController;
+  splash?: NativeSplashController;
 }
 
 interface OnboardingGateProps extends OnboardingNavigatorProps {
@@ -40,7 +39,7 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 export function OnboardingGate({
   children,
   storage: storageOverride,
-  splash = SplashScreen,
+  splash,
 }: OnboardingGateProps) {
   const runtime = useOptionalApplicationRuntime();
   const storage = storageOverride ?? runtime?.onboardingStore;
@@ -67,12 +66,6 @@ export function OnboardingGate({
     };
   }, [storage]);
 
-  useEffect(() => {
-    if (status !== 'unknown' && authSession.phase === 'ready') {
-      void splash.hideAsync().catch(() => undefined);
-    }
-  }, [authSession.phase, splash, status]);
-
   const completeOnboarding = useCallback(async () => {
     try {
       await storage.markCompleted();
@@ -95,7 +88,7 @@ export function OnboardingGate({
 
   return (
     <OnboardingContext.Provider value={value}>
-      {children(status)}
+      <AppStartupSplash splash={splash}>{children(status)}</AppStartupSplash>
     </OnboardingContext.Provider>
   );
 }

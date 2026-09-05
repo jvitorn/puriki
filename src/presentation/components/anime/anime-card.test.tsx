@@ -27,4 +27,21 @@ describe('AnimeCard', () => {
     await fireEvent.press(screen.getByLabelText('Open Test Horizon'));
     expect(onPress).toHaveBeenCalledTimes(1);
   });
+
+  it('never presents card progress above the known episode count', async () => {
+    const item = buildWatchingAnime({
+      totalEpisodes: 12,
+      releasedEpisodes: 4,
+      airingStatus: 'releasing',
+    });
+    item.userEntry!.watchedEpisodes = 20;
+    await renderWithProviders(<AnimeCard item={item} onPress={jest.fn()} />);
+
+    expect(screen.getByText('4 / 12')).toBeVisible();
+    expect(screen.getByLabelText('Episode progress')).toHaveAccessibilityValue({
+      min: 0,
+      max: 100,
+      now: 33,
+    });
+  });
 });

@@ -11,6 +11,7 @@ export type AnimeAiringStatus =
 
 export interface AnimeTrackingContext {
   totalEpisodes: number | null;
+  releasedEpisodes: number | null;
   airingStatus: AnimeAiringStatus;
 }
 

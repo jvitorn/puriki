@@ -196,6 +196,7 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
         status,
         {
           totalEpisodes: identity.totalEpisodes,
+          releasedEpisodes: identity.releasedEpisodes,
           airingStatus: identity.airingStatus,
         },
       );
@@ -257,6 +258,7 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
       const current = await this.requireEntry(animeId);
       const desired = applyProgress(current.entry, episodes, {
         totalEpisodes: current.totalEpisodes,
+        releasedEpisodes: current.releasedEpisodes,
         airingStatus: current.airingStatus,
       });
       const variables: Record<string, unknown> = {
@@ -279,6 +281,7 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
       if (current.entry.status === status) return cloneEntry(current.entry);
       const transition = transitionStatus(current.entry, status, {
         totalEpisodes: current.totalEpisodes,
+        releasedEpisodes: current.releasedEpisodes,
         airingStatus: current.airingStatus,
       });
       if (!transition.allowed) {
@@ -500,6 +503,7 @@ export class AniListUserAnimeListRepository implements UserAnimeListRepository {
       animeId: entry.entry.animeId,
       mediaId: entry.mediaId,
       totalEpisodes: entry.totalEpisodes,
+      releasedEpisodes: entry.releasedEpisodes,
       airingStatus: entry.airingStatus,
     });
   }

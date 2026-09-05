@@ -47,6 +47,18 @@ describe('AniList mapper', () => {
     expect(mapAniListSummary(anilistSummary({ idMal: 0 }))).toBeNull();
   });
 
+  it('derives released episodes from the next AniList airing episode', () => {
+    expect(
+      mapAniListSummary(
+        anilistSummary({
+          episodes: 12,
+          status: 'RELEASING',
+          nextAiringEpisode: { episode: 5 },
+        }),
+      ),
+    ).toMatchObject({ totalEpisodes: 12, releasedEpisodes: 4 });
+  });
+
   it('maps details, unique synonyms and only valid anime continuity', () => {
     const details = parseAniListMediaDetails(
       anilistDetailsPayload({

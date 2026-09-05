@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
+import { normalizeProgress } from '@/domain/rules/anime-progress';
+import {
+  createAnimeTrackingContext,
+  getKnownEpisodeCount,
+  getTrackableEpisodeLimit,
+} from '@/domain/rules/anime-tracking';
 import { localizedStatus } from '@/localization/localized-values';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
 import { Badge } from '@/presentation/components/ui/badge';
@@ -19,11 +25,15 @@ export function AnimeListItem({
 }) {
   const { t } = useTranslation();
   const entry = item.userEntry;
-  const episodeLimit =
-    item.anime.totalEpisodes ?? item.anime.releasedEpisodes ?? null;
-  const progress = episodeLimit
-    ? (entry?.watchedEpisodes ?? 0) / episodeLimit
-    : 0;
+  const trackingContext = createAnimeTrackingContext(item.anime);
+  const episodeCount = getKnownEpisodeCount(trackingContext);
+  const progressLimit =
+    getTrackableEpisodeLimit(trackingContext) ?? episodeCount;
+  const watchedEpisodes = normalizeProgress(
+    entry?.watchedEpisodes ?? 0,
+    progressLimit,
+  );
+  const progress = episodeCount ? watchedEpisodes / episodeCount : 0;
 
   return (
     <Pressable
@@ -58,9 +68,9 @@ export function AnimeListItem({
             <View className="flex-row items-center justify-between gap-2">
               <Text variant="caption" muted>
                 {t('common.episodeFraction', {
-                  count: episodeLimit ?? 2,
-                  watched: entry.watchedEpisodes,
-                  total: episodeLimit ?? '?',
+                  count: episodeCount ?? 2,
+                  watched: watchedEpisodes,
+                  total: episodeCount ?? '?',
                 })}
               </Text>
               {entry.userScore ? (

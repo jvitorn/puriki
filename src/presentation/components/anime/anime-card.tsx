@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, View } from 'react-native';
 
 import type { UnifiedAnime } from '@/domain/models/anime';
+import { normalizeProgress } from '@/domain/rules/anime-progress';
+import {
+  createAnimeTrackingContext,
+  getKnownEpisodeCount,
+  getTrackableEpisodeLimit,
+} from '@/domain/rules/anime-tracking';
 import { useAppLanguage } from '@/localization/localization-provider';
 import { formatNumber } from '@/localization/localized-values';
 import { PosterPlaceholder } from '@/presentation/components/anime/poster-placeholder';
@@ -21,10 +27,15 @@ export function AnimeCard({ item, onPress, className }: AnimeCardProps) {
   const { t } = useTranslation();
   const { language } = useAppLanguage();
   const { anime, userEntry } = item;
-  const episodeLimit = anime.totalEpisodes ?? anime.releasedEpisodes ?? null;
-  const progress = episodeLimit
-    ? (userEntry?.watchedEpisodes ?? 0) / episodeLimit
-    : 0;
+  const trackingContext = createAnimeTrackingContext(anime);
+  const episodeCount = getKnownEpisodeCount(trackingContext);
+  const progressLimit =
+    getTrackableEpisodeLimit(trackingContext) ?? episodeCount;
+  const watchedEpisodes = normalizeProgress(
+    userEntry?.watchedEpisodes ?? 0,
+    progressLimit,
+  );
+  const progress = episodeCount ? watchedEpisodes / episodeCount : 0;
   const year = anime.year
     ? formatNumber(anime.year, language, { useGrouping: false })
     : t('common.yearTbd');
@@ -74,7 +85,7 @@ export function AnimeCard({ item, onPress, className }: AnimeCardProps) {
           <View className="mt-1 gap-1">
             <ProgressBar value={progress} />
             <Text variant="caption" muted>
-              {userEntry.watchedEpisodes} / {episodeLimit ?? '?'}
+              {watchedEpisodes} / {episodeCount ?? '?'}
             </Text>
           </View>
         ) : null}

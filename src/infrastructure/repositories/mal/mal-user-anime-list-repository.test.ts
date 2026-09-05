@@ -204,6 +204,41 @@ describe('MalUserAnimeListRepository', () => {
     expect(completed.watchedEpisodes).toBe(12);
   });
 
+  it('uses catalog released episodes as the airing progress ceiling', async () => {
+    const client = createClient();
+    client.get.mockResolvedValue({
+      data: listPage([
+        {
+          id: 21,
+          list_status: statusDto({
+            status: 'watching',
+            num_episodes_watched: 3,
+          }),
+        },
+      ]),
+      status: 200,
+    });
+    client.patch.mockResolvedValueOnce({
+      data: statusDto({ status: 'watching', num_episodes_watched: 4 }),
+      status: 200,
+    });
+    const repository = new MalUserAnimeListRepository({
+      client,
+      catalogRepository: createCatalogRepository({
+        21: {
+          totalEpisodes: 12,
+          releasedEpisodes: 4,
+          airingStatus: 'releasing',
+        },
+      }),
+    });
+
+    await repository.updateProgress(21, 99);
+    expect(client.patch).toHaveBeenCalledWith('/anime/21/my_list_status', {
+      num_watched_episodes: 4,
+    });
+  });
+
   it('rejects mutating an anime that is not in the list', async () => {
     const client = createClient();
     const repository = new MalUserAnimeListRepository({

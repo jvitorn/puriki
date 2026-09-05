@@ -57,6 +57,7 @@ function entry(options: {
   updatedAt?: number;
   totalEpisodes?: number | null;
   mediaStatus?: string | null;
+  nextAiringEpisode?: number | null;
 }) {
   return {
     id: options.listEntryId ?? options.mediaId + 1_000,
@@ -73,6 +74,12 @@ function entry(options: {
         'mediaStatus' in options
           ? options.mediaStatus!
           : ('FINISHED' as string),
+      nextAiringEpisode:
+        options.nextAiringEpisode === undefined
+          ? null
+          : options.nextAiringEpisode === null
+            ? null
+            : { episode: options.nextAiringEpisode },
     },
   };
 }
@@ -163,6 +170,7 @@ describe('AniListUserAnimeListRepository', () => {
       animeId: 11,
       mediaId: 1,
       totalEpisodes: 12,
+      releasedEpisodes: 12,
       airingStatus: 'finished',
     });
     expect(client.execute).toHaveBeenCalledTimes(2);
@@ -202,6 +210,7 @@ describe('AniListUserAnimeListRepository', () => {
         animeId: 22,
         mediaId: 202,
         totalEpisodes: 12,
+        releasedEpisodes: 12,
         airingStatus: 'finished',
       },
     });
@@ -261,6 +270,7 @@ describe('AniListUserAnimeListRepository', () => {
           animeId: 22,
           mediaId: 202,
           totalEpisodes: 12,
+          releasedEpisodes: 12,
           airingStatus: 'finished',
         },
       }),
@@ -324,6 +334,44 @@ describe('AniListUserAnimeListRepository', () => {
       listEntryId: 1_001,
       progress: 12,
       status: 'COMPLETED',
+    });
+  });
+
+  it('does not send airing progress beyond the released episode count', async () => {
+    const client = createClient([
+      collection([
+        entry({
+          mediaId: 1,
+          idMal: 11,
+          progress: 3,
+          totalEpisodes: 12,
+          mediaStatus: 'RELEASING',
+          nextAiringEpisode: 5,
+        }),
+      ]),
+      saved({
+        mediaId: 1,
+        idMal: 11,
+        progress: 4,
+        totalEpisodes: 12,
+        mediaStatus: 'RELEASING',
+        nextAiringEpisode: 5,
+      }),
+    ]);
+    const repository = new AniListUserAnimeListRepository({
+      client,
+      userId: 99,
+      maximumAttempts: 1,
+      mediaIdentityResolver: identityResolver(),
+    });
+
+    await expect(repository.updateProgress(11, 99)).resolves.toMatchObject({
+      watchedEpisodes: 4,
+      status: 'watching',
+    });
+    expect(client.execute.mock.calls[1]?.[0].variables).toEqual({
+      listEntryId: 1_001,
+      progress: 4,
     });
   });
 

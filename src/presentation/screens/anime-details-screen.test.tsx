@@ -94,13 +94,13 @@ describe('AnimeDetailsScreen', () => {
     await fireEvent.press(screen.getByLabelText('Alternative titles'));
     expect(screen.getByText('Gekko no Senjin • Moon Vanguard')).toBeVisible();
     expect(screen.getByText('Synopsis')).toBeVisible();
-    expect(screen.getByText('of 12 episodes')).toBeVisible();
+    expect(screen.getByText('of 4 episodes')).toBeVisible();
     expect(screen.queryByText('Series continuity')).not.toBeOnTheScreen();
     expect(screen.queryByText('Where to watch')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByLabelText('Increase watched episodes'));
     await waitFor(() =>
-      expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible(),
+      expect(screen.getByLabelText('Episode progress: 2 of 4')).toBeVisible(),
     );
     await fireEvent.press(screen.getByText('Plan to Watch'));
     expect(
@@ -108,7 +108,7 @@ describe('AnimeDetailsScreen', () => {
         'Plan to watch is unavailable after episode progress has started.',
       ),
     ).toBeVisible();
-    expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible();
+    expect(screen.getByLabelText('Episode progress: 2 of 4')).toBeVisible();
   });
 
   it('explains an airing-status block without sending an update', async () => {
@@ -180,7 +180,7 @@ describe('AnimeDetailsScreen', () => {
 
     jest.useFakeTimers();
     await fireEvent.press(increaseButton);
-    expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible();
+    expect(screen.getByLabelText('Episode progress: 2 of 4')).toBeVisible();
     expect(screen.getByLabelText('Increase watched episodes')).toBeEnabled();
     expect(dependencies.syncEngine.enqueue).not.toHaveBeenCalled();
 
@@ -196,7 +196,7 @@ describe('AnimeDetailsScreen', () => {
     await act(async () => finishPersistence?.());
   });
 
-  it('coalesces a rapid multitap burst into a single provider update', async () => {
+  it('coalesces rapid multitaps without exceeding released episodes', async () => {
     const authSession = new TestAuthSessionController();
     authSession.updateConnection('anilist', {
       state: 'connected',
@@ -229,19 +229,21 @@ describe('AnimeDetailsScreen', () => {
     );
 
     jest.useFakeTimers();
-    for (const expected of [3, 4, 5, 6, 7]) {
+    for (const expected of [3, 4]) {
       await fireEvent.press(increaseButton);
       expect(
-        screen.getByLabelText(`Episode progress: ${expected} of 12`),
+        screen.getByLabelText(`Episode progress: ${expected} of 4`),
       ).toBeVisible();
     }
+    expect(screen.getByLabelText('Increase watched episodes')).toBeDisabled();
+    await fireEvent.press(increaseButton);
     expect(updateProgress).not.toHaveBeenCalled();
 
     await act(async () => {
       await jest.advanceTimersByTimeAsync(400);
     });
     expect(updateProgress).toHaveBeenCalledTimes(1);
-    expect(updateProgress).toHaveBeenCalledWith(1, 7);
+    expect(updateProgress).toHaveBeenCalledWith(1, 4);
   });
 
   it('updates and clears a score', async () => {
@@ -431,11 +433,11 @@ describe('AnimeDetailsScreen', () => {
     expect(
       screen.getByText("Couldn't save your latest progress."),
     ).toBeVisible();
-    expect(screen.getByLabelText('Episode progress: 1 of 12')).toBeVisible();
+    expect(screen.getByLabelText('Episode progress: 1 of 4')).toBeVisible();
     await fireEvent.press(screen.getByLabelText('Try again'));
     await waitFor(() => expect(screen.getByText('Saved')).toBeVisible());
     expect(updateProgress).toHaveBeenNthCalledWith(2, 1, 2);
-    expect(screen.getByLabelText('Episode progress: 2 of 12')).toBeVisible();
+    expect(screen.getByLabelText('Episode progress: 2 of 4')).toBeVisible();
   });
 
   it('keeps the post-list detail sections in the refined order', async () => {
@@ -514,6 +516,7 @@ describe('AnimeDetailsScreen', () => {
       studios: [],
       synopsis: '',
       totalEpisodes: null,
+      releasedEpisodes: null,
       year: null,
     };
     await renderWithProviders(<AnimeDetailsScreen animeId={1} />, {

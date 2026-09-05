@@ -4,6 +4,7 @@ import type {
   UserAnimeEntry,
 } from '@/domain/models/anime';
 import { canMarkAnimeCompleted } from '@/domain/rules/anime-airing-status';
+import { getTrackableEpisodeLimit } from '@/domain/rules/anime-tracking';
 
 export function normalizeProgress(
   episodes: number,
@@ -74,7 +75,10 @@ export function applyProgress(
   ) {
     return { ...entry };
   }
-  const watchedEpisodes = normalizeProgress(episodes, context.totalEpisodes);
+  const watchedEpisodes = normalizeProgress(
+    episodes,
+    getTrackableEpisodeLimit(context),
+  );
   return {
     ...entry,
     watchedEpisodes,

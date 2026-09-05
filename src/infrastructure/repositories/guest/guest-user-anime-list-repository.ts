@@ -14,6 +14,7 @@ import type {
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
+import { createAnimeTrackingContext } from '@/domain/rules/anime-tracking';
 
 export interface GuestUserAnimeListRepositoryOptions {
   now?: () => Date;
@@ -75,10 +76,7 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
         updatedAt: this.now().toISOString(),
       },
       status,
-      {
-        totalEpisodes: anime.totalEpisodes,
-        airingStatus: anime.airingStatus,
-      },
+      createAnimeTrackingContext(anime),
     );
     if (!transition.allowed) {
       throw new DomainError(`Status transition blocked: ${transition.reason}.`);
@@ -97,10 +95,7 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
   ): Promise<UserAnimeEntry> {
     const { anime, entry } = await this.resolveForUpdate(animeId);
     return this.save({
-      ...applyProgress(entry, episodes, {
-        totalEpisodes: anime.totalEpisodes,
-        airingStatus: anime.airingStatus,
-      }),
+      ...applyProgress(entry, episodes, createAnimeTrackingContext(anime)),
       updatedAt: this.now().toISOString(),
     });
   }
@@ -111,10 +106,11 @@ export class GuestUserAnimeListRepository implements UserAnimeListRepository {
   ): Promise<UserAnimeEntry> {
     const { anime, entry } = await this.resolveForUpdate(animeId);
     if (entry.status === status) return { ...entry };
-    const transition = transitionStatus(entry, status, {
-      totalEpisodes: anime.totalEpisodes,
-      airingStatus: anime.airingStatus,
-    });
+    const transition = transitionStatus(
+      entry,
+      status,
+      createAnimeTrackingContext(anime),
+    );
     if (!transition.allowed) {
       throw new DomainError(`Status transition blocked: ${transition.reason}.`);
     }

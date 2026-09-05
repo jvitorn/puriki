@@ -52,6 +52,7 @@ jest.mock('react-native-reanimated', () => {
     delay: () => animationBuilder,
     duration: () => animationBuilder,
     reduceMotion: () => animationBuilder,
+    withInitialValues: () => animationBuilder,
   };
   return {
     __esModule: true,
@@ -78,8 +79,17 @@ jest.mock('react-native-reanimated', () => {
       output[0] +
       ((value - input[0]) / (input[1] - input[0])) * (output[1] - output[0]),
     useAnimatedStyle: (factory: () => unknown) => factory(),
-    useReducedMotion: () => true,
+    useReducedMotion: jest.fn(() => true),
     useSharedValue: (value: unknown) => ({ value }),
-    withTiming: jest.fn((value: unknown) => value),
+    withTiming: jest.fn(
+      (
+        value: unknown,
+        _config?: unknown,
+        callback?: (finished: boolean) => void,
+      ) => {
+        callback?.(true);
+        return value;
+      },
+    ),
   };
 });

@@ -22,7 +22,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 4,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );
@@ -55,7 +55,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 4,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );
@@ -106,7 +106,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 4,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );
@@ -151,7 +151,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 4,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );
@@ -178,7 +178,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 4,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );
@@ -204,7 +204,7 @@ describe('useEpisodeProgressIntent', () => {
         useEpisodeProgressIntent({
           animeId: 1,
           confirmedProgress,
-          totalEpisodes: 12,
+          episodeLimit: 12,
           mutateAsync,
         }),
       { initialProps: { confirmedProgress: 4 } },
@@ -239,7 +239,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 4,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );
@@ -260,7 +260,7 @@ describe('useEpisodeProgressIntent', () => {
       useEpisodeProgressIntent({
         animeId: 1,
         confirmedProgress: 12,
-        totalEpisodes: 12,
+        episodeLimit: 12,
         mutateAsync,
       }),
     );

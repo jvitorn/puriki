@@ -19,6 +19,11 @@ import Animated, {
 
 import type { StatusTransitionBlockedReason } from '@/domain/rules/anime-status';
 import { getAllowedStatusTransitions } from '@/domain/rules/anime-status';
+import {
+  createAnimeTrackingContext,
+  getKnownEpisodeCount,
+  getTrackableEpisodeLimit,
+} from '@/domain/rules/anime-tracking';
 import { useAppLanguage } from '@/localization/localization-provider';
 import {
   formatNumber,
@@ -94,10 +99,16 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
     useState<StatusTransitionBlockedReason | null>(null);
   const details = useAnimeDetails(animeId);
   const progress = useUpdateProgress();
+  const trackingContext = details.data
+    ? createAnimeTrackingContext(details.data.anime)
+    : null;
+  const trackableEpisodeLimit = trackingContext
+    ? getTrackableEpisodeLimit(trackingContext)
+    : null;
   const episodeIntent = useEpisodeProgressIntent({
     animeId,
     confirmedProgress: details.data?.userEntry?.watchedEpisodes ?? 0,
-    totalEpisodes: details.data?.anime.totalEpisodes ?? null,
+    episodeLimit: trackableEpisodeLimit,
     mutateAsync: progress.mutateAsync,
   });
   const status = useUpdateStatus();
@@ -152,14 +163,11 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   }
 
   const { anime, userEntry } = details.data;
-  const episodeLimit = anime.totalEpisodes ?? anime.releasedEpisodes ?? null;
-  const canTrackProgress = anime.airingStatus !== 'not_yet_released';
+  const episodeCount = getKnownEpisodeCount(trackingContext!);
+  const canTrackProgress = trackableEpisodeLimit !== 0;
   const busy = addToList.isPending || removeFromList.isPending;
   const statusTransitions = userEntry
-    ? getAllowedStatusTransitions(userEntry, {
-        totalEpisodes: episodeLimit,
-        airingStatus: anime.airingStatus,
-      })
+    ? getAllowedStatusTransitions(userEntry, trackingContext!)
     : null;
 
   const confirmRemoval = () => {
@@ -223,8 +231,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 {anime.year ?? t('common.yearTbd')}
               </Text>
               <Text variant="caption" muted>
-                {episodeLimit
-                  ? t('common.episodesShort', { count: episodeLimit })
+                {episodeCount
+                  ? t('common.episodesShort', { count: episodeCount })
                   : t('common.episodesTbd')}
               </Text>
             </View>
@@ -241,10 +249,10 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 <Text variant="heading">{t('details.myList')}</Text>
                 <Text variant="caption" muted>
                   {t('details.entrySummary', {
-                    count: episodeLimit ?? 2,
+                    count: episodeCount ?? 2,
                     status: localizedStatus(userEntry.status, t),
                     watched: userEntry.watchedEpisodes,
-                    total: episodeLimit ?? '?',
+                    total: episodeCount ?? '?',
                   })}
                 </Text>
               </View>
@@ -262,7 +270,7 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               </Text>
               <EpisodeProgressControl
                 current={episodeIntent.displayedProgress}
-                total={episodeLimit}
+                total={trackableEpisodeLimit}
                 disabled={busy || !canMutateUserList || !canTrackProgress}
                 saveState={progress.saveState}
                 onIncrease={episodeIntent.increase}
@@ -481,7 +489,9 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
             label={t('details.genres')}
             value={
               anime.genres.length > 0
-                ? anime.genres.map((genre) => localizedGenre(genre, t)).join(', ')
+                ? anime.genres
+                    .map((genre) => localizedGenre(genre, t))
+                    .join(', ')
                 : t('common.unknown')
             }
           />
@@ -489,8 +499,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <InfoRow
             label={t('details.episodes')}
             value={
-              episodeLimit
-                ? formatNumber(episodeLimit, language)
+              episodeCount
+                ? formatNumber(episodeCount, language)
                 : t('common.unknown')
             }
           />

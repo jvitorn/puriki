@@ -14,6 +14,7 @@ import type {
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
+import { createAnimeTrackingContext } from '@/domain/rules/anime-tracking';
 import type { TestAnimeDataset } from '@/tests/fixtures/anime-dataset';
 
 function cloneAnime(anime: AnimeCatalogItem): AnimeCatalogItem {
@@ -128,10 +129,7 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
         updatedAt: new Date(Date.UTC(2026, 0, 1, 12, animeId)).toISOString(),
       },
       status,
-      {
-        totalEpisodes: anime.totalEpisodes,
-        airingStatus: anime.airingStatus,
-      },
+      createAnimeTrackingContext(anime),
     );
     if (!transition.allowed) {
       throw new DomainError(`Status transition blocked: ${transition.reason}.`);
@@ -153,10 +151,7 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
     const entry = this.requireEntry(animeId);
     const anime = this.getAnime(animeId);
     return this.save(
-      applyProgress(entry, episodes, {
-        totalEpisodes: anime.totalEpisodes,
-        airingStatus: anime.airingStatus,
-      }),
+      applyProgress(entry, episodes, createAnimeTrackingContext(anime)),
     );
   }
 
@@ -167,10 +162,11 @@ export class InMemoryUserAnimeListRepository implements UserAnimeListRepository 
     const entry = this.requireEntry(animeId);
     if (entry.status === status) return { ...entry };
     const anime = this.getAnime(animeId);
-    const transition = transitionStatus(entry, status, {
-      totalEpisodes: anime.totalEpisodes,
-      airingStatus: anime.airingStatus,
-    });
+    const transition = transitionStatus(
+      entry,
+      status,
+      createAnimeTrackingContext(anime),
+    );
     if (!transition.allowed) {
       throw new DomainError(`Status transition blocked: ${transition.reason}.`);
     }

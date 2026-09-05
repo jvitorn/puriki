@@ -14,6 +14,15 @@ export function makeAnime(
   overrides: Partial<AnimeCatalogItem> = {},
 ): AnimeCatalogItem {
   const id = overrides.id ?? nextAnimeId++;
+  const totalEpisodes =
+    overrides.totalEpisodes === undefined ? 12 : overrides.totalEpisodes;
+  const airingStatus = overrides.airingStatus ?? 'finished';
+  const releasedEpisodes =
+    overrides.releasedEpisodes !== undefined
+      ? overrides.releasedEpisodes
+      : airingStatus === 'finished'
+        ? totalEpisodes
+        : null;
   return {
     id,
     title: `Anime ${id}`,
@@ -21,11 +30,12 @@ export function makeAnime(
     synopsis: `Synopsis for Anime ${id}.`,
     genres: ['Adventure', 'Fantasy'],
     studios: ['Puriki Test Studio'],
-    totalEpisodes: 12,
+    totalEpisodes,
+    releasedEpisodes,
     score: 8,
     season: 'Spring',
     year: 2026,
-    airingStatus: 'finished',
+    airingStatus,
     posterImageUrl: null,
     largePosterImageUrl: null,
     heroImageUrl: null,

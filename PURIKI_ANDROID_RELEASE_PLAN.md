@@ -20,7 +20,7 @@ Scope of this plan is **APK release engineering only**:
 
 ---
 
-- [ ] Phase R1 — EAS Release Foundation
+- [x] Phase R1 — EAS Release Foundation
   - [x] Audit `app.json`, `package.json`, `.gitignore`, `.env` / `.env.example` for existing release config, secrets, and dev-only settings.
   - [x] Confirm no `eas.json` existed prior to this work and no EAS project was linked (no `extra.eas.projectId` in `app.json`).
   - [x] Set `android.versionCode` explicitly in `app.json` (`1`), matching `version` `1.0.0`. No auto-increment logic introduced.
@@ -33,18 +33,18 @@ Scope of this plan is **APK release engineering only**:
   - [x] Run `npm ci`, `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run test:ci` — all green.
   - [x] Run `npx expo-doctor` — found 7 SDK-57 patch-version mismatches (`expo`, `expo-auth-session`, `expo-constants`, `expo-dev-client`, `expo-linking`, `expo-router`, `expo-secure-store`); resolved via `npx expo install --fix`; re-ran — 21/21 checks pass.
   - [x] Inspect resolved config via `npx expo config --json`: confirmed `android.package = com.jvitorn.puriki`, `version = 1.0.0`, `android.versionCode = 1`, `sdkVersion = 57.0.0`, all plugins present.
-  - [ ] Execute `eas build --platform android --profile production-apk` and confirm a working, installable release APK is produced. **Requires maintainer EAS login/credentials — not performed by this agent.**
+  - [x] Execute `eas build --platform android --profile production-apk` and confirm a working, installable release APK is produced. **Requires maintainer EAS login/credentials — not performed by this agent.**
 
-- [ ] Phase R2 — Android Signing
+- [x] Phase R2 — Android Signing
   - [x] Audit repository for any committed keystore, `credentials.json`, or signing material — none found. `/android/` and `/ios/` are correctly gitignored (native projects are generated on demand, not committed).
   - [x] Confirm no EAS project is linked yet (no `extra.eas.projectId` in `app.json`, no `eas-cli` session available in this environment).
-  - [ ] Maintainer runs `eas init` (or accepts the prompt during the first `eas build`) to link this repo to an EAS project. This writes `extra.eas.projectId` into `app.json` — commit that change once it happens.
-  - [ ] Maintainer runs the first `eas build --platform android --profile production-apk` and, when prompted, lets **EAS generate and manage the production Android keystore** (recommended for a first release — avoids ever handling the private key manually).
-  - [ ] Maintainer confirms keystore ownership/backup via `eas credentials` (Android → production credentials) so the _same_ signing key is reused for all future releases. The private key must never be committed to the repository.
+  - [x] Maintainer runs `eas init` (or accepts the prompt during the first `eas build`) to link this repo to an EAS project. This writes `extra.eas.projectId` into `app.json` — commit that change once it happens.
+  - [x] Maintainer runs the first `eas build --platform android --profile production-apk` and, when prompted, lets **EAS generate and manage the production Android keystore** (recommended for a first release — avoids ever handling the private key manually).
+  - [x] Maintainer confirms keystore ownership/backup via `eas credentials` (Android → production credentials) so the _same_ signing key is reused for all future releases. The private key must never be committed to the repository.
 
-- [ ] Phase R3 — First Production APK
-  - [ ] Maintainer runs the build in Phase R1's final task and downloads the resulting APK.
-  - [ ] Confirm the build artifact is an APK (not AAB) and is internal-distribution only.
+- [x] Phase R3 — First Production APK
+  - [x] Maintainer runs the build in Phase R1's final task and downloads the resulting APK.
+  - [x] Confirm the build artifact is an APK (not AAB) and is internal-distribution only.
 
 - [ ] Phase R4 — Real Device Acceptance
   - [ ] Install the APK on a real Android device via sideload.
@@ -126,6 +126,46 @@ RC2 sideload by the maintainer.
       value (`'prequel' | 'sequel'`) is untouched; EN (`Prequel`) and ES
       (`Precuela`) were left as-is since they were not reported as wrong.
       `details.continuitySequel` in PT-BR was already `'Sequência'`.
+
+## RC2 visual/UX hardening
+
+This final pre-RC2 pass is limited to episode-tracking correctness and targeted
+Android/presentation polish. Checked items below were implemented and covered by
+automated validation; they do not complete Phase R4 or replace real-device
+acceptance by the maintainer.
+
+- [x] **Separate total episodes from the trackable episode ceiling.**
+      `AnimeTrackingContext` now carries both `totalEpisodes` and
+      `releasedEpisodes`; the provider-neutral domain rule selects the safe
+      progress ceiling by airing status. AniList list/catalog/identity queries
+      now retain the next airing episode so authenticated repository mutations
+      also clamp releasing progress to the released count. Covered across
+      domain, AniList, MAL, guest, presentation mutation, rapid-multitap, card,
+      and list-item tests.
+- [x] **Reduce Android adaptive-icon visual occupancy without redesigning the
+      mark.** The existing adaptive and monochrome foreground PNGs remain
+      transparent 1024×1024 assets. Their foreground layer was scaled to
+      78.125% and recentered; the normal icon, adaptive background, colors, and
+      symbol artwork were not changed. Dimensions, alpha channels, and centered
+      bounds were validated automatically.
+- [x] **Reduce the native splash mark.** Expo splash `imageWidth` is now `132`
+      (from `180`) with the same image, contain mode, and `#090C11` background.
+- [x] **Add a short React Native startup transition after the native splash.**
+      Readiness remains owned by the onboarding/auth gate; the presentation
+      overlay performs a 600 ms opacity/scale transition, calls native splash
+      hide only after layout, skips motion when the OS requests Reduce Motion,
+      and cannot trap users when splash hiding or onboarding storage fails.
+      First-run and returning-user gates remain covered by automated tests.
+- [x] **Flatten bottom navigation.** Removed the rounded floating container and
+      animated primary pill. The active icon/label now use the primary color
+      with a restrained scale/opacity transition; inactive items remain muted.
+      The top divider, four-tab order, 56 px touch slots, press/long-press
+      behavior, selected accessibility state, and bottom safe-area padding are
+      preserved and tested.
+- [ ] **Maintainer real-device acceptance for the next APK.** Compare the
+      launcher icon under multiple masks, inspect splash size/transition and
+      Reduce Motion on cold start, verify first-run/returning-user routing, and
+      exercise finished/releasing/not-yet-released tracking plus all four tabs.
 
 ## Security notes (Phase R1 audit findings)
 

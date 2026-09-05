@@ -15,14 +15,49 @@ import {
   getAllowedStatusTransitions,
   transitionStatus,
 } from '@/domain/rules/anime-status';
+import {
+  getKnownEpisodeCount,
+  getTrackableEpisodeLimit,
+} from '@/domain/rules/anime-tracking';
 import { makeUserAnimeEntry } from '@/tests/builders/anime-builder';
 
 function context(
   totalEpisodes: number | null,
   airingStatus: AnimeAiringStatus = 'finished',
+  releasedEpisodes: number | null = totalEpisodes,
 ): AnimeTrackingContext {
-  return { totalEpisodes, airingStatus };
+  return { totalEpisodes, releasedEpisodes, airingStatus };
 }
+
+describe('anime tracking context', () => {
+  it.each([
+    ['finished', 12, 12, 12],
+    ['releasing', 12, 4, 4],
+    ['releasing', null, 4, 4],
+    ['not_yet_released', 12, null, 0],
+    ['hiatus', 24, 8, 8],
+    ['cancelled', 24, 8, 8],
+    ['cancelled', 24, null, null],
+    ['unknown', 12, 4, 4],
+    ['unknown', 12, null, 12],
+    ['unknown', null, null, null],
+  ] as const)(
+    '%s with total %s and released %s has trackable limit %s',
+    (airingStatus, totalEpisodes, releasedEpisodes, expected) => {
+      expect(
+        getTrackableEpisodeLimit(
+          context(totalEpisodes, airingStatus, releasedEpisodes),
+        ),
+      ).toBe(expected);
+    },
+  );
+
+  it('keeps catalog count separate and prefers the real total for copy', () => {
+    const tracking = context(12, 'releasing', 4);
+    expect(getTrackableEpisodeLimit(tracking)).toBe(4);
+    expect(getKnownEpisodeCount(tracking)).toBe(12);
+  });
+});
 
 describe('anime progress rules', () => {
   it('normalizes negative, fractional, and excessive progress', () => {
@@ -53,15 +88,30 @@ describe('anime progress rules', () => {
       watchedEpisodes: 11,
     });
     expect(applyProgress(entry, 12, context(12)).status).toBe('completed');
-    for (const airingStatus of [
-      'releasing',
-      'not_yet_released',
-      'hiatus',
-    ] as const) {
-      expect(applyProgress(entry, 12, context(12, airingStatus))).toMatchObject(
-        { watchedEpisodes: 12, status: 'watching' },
-      );
-    }
+    expect(applyProgress(entry, 12, context(12, 'releasing', 4))).toMatchObject(
+      { watchedEpisodes: 4, status: 'watching' },
+    );
+    expect(applyProgress(entry, 12, context(12, 'hiatus', 8))).toMatchObject({
+      watchedEpisodes: 8,
+      status: 'watching',
+    });
+    expect(
+      applyProgress(entry, 12, context(12, 'not_yet_released', null)),
+    ).toMatchObject({ watchedEpisodes: 0, status: 'watching' });
+  });
+
+  it('clamps releasing progress to episodes known to be released', () => {
+    const entry = makeUserAnimeEntry({
+      animeId: 1,
+      status: 'watching',
+      watchedEpisodes: 4,
+    });
+    expect(applyProgress(entry, 12, context(12, 'releasing', 4))).toMatchObject(
+      {
+        watchedEpisodes: 4,
+        status: 'watching',
+      },
+    );
   });
 
   it('moves progressed planned and completed entries to watching', () => {
@@ -168,6 +218,15 @@ describe('anime status and score rules', () => {
         entry: { status: 'completed', watchedEpisodes: 3 },
       },
     );
+  });
+
+  it('does not fill a cancelled title to its unreleased planned total', () => {
+    expect(
+      transitionStatus(started, 'completed', context(24, 'cancelled', 8)),
+    ).toMatchObject({
+      allowed: true,
+      entry: { status: 'completed', watchedEpisodes: 8 },
+    });
   });
 
   it('treats the selected status as an allowed no-op', () => {

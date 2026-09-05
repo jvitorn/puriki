@@ -17,6 +17,7 @@ import type {
 import type { PageResult } from '@/domain/models/pagination';
 import { applyProgress } from '@/domain/rules/anime-progress';
 import { transitionStatus } from '@/domain/rules/anime-status';
+import { createAnimeTrackingContext } from '@/domain/rules/anime-tracking';
 import { useRepositories } from '@/presentation/providers/repository-provider';
 import { queryKeys } from '@/presentation/queries/query-keys';
 
@@ -195,13 +196,6 @@ async function optimisticallyUpdate(
   return snapshots;
 }
 
-function trackingContext(anime: AnimeCatalogItem) {
-  return {
-    totalEpisodes: anime.totalEpisodes ?? anime.releasedEpisodes ?? null,
-    airingStatus: anime.airingStatus,
-  };
-}
-
 function findCachedUnifiedAnime(
   queryClient: QueryClient,
   userListScope: string,
@@ -229,7 +223,7 @@ function ensureAllowedStatusMutation(
   const transition = transitionStatus(
     item.userEntry,
     status,
-    trackingContext(item.anime),
+    createAnimeTrackingContext(item.anime),
   );
   if (!transition.allowed) {
     throw new RepositoryError(
@@ -381,7 +375,7 @@ export function useAddToList() {
         const transition = transitionStatus(
           base,
           status,
-          trackingContext(current.anime),
+          createAnimeTrackingContext(current.anime),
         );
         if (transition.allowed) {
           setDetailsMembership(
@@ -490,7 +484,11 @@ export function useUpdateProgress() {
             userListScope,
             animeId,
             (current, anime) =>
-              applyProgress(current, episodes, trackingContext(anime)),
+              applyProgress(
+                current,
+                episodes,
+                createAnimeTrackingContext(anime),
+              ),
           )
         : [];
       return { snapshots, version, mode: userListUpdateMode };
@@ -582,7 +580,7 @@ export function useUpdateStatus() {
           const transition = transitionStatus(
             current,
             status,
-            trackingContext(anime),
+            createAnimeTrackingContext(anime),
           );
           return transition.allowed ? transition.entry : current;
         },

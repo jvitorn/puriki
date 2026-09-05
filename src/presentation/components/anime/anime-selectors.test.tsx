@@ -14,7 +14,7 @@ const transitions = getAllowedStatusTransitions(
     userScore: null,
     updatedAt: '',
   },
-  { totalEpisodes: 12, airingStatus: 'finished' },
+  { totalEpisodes: 12, releasedEpisodes: 12, airingStatus: 'finished' },
 );
 
 describe('AnimeStatusSelector', () => {
@@ -62,10 +62,7 @@ describe('AnimeStatusSelector', () => {
       const rowOfRadios = (...names: string[]) =>
         names.map((name) => screen.getByRole('radio', { name }).parent);
 
-      const [watchingRow, completedRow] = rowOfRadios(
-        'Watching',
-        'Completed',
-      );
+      const [watchingRow, completedRow] = rowOfRadios('Watching', 'Completed');
       const [onHoldRow, droppedRow] = rowOfRadios('On Hold', 'Dropped');
       const [planRow] = rowOfRadios('Plan to Watch');
 

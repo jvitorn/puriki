@@ -17,6 +17,7 @@ export interface AniListMediaSummary {
   title: AniListMediaTitle;
   episodes: number | null;
   status: string | null;
+  nextAiringEpisode: { episode: number } | null;
   season: string | null;
   seasonYear: number | null;
   averageScore: number | null;
@@ -112,6 +113,18 @@ function parseCover(value: unknown): AniListCoverImage {
   };
 }
 
+function parseSummaryNextAiring(
+  value: unknown,
+): AniListMediaSummary['nextAiringEpisode'] {
+  if (value === null || value === undefined) return null;
+  if (!isRecord(value)) {
+    throw new Error('AniList returned invalid airing data.');
+  }
+  const episode = requiredInteger(value.episode, 'next airing episode');
+  if (episode < 1) throw new Error('AniList returned invalid airing data.');
+  return { episode };
+}
+
 export function parseAniListMediaSummary(value: unknown): AniListMediaSummary {
   if (!isRecord(value)) {
     throw new Error('AniList returned an invalid media object.');
@@ -125,6 +138,7 @@ export function parseAniListMediaSummary(value: unknown): AniListMediaSummary {
     title: parseTitle(value.title),
     episodes: nullableNumber(value.episodes),
     status: nullableString(value.status),
+    nextAiringEpisode: parseSummaryNextAiring(value.nextAiringEpisode),
     season: nullableString(value.season),
     seasonYear: nullableNumber(value.seasonYear),
     averageScore: nullableNumber(value.averageScore),

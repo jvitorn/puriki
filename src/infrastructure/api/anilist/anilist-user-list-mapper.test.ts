@@ -34,6 +34,7 @@ describe('AniList user list DTOs and mapper', () => {
       listEntryId: 501,
       mediaId: 101,
       totalEpisodes: 12,
+      releasedEpisodes: 12,
       airingStatus: 'finished',
       entry: {
         animeId: 202,
@@ -72,6 +73,34 @@ describe('AniList user list DTOs and mapper', () => {
     expect(
       mapAniListUserListEntry(parsed.entries[1]!)?.entry.userScore,
     ).toBeNull();
+  });
+
+  it('keeps total and released episode counts separate for airing entries', () => {
+    const parsed = parseAniListUserListChunk({
+      MediaListCollection: {
+        hasNextChunk: false,
+        lists: [
+          {
+            entries: [
+              dto({
+                media: {
+                  idMal: 202,
+                  episodes: 12,
+                  status: 'RELEASING',
+                  nextAiringEpisode: { episode: 5 },
+                },
+              }),
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(mapAniListUserListEntry(parsed.entries[0]!)).toMatchObject({
+      totalEpisodes: 12,
+      releasedEpisodes: 4,
+      airingStatus: 'releasing',
+    });
   });
 
   it('skips entries without a MAL identifier', () => {

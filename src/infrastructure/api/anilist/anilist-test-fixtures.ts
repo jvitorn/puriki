@@ -13,6 +13,7 @@ export function anilistSummary(
     },
     episodes: null,
     status: 'RELEASING',
+    nextAiringEpisode: null,
     season: 'FALL',
     seasonYear: 1999,
     averageScore: 88,

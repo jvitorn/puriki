@@ -79,6 +79,19 @@ export function mapAniListAiringStatus(
   return status ? (statuses[status] ?? 'unknown') : 'unknown';
 }
 
+export function mapAniListReleasedEpisodes(
+  totalEpisodes: number | null,
+  airingStatus: AnimeAiringStatus,
+  nextAiringEpisode: number | null,
+): number | null {
+  if (airingStatus === 'finished') return totalEpisodes;
+  return nextAiringEpisode !== null &&
+    Number.isInteger(nextAiringEpisode) &&
+    nextAiringEpisode >= 1
+    ? nextAiringEpisode - 1
+    : null;
+}
+
 function relationKind(value: string | null): AnimeContinuityKind | null {
   if (value === 'PREQUEL') return 'prequel';
   if (value === 'SEQUEL') return 'sequel';
@@ -150,12 +163,15 @@ export function mapAniListSummary(
   }
   const title = preferredTitle(dto.title, dto.idMal);
   const totalEpisodes =
-    dto.episodes !== null &&
-    Number.isInteger(dto.episodes) &&
-    dto.episodes > 0
+    dto.episodes !== null && Number.isInteger(dto.episodes) && dto.episodes > 0
       ? dto.episodes
       : null;
   const airingStatus = mapAniListAiringStatus(dto.status);
+  const releasedEpisodes = mapAniListReleasedEpisodes(
+    totalEpisodes,
+    airingStatus,
+    dto.nextAiringEpisode?.episode ?? null,
+  );
   return {
     id: dto.idMal,
     title,
@@ -167,7 +183,7 @@ export function mapAniListSummary(
     }),
     studios: [],
     totalEpisodes,
-    releasedEpisodes: airingStatus === 'finished' ? totalEpisodes : null,
+    releasedEpisodes,
     score:
       dto.averageScore !== null &&
       Number.isFinite(dto.averageScore) &&
@@ -203,14 +219,8 @@ export function mapAniListDetails(
 ): AnimeCatalogItem | null {
   const summary = mapAniListSummary(dto);
   if (!summary) return null;
-  const nextEpisode = dto.nextAiringEpisode?.episode;
-  const releasedEpisodes =
-    nextEpisode !== undefined && Number.isInteger(nextEpisode) && nextEpisode > 1
-      ? nextEpisode - 1
-      : summary.releasedEpisodes;
   return {
     ...summary,
-    releasedEpisodes,
     alternativeTitles: alternativeTitles(dto, summary.title),
     synopsis: nonEmpty(normalizeHtmlLineBreaks(dto.description)) ?? '',
     studios: dto.studios.flatMap((studio) => {

@@ -101,7 +101,9 @@ export function AnimeStreamingSection({
                 service={service}
               />
             ))}
-            {columnar && row.length > 1 && row.length < STREAMING_GRID_COLUMNS ? (
+            {columnar &&
+            row.length > 1 &&
+            row.length < STREAMING_GRID_COLUMNS ? (
               <View className="flex-1" />
             ) : null}
           </View>

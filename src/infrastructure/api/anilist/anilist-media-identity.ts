@@ -8,13 +8,17 @@ import {
   AniListGraphQLExecutionError,
   AniListResponseFormatError,
 } from '@/infrastructure/api/anilist/anilist-errors';
-import { mapAniListAiringStatus } from '@/infrastructure/api/anilist/anilist-mapper';
+import {
+  mapAniListAiringStatus,
+  mapAniListReleasedEpisodes,
+} from '@/infrastructure/api/anilist/anilist-mapper';
 import { ANILIST_MEDIA_IDENTITY_QUERY } from '@/infrastructure/api/anilist/anilist-queries';
 
 export interface AniListMediaIdentity {
   animeId: number;
   mediaId: number;
   totalEpisodes: number | null;
+  releasedEpisodes: number | null;
   airingStatus: AnimeAiringStatus;
 }
 
@@ -59,14 +63,34 @@ function parseIdentity(value: unknown): AniListMediaIdentity | null {
   ) {
     throw new Error('AniList returned an invalid media episode count.');
   }
+  const totalEpisodes =
+    typeof episodes === 'number' && episodes > 0 ? episodes : null;
+  const airingStatus = mapAniListAiringStatus(
+    typeof value.Media.status === 'string' ? value.Media.status : null,
+  );
+  const nextAiring = value.Media.nextAiringEpisode;
+  if (
+    nextAiring !== null &&
+    nextAiring !== undefined &&
+    (!isRecord(nextAiring) ||
+      !Number.isInteger(nextAiring.episode) ||
+      (nextAiring.episode as number) < 1)
+  ) {
+    throw new Error('AniList returned invalid media identity airing data.');
+  }
+  const nextAiringEpisode = isRecord(nextAiring)
+    ? (nextAiring.episode as number)
+    : null;
   return {
     animeId: positiveInteger(value.Media.idMal, 'media MAL ID'),
     mediaId: positiveInteger(value.Media.id, 'media ID'),
-    totalEpisodes:
-      typeof episodes === 'number' && episodes > 0 ? episodes : null,
-    airingStatus: mapAniListAiringStatus(
-      typeof value.Media.status === 'string' ? value.Media.status : null,
+    totalEpisodes,
+    releasedEpisodes: mapAniListReleasedEpisodes(
+      totalEpisodes,
+      airingStatus,
+      nextAiringEpisode,
     ),
+    airingStatus,
   };
 }
 

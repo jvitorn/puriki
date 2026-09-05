@@ -5,6 +5,7 @@ import type {
 } from '@/domain/models/anime';
 import { canMarkAnimeCompleted } from '@/domain/rules/anime-airing-status';
 import { normalizeProgress } from '@/domain/rules/anime-progress';
+import { getTrackableEpisodeLimit } from '@/domain/rules/anime-tracking';
 
 export type StatusTransitionBlockedReason =
   'already_started' | 'airing_in_progress' | 'not_yet_released';
@@ -43,14 +44,15 @@ export function transitionStatus(
     };
   }
 
+  const episodeLimit = getTrackableEpisodeLimit(context);
   const watchedEpisodes = normalizeProgress(
     entry.watchedEpisodes,
-    context.totalEpisodes,
+    episodeLimit,
   );
-  if (status === 'completed' && context.totalEpisodes !== null) {
+  if (status === 'completed' && episodeLimit !== null) {
     return {
       allowed: true,
-      entry: { ...entry, status, watchedEpisodes: context.totalEpisodes },
+      entry: { ...entry, status, watchedEpisodes: episodeLimit },
       reason: null,
     };
   }

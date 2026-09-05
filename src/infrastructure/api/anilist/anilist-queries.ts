@@ -9,6 +9,9 @@ export const ANILIST_SUMMARY_FRAGMENT = /* GraphQL */ `
     }
     episodes
     status
+    nextAiringEpisode {
+      episode
+    }
     season
     seasonYear
     averageScore
@@ -205,6 +208,9 @@ export const ANILIST_USER_LIST_QUERY = /* GraphQL */ `
             idMal
             episodes
             status
+            nextAiringEpisode {
+              episode
+            }
           }
         }
       }
@@ -219,6 +225,9 @@ export const ANILIST_MEDIA_IDENTITY_QUERY = /* GraphQL */ `
       idMal
       episodes
       status
+      nextAiringEpisode {
+        episode
+      }
     }
   }
 `;
@@ -248,6 +257,9 @@ export const ANILIST_SAVE_USER_LIST_ENTRY_MUTATION = /* GraphQL */ `
         idMal
         episodes
         status
+        nextAiringEpisode {
+          episode
+        }
       }
     }
   }

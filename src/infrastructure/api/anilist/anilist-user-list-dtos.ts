@@ -8,6 +8,7 @@ export interface AniListUserListEntryDto {
   idMal: number | null;
   totalEpisodes: number | null;
   mediaStatus: string | null;
+  nextAiringEpisode: number | null;
 }
 
 export interface AniListUserListChunkDto {
@@ -61,6 +62,20 @@ export function parseAniListUserListEntry(
   if (totalEpisodes !== null && totalEpisodes < 0) {
     throw new Error('AniList returned an invalid media list episode count.');
   }
+  const nextAiringValue = value.media.nextAiringEpisode;
+  let nextAiringEpisode: number | null = null;
+  if (nextAiringValue !== null && nextAiringValue !== undefined) {
+    if (!isRecord(nextAiringValue)) {
+      throw new Error('AniList returned invalid media list airing data.');
+    }
+    nextAiringEpisode = requiredInteger(
+      nextAiringValue.episode,
+      'media list next airing episode',
+    );
+    if (nextAiringEpisode < 1) {
+      throw new Error('AniList returned invalid media list airing data.');
+    }
+  }
   return {
     listEntryId,
     mediaId,
@@ -72,6 +87,7 @@ export function parseAniListUserListEntry(
     totalEpisodes,
     mediaStatus:
       typeof value.media.status === 'string' ? value.media.status : null,
+    nextAiringEpisode,
   };
 }
 

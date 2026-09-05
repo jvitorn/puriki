@@ -21,6 +21,7 @@ import {
 import {
   mapAniListAiringStatus,
   mapAniListDetails,
+  mapAniListReleasedEpisodes,
   mapAniListSummary,
 } from '@/infrastructure/api/anilist/anilist-mapper';
 import {
@@ -107,19 +108,27 @@ function mapSummaries(
 
 function rememberIdentity(
   resolver: AniListMediaIdentityResolver,
-  dto: Pick<AniListMediaSummary, 'id' | 'idMal' | 'episodes' | 'status'>,
+  dto: Pick<
+    AniListMediaSummary,
+    'id' | 'idMal' | 'episodes' | 'status' | 'nextAiringEpisode'
+  >,
 ): void {
   if (dto.idMal === null) return;
+  const totalEpisodes =
+    dto.episodes !== null && Number.isInteger(dto.episodes) && dto.episodes > 0
+      ? dto.episodes
+      : null;
+  const airingStatus = mapAniListAiringStatus(dto.status);
   resolver.remember({
     animeId: dto.idMal,
     mediaId: dto.id,
-    totalEpisodes:
-      dto.episodes !== null &&
-      Number.isInteger(dto.episodes) &&
-      dto.episodes > 0
-        ? dto.episodes
-        : null,
-    airingStatus: mapAniListAiringStatus(dto.status),
+    totalEpisodes,
+    releasedEpisodes: mapAniListReleasedEpisodes(
+      totalEpisodes,
+      airingStatus,
+      dto.nextAiringEpisode?.episode ?? null,
+    ),
+    airingStatus,
   });
 }
 

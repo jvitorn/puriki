@@ -3,13 +3,17 @@ import type {
   AnimeListStatus,
   UserAnimeEntry,
 } from '@/domain/models/anime';
-import { mapAniListAiringStatus } from '@/infrastructure/api/anilist/anilist-mapper';
+import {
+  mapAniListAiringStatus,
+  mapAniListReleasedEpisodes,
+} from '@/infrastructure/api/anilist/anilist-mapper';
 import type { AniListUserListEntryDto } from '@/infrastructure/api/anilist/anilist-user-list-dtos';
 
 export interface MappedAniListUserEntry {
   listEntryId: number;
   mediaId: number;
   totalEpisodes: number | null;
+  releasedEpisodes: number | null;
   airingStatus: AnimeAiringStatus;
   entry: UserAnimeEntry;
 }
@@ -75,14 +79,21 @@ export function mapAniListUserListEntry(
   dto: AniListUserListEntryDto,
 ): MappedAniListUserEntry | null {
   if (dto.idMal === null) return null;
+  const totalEpisodes =
+    dto.totalEpisodes !== null && dto.totalEpisodes > 0
+      ? dto.totalEpisodes
+      : null;
+  const airingStatus = mapAniListAiringStatus(dto.mediaStatus);
   return {
     listEntryId: dto.listEntryId,
     mediaId: dto.mediaId,
-    totalEpisodes:
-      dto.totalEpisodes !== null && dto.totalEpisodes > 0
-        ? dto.totalEpisodes
-        : null,
-    airingStatus: mapAniListAiringStatus(dto.mediaStatus),
+    totalEpisodes,
+    releasedEpisodes: mapAniListReleasedEpisodes(
+      totalEpisodes,
+      airingStatus,
+      dto.nextAiringEpisode,
+    ),
+    airingStatus,
     entry: {
       animeId: dto.idMal,
       status: mapAniListStatus(dto.status),

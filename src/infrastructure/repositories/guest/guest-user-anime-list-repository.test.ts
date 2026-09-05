@@ -107,6 +107,19 @@ describe('GuestUserAnimeListRepository', () => {
     });
   });
 
+  it('clamps airing progress to the known released count', async () => {
+    const { catalog, session } = createSession();
+    const candidate = catalog[0] as AnimeCatalogItem;
+    candidate.airingStatus = 'releasing';
+    candidate.totalEpisodes = 12;
+    candidate.releasedEpisodes = 4;
+    await session.addToList(candidate.id, 'watching');
+
+    await expect(
+      session.updateProgress(candidate.id, 99),
+    ).resolves.toMatchObject({ watchedEpisodes: 4, status: 'watching' });
+  });
+
   it('rejects every update for an anime outside My List', async () => {
     const { catalog, repository, session } = createSession();
     const candidate = catalog[0] as AnimeCatalogItem;
