@@ -14,7 +14,6 @@ export const es = {
   'auth.reconnectRequired': 'Es necesario volver a conectar',
   'auth.validationPending':
     'No se pudo validar esta cuenta. Inténtalo de nuevo cuando el servicio esté disponible.',
-  'auth.comingSoon': 'Próximamente',
   'auth.connect': 'Conectar',
   'auth.connecting': 'Conectando…',
   'auth.reconnect': 'Volver a conectar',

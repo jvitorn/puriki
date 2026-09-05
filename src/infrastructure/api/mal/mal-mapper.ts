@@ -6,6 +6,7 @@ import type {
 } from '@/domain/models/anime';
 import type { MalAnimeDto } from '@/infrastructure/api/mal/mal-dtos';
 import { createAnimeFallbackSeeds } from '@/infrastructure/repositories/catalog/catalog-utils';
+import { normalizeHtmlLineBreaks } from '@/shared/utils/html-text';
 
 function nonEmpty(value: string | undefined): string | null {
   const normalized = value?.trim();
@@ -91,7 +92,7 @@ export function mapMalAnime(
     id: dto.id,
     title: dto.title.trim(),
     alternativeTitles: alternativeTitles(dto),
-    synopsis: nonEmpty(dto.synopsis) ?? '',
+    synopsis: nonEmpty(normalizeHtmlLineBreaks(dto.synopsis)) ?? '',
     genres: (dto.genres ?? []).flatMap((genre) => {
       const name = nonEmpty(genre.name);
       return name ? [name] : [];

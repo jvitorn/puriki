@@ -61,6 +61,18 @@ describe('MAL anime mapper', () => {
     });
   });
 
+  it('normalizes <br> markup in the synopsis into plain line breaks', () => {
+    const mapped = mapMalAnime(
+      completeDto({
+        synopsis:
+          "It's been years since the crew set sail.<br /><br />(Source: MAL)",
+      }),
+    );
+    expect(mapped.synopsis).toBe(
+      "It's been years since the crew set sail.\n\n(Source: MAL)",
+    );
+  });
+
   it('does not expose continuity from summary payloads', () => {
     expect(mapMalAnime(animeDetailFixture).continuity).toEqual([]);
   });

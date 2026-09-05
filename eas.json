@@ -8,6 +8,7 @@
       "distribution": "internal",
       "developmentClient": false,
       "autoIncrement": false,
+      "environment": "production",
       "android": {
         "buildType": "apk"
       }

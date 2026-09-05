@@ -11,6 +11,7 @@ import type {
   AniListMediaTitle,
 } from '@/infrastructure/api/anilist/anilist-dtos';
 import { createAnimeFallbackSeeds } from '@/infrastructure/repositories/catalog/catalog-utils';
+import { normalizeHtmlLineBreaks } from '@/shared/utils/html-text';
 
 function nonEmpty(value: string | null | undefined): string | null {
   const normalized = value?.trim();
@@ -202,7 +203,7 @@ export function mapAniListDetails(
   return {
     ...summary,
     alternativeTitles: alternativeTitles(dto, summary.title),
-    synopsis: nonEmpty(dto.description) ?? '',
+    synopsis: nonEmpty(normalizeHtmlLineBreaks(dto.description)) ?? '',
     studios: dto.studios.flatMap((studio) => {
       const name = nonEmpty(studio.name);
       return name ? [name] : [];

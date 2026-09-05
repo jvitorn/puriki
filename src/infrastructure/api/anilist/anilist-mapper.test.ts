@@ -149,6 +149,18 @@ describe('AniList mapper', () => {
     });
   });
 
+  it('normalizes <br> markup in the description into plain line breaks', () => {
+    const details = parseAniListMediaDetails(
+      anilistDetailsPayload({
+        description:
+          "It's been years since the crew set sail.<br><br>(Source: Crunchyroll)",
+      }),
+    );
+    expect(mapAniListDetails(details)?.synopsis).toBe(
+      "It's been years since the crew set sail.\n\n(Source: Crunchyroll)",
+    );
+  });
+
   it('keeps missing or malformed external-link data out of the domain model', () => {
     const details = parseAniListMediaDetails(
       anilistDetailsPayload({

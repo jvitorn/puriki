@@ -29,7 +29,6 @@ export const en = {
   'auth.reconnectRequired': 'Reconnection required',
   'auth.validationPending':
     "We couldn't verify this account. Try again when the service is available.",
-  'auth.comingSoon': 'Coming soon',
   'auth.connect': 'Connect',
   'auth.connecting': 'Connecting…',
   'auth.reconnect': 'Reconnect',

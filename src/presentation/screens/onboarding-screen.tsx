@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import { ArrowLeft, ChevronRight, Info, Sparkles } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -46,17 +47,11 @@ interface ProviderOption {
   id: AuthProviderId;
   image: ImageSourcePropType;
   name: string;
-  available: boolean;
 }
 
 const PROVIDERS: readonly ProviderOption[] = [
-  { id: 'anilist', image: AniListIcon, name: 'AniList', available: true },
-  {
-    id: 'mal',
-    image: MyAnimeListIcon,
-    name: 'MyAnimeList',
-    available: false,
-  },
+  { id: 'anilist', image: AniListIcon, name: 'AniList' },
+  { id: 'mal', image: MyAnimeListIcon, name: 'MyAnimeList' },
 ];
 
 const CAROUSEL_STEPS = [
@@ -398,7 +393,7 @@ function ProviderRow({
           {status}
         </Text>
       </View>
-      {option.available && !connected ? (
+      {!connected ? (
         actionLabel ? (
           <Text
             className="font-semibold text-primary-emphasis"
@@ -414,36 +409,57 @@ function ProviderRow({
   );
 }
 
+function providerStatusLabel(
+  connection: ProviderSessionSnapshot,
+  t: TFunction,
+): string {
+  if (connection.state === 'connected') {
+    return t('auth.connectedAs', {
+      username: connection.account?.username ?? t('common.unknown'),
+    });
+  }
+  if (connection.canRetry) return t('auth.validationPending');
+  if (connection.state === 'reconnect_required') {
+    return t('auth.reconnectRequired');
+  }
+  if (connection.operation !== 'idle') {
+    return connection.operation === 'restoring'
+      ? t('auth.checking')
+      : t('auth.connecting');
+  }
+  return t('onboarding.connectAccount');
+}
+
+function providerActionLabel(
+  connection: ProviderSessionSnapshot,
+  t: TFunction,
+): string | undefined {
+  if (connection.canRetry) return t('auth.retry');
+  if (connection.state === 'reconnect_required') return t('auth.reconnect');
+  return undefined;
+}
+
 function ProvidersAct({
-  anilistConnection,
+  connections,
   isCompleting,
   onBack,
   onComplete,
-  onAniListAction,
+  onProviderAction,
 }: {
-  anilistConnection: ProviderSessionSnapshot;
+  connections: Record<AuthProviderId, ProviderSessionSnapshot>;
   isCompleting: boolean;
   onBack(): void;
   onComplete(): void;
-  onAniListAction(): void;
+  onProviderAction(provider: AuthProviderId): void;
 }) {
   const { t } = useTranslation();
   const { bottom } = useSafeAreaInsets();
-  const connected = anilistConnection.state === 'connected';
-  const authBusy = anilistConnection.operation !== 'idle';
-  const anilistStatus = connected
-    ? t('auth.connectedAs', {
-        username: anilistConnection.account?.username ?? t('common.unknown'),
-      })
-    : anilistConnection.canRetry
-      ? t('auth.validationPending')
-      : anilistConnection.state === 'reconnect_required'
-        ? t('auth.reconnectRequired')
-        : authBusy
-          ? anilistConnection.operation === 'restoring'
-            ? t('auth.checking')
-            : t('auth.connecting')
-          : t('onboarding.connectAccount');
+  const anyConnected = PROVIDERS.some(
+    (option) => connections[option.id].state === 'connected',
+  );
+  const anyBusy = PROVIDERS.some(
+    (option) => connections[option.id].operation !== 'idle',
+  );
 
   return (
     <Screen padded={false} testID="providers-act">
@@ -462,39 +478,32 @@ function ProvidersAct({
               {t('onboarding.providersDescription')}
             </Text>
           </View>
-          {PROVIDERS.map((option) => (
-            <ProviderRow
-              key={option.id}
-              option={option}
-              connected={option.id === 'anilist' && connected}
-              disabled={!option.available || authBusy || connected}
-              actionLabel={
-                option.id !== 'anilist'
-                  ? undefined
-                  : anilistConnection.canRetry
-                    ? t('auth.retry')
-                    : anilistConnection.state === 'reconnect_required'
-                      ? t('auth.reconnect')
-                      : undefined
-              }
-              status={
-                option.id === 'anilist' ? anilistStatus : t('auth.comingSoon')
-              }
-              onPress={
-                option.id === 'anilist' ? onAniListAction : () => undefined
-              }
-            />
-          ))}
-          {anilistConnection.failure ? (
-            <Text
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-              className="px-1 text-destructive"
-              variant="caption"
-            >
-              {localizedAuthFailure(anilistConnection.failure, t)}
-            </Text>
-          ) : null}
+          {PROVIDERS.map((option) => {
+            const connection = connections[option.id];
+            const connected = connection.state === 'connected';
+            return (
+              <View key={option.id} className="gap-1.5">
+                <ProviderRow
+                  option={option}
+                  connected={connected}
+                  disabled={connection.operation !== 'idle' || connected}
+                  actionLabel={providerActionLabel(connection, t)}
+                  status={providerStatusLabel(connection, t)}
+                  onPress={() => onProviderAction(option.id)}
+                />
+                {connection.failure ? (
+                  <Text
+                    accessibilityLiveRegion="polite"
+                    accessibilityRole="alert"
+                    className="px-1 text-destructive"
+                    variant="caption"
+                  >
+                    {localizedAuthFailure(connection.failure, t, option.name)}
+                  </Text>
+                ) : null}
+              </View>
+            );
+          })}
           <View
             accessible
             className="min-h-11 flex-row items-center gap-3 px-1"
@@ -511,7 +520,7 @@ function ProvidersAct({
           className="gap-3 pt-3"
           style={{ paddingBottom: Math.max(bottom, 16) }}
         >
-          {!connected ? (
+          {!anyConnected ? (
             <View className="flex-row items-center gap-3">
               <View className="h-px flex-1 bg-border" />
               <Text variant="caption" muted>
@@ -521,20 +530,20 @@ function ProvidersAct({
             </View>
           ) : null}
           <OnboardingButton
-            accessibilityState={{ disabled: isCompleting || authBusy }}
-            disabled={isCompleting || authBusy}
-            variant={connected ? 'default' : 'outline'}
+            accessibilityState={{ disabled: isCompleting || anyBusy }}
+            disabled={isCompleting || anyBusy}
+            variant={anyConnected ? 'default' : 'outline'}
             onPress={onComplete}
           >
             <Text>
               {isCompleting
                 ? t('onboarding.entering')
-                : connected
+                : anyConnected
                   ? t('onboarding.continue')
                   : t('onboarding.continueGuest')}
             </Text>
           </OnboardingButton>
-          {!connected ? (
+          {!anyConnected ? (
             <View className="flex-row items-start gap-2" accessible>
               <Icon as={Info} className="mt-0.5 size-4 text-warning" />
               <Text variant="caption" className="flex-1 text-muted-foreground">
@@ -560,7 +569,6 @@ export function OnboardingContent({
   const [carouselStep, setCarouselStep] = useState(0);
   const [demoProgress, setDemoProgress] = useState(13);
   const [isCompleting, setIsCompleting] = useState(false);
-  const anilistConnection = snapshot.connections.anilist;
 
   if (act === 'welcome') {
     return (
@@ -587,7 +595,7 @@ export function OnboardingContent({
   }
   return (
     <ProvidersAct
-      anilistConnection={anilistConnection}
+      connections={snapshot.connections}
       isCompleting={isCompleting}
       onBack={() => {
         setCarouselStep(2);
@@ -598,9 +606,10 @@ export function OnboardingContent({
         setIsCompleting(true);
         void completeOnboarding();
       }}
-      onAniListAction={() => {
-        if (anilistConnection.canRetry) void retry('anilist');
-        else void signIn('anilist');
+      onProviderAction={(provider) => {
+        const connection = snapshot.connections[provider];
+        if (connection.canRetry) void retry(provider);
+        else void signIn(provider);
       }}
     />
   );

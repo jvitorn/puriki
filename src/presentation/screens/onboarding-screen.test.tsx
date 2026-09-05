@@ -125,13 +125,134 @@ describe('OnboardingContent', () => {
     await fireEvent.press(screen.getByLabelText('AniList'));
     expect(signIn).toHaveBeenCalledWith('anilist');
     expect(completeOnboarding).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('MyAnimeList')).toBeDisabled();
-    expect(screen.getByText('Coming soon')).toBeVisible();
 
     await fireEvent.press(
       screen.getByRole('button', { name: 'Continue without an account' }),
     );
     expect(completeOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats AniList and MyAnimeList as equally real, selectable providers', async () => {
+    const authSession = createTestAuthSession();
+    const signIn = jest.spyOn(authSession, 'signIn');
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={jest.fn(async () => undefined)} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+
+    expect(screen.getByLabelText('AniList')).toBeEnabled();
+    expect(screen.getByLabelText('MyAnimeList')).toBeEnabled();
+    expect(screen.queryByText('Coming soon')).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText('MyAnimeList'));
+    expect(signIn).toHaveBeenCalledWith('mal');
+  });
+
+  it('shows AniList as connected without disabling MyAnimeList', async () => {
+    const completeOnboarding = jest.fn(async () => undefined);
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('anilist', {
+      state: 'connected',
+      account: {
+        provider: 'anilist',
+        userId: '42',
+        username: 'aiko',
+        avatarUrl: null,
+        expiresAt: '2027-08-16T12:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={completeOnboarding} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(screen.getByText('Connected as aiko')).toBeVisible();
+    expect(
+      screen.getByLabelText('AniList').props.accessibilityState,
+    ).toMatchObject({ disabled: true, selected: true });
+    expect(screen.getByLabelText('MyAnimeList')).toBeEnabled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+    expect(completeOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows MyAnimeList as connected and lets the user continue', async () => {
+    const completeOnboarding = jest.fn(async () => undefined);
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('mal', {
+      state: 'connected',
+      account: {
+        provider: 'mal',
+        userId: '7',
+        username: 'kenji',
+        avatarUrl: null,
+        expiresAt: '2027-08-16T12:00:00.000Z',
+      },
+      operation: 'idle',
+      failure: null,
+      canRetry: false,
+    });
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={completeOnboarding} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(screen.getByText('Connected as kenji')).toBeVisible();
+    expect(
+      screen.getByLabelText('MyAnimeList').props.accessibilityState,
+    ).toMatchObject({ disabled: true, selected: true });
+    expect(
+      screen.queryByRole('button', { name: 'Continue without an account' }),
+    ).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' }));
+    expect(completeOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows AniList sign-in as unconfigured instead of a generic failure', async () => {
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('anilist', {
+      state: 'disconnected',
+      account: null,
+      operation: 'idle',
+      failure: 'configuration',
+      canRetry: false,
+    });
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={jest.fn(async () => undefined)} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(
+      screen.getByText('AniList sign-in is not configured for this build.'),
+    ).toBeVisible();
+  });
+
+  it('shows MyAnimeList sign-in as unconfigured instead of "coming soon"', async () => {
+    const authSession = createTestAuthSession();
+    authSession.updateConnection('mal', {
+      state: 'disconnected',
+      account: null,
+      operation: 'idle',
+      failure: 'configuration',
+      canRetry: false,
+    });
+    await renderWithProviders(
+      <OnboardingContent completeOnboarding={jest.fn(async () => undefined)} />,
+      { authSession },
+    );
+
+    await moveToProviders();
+    expect(
+      screen.getByText('MyAnimeList sign-in is not configured for this build.'),
+    ).toBeVisible();
+    expect(screen.queryByText('Coming soon')).not.toBeOnTheScreen();
   });
 
   it('shows a validated AniList account before explicitly completing onboarding', async () => {

@@ -1,5 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react-native';
 
+import type { AnimeListStatus } from '@/domain/models/anime';
 import { getAllowedStatusTransitions } from '@/domain/rules/anime-status';
 import { AnimeScoreSelector } from '@/presentation/components/anime/anime-score-selector';
 import { AnimeStatusSelector } from '@/presentation/components/anime/anime-status-selector';
@@ -37,6 +38,47 @@ describe('AnimeStatusSelector', () => {
     expect(onBlocked).toHaveBeenCalledWith('already_started');
     expect(onChange).toHaveBeenCalledTimes(1);
   });
+
+  const ALL_STATUSES: AnimeListStatus[] = [
+    'watching',
+    'completed',
+    'on_hold',
+    'dropped',
+    'plan_to_watch',
+  ];
+
+  it.each(ALL_STATUSES)(
+    'keeps the same two-row grouping when "%s" is the active status',
+    async (activeStatus) => {
+      await renderWithProviders(
+        <AnimeStatusSelector
+          value={activeStatus}
+          transitions={transitions}
+          onBlocked={jest.fn()}
+          onChange={jest.fn()}
+        />,
+      );
+
+      const rowOfRadios = (...names: string[]) =>
+        names.map((name) => screen.getByRole('radio', { name }).parent);
+
+      const [watchingRow, completedRow, onHoldRow] = rowOfRadios(
+        'Watching',
+        'Completed',
+        'On Hold',
+      );
+      const [droppedRow, planRow] = rowOfRadios('Dropped', 'Plan to Watch');
+
+      expect(watchingRow).toBe(completedRow);
+      expect(watchingRow).toBe(onHoldRow);
+      expect(droppedRow).toBe(planRow);
+      expect(watchingRow).not.toBe(droppedRow);
+
+      // Every one of the five statuses stays interactive and present,
+      // regardless of which one is currently active.
+      expect(screen.getAllByRole('radio')).toHaveLength(5);
+    },
+  );
 });
 
 describe('AnimeScoreSelector', () => {

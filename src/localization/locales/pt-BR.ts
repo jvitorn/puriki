@@ -14,7 +14,6 @@ export const ptBR = {
   'auth.reconnectRequired': 'Reconexão necessária',
   'auth.validationPending':
     'Não foi possível validar esta conta. Tente novamente quando o serviço estiver disponível.',
-  'auth.comingSoon': 'Em breve',
   'auth.connect': 'Conectar',
   'auth.connecting': 'Conectando…',
   'auth.reconnect': 'Reconectar',
@@ -232,7 +231,7 @@ export const ptBR = {
     'Tradução fornecida pelo Google Tradutor',
   'details.information': 'Informações do anime',
   'details.continuity': 'Continuidade da série',
-  'details.continuityPrequel': 'Prequela',
+  'details.continuityPrequel': 'Anterior',
   'details.continuitySequel': 'Sequência',
   'details.continuityRelationA11y': '{{kind}}: {{title}}',
   'details.season': 'Temporada',
