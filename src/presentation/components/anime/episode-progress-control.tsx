@@ -58,7 +58,7 @@ export function EpisodeProgressControl({
         <ProgressBar pending={saveState === 'saving'} value={current / total} />
       ) : null}
       {saveState !== 'idle' ? (
-        <View className="min-h-6 flex-row items-center justify-between gap-3">
+        <View className="min-h-6 flex-row items-center justify-between gap-2">
           <Text
             accessibilityLiveRegion="polite"
             accessibilityRole={saveState === 'error' ? 'alert' : undefined}

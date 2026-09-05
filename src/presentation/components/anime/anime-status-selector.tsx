@@ -15,16 +15,16 @@ import { Text } from '@/presentation/components/ui/text';
 import { ANIME_STATUSES } from '@/shared/constants/anime-status';
 import { cn } from '@/shared/rnr/utils';
 
-// Two fixed-column rows (3 + 2) instead of a single flex-wrap row: every
-// pill occupies an equal-width flex-1 slot, and a hidden spacer fills row 2's
-// trailing slot so its columns line up with row 1's. This keeps the grid
-// geometry stable across all five states — unlike flex-wrap, it never
+// Three fixed-column rows (2 + 2 + 1) instead of a single flex-wrap row. The
+// final pill uses the full row, while the first two rows keep equal columns.
+// This keeps the grid geometry stable across all five states - unlike flex-wrap, it never
 // reflows when the selected pill's content (e.g. the check icon) changes
 // width.
-const STATUS_ROW_COLUMNS = 3;
+const STATUS_ROW_COLUMNS = 2;
 const STATUS_ROWS: readonly (readonly AnimeListStatus[])[] = [
   ANIME_STATUSES.slice(0, STATUS_ROW_COLUMNS),
-  ANIME_STATUSES.slice(STATUS_ROW_COLUMNS),
+  ANIME_STATUSES.slice(STATUS_ROW_COLUMNS, STATUS_ROW_COLUMNS * 2),
+  ANIME_STATUSES.slice(STATUS_ROW_COLUMNS * 2),
 ];
 
 export function AnimeStatusSelector({
@@ -66,7 +66,9 @@ export function AnimeStatusSelector({
                   blocked
                     ? transition.reason === 'already_started'
                       ? t('details.statusBlockedAlreadyStarted')
-                      : t('details.statusBlockedAiringInProgress')
+                      : transition.reason === 'not_yet_released'
+                        ? t('details.statusBlockedNotYetReleased')
+                        : t('details.statusBlockedAiringInProgress')
                     : undefined
                 }
                 accessibilityRole="radio"
@@ -119,7 +121,7 @@ export function AnimeStatusSelector({
               </MotionPressable>
             );
           })}
-          {row.length < STATUS_ROW_COLUMNS
+          {row.length > 1 && row.length < STATUS_ROW_COLUMNS
             ? Array.from({ length: STATUS_ROW_COLUMNS - row.length }).map(
                 (_, index) => (
                   <View className="flex-1" key={`spacer-${index}`} />

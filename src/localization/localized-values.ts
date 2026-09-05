@@ -49,6 +49,34 @@ const AIRING_KEYS: Record<AnimeAiringStatus, string> = {
   unknown: 'airing.unknown',
 };
 
+const SEASON_KEYS: Record<string, string> = {
+  Fall: 'season.fall',
+  Spring: 'season.spring',
+  Summer: 'season.summer',
+  Winter: 'season.winter',
+};
+
+const GENRE_KEYS: Record<string, string> = {
+  Action: 'genre.action',
+  Adventure: 'genre.adventure',
+  Comedy: 'genre.comedy',
+  Drama: 'genre.drama',
+  Ecchi: 'genre.ecchi',
+  Fantasy: 'genre.fantasy',
+  Horror: 'genre.horror',
+  'Mahou Shoujo': 'genre.mahouShoujo',
+  Mecha: 'genre.mecha',
+  Music: 'genre.music',
+  Mystery: 'genre.mystery',
+  Psychological: 'genre.psychological',
+  Romance: 'genre.romance',
+  'Sci-Fi': 'genre.sciFi',
+  'Slice of Life': 'genre.sliceOfLife',
+  Sports: 'genre.sports',
+  Supernatural: 'genre.supernatural',
+  Thriller: 'genre.thriller',
+};
+
 export function localizedError(error: unknown, t: TFunction): string {
   return error instanceof DataSourceError
     ? t(ERROR_KEYS[error.code])
@@ -74,6 +102,16 @@ export function localizedAiringStatus(
   t: TFunction,
 ): string {
   return t(AIRING_KEYS[status]);
+}
+
+export function localizedSeason(season: string, t: TFunction): string {
+  const key = SEASON_KEYS[season];
+  return key ? t(key) : season;
+}
+
+export function localizedGenre(genre: string, t: TFunction): string {
+  const key = GENRE_KEYS[genre];
+  return key ? t(key) : genre;
 }
 
 export function formatDateTime(value: string, language: AppLanguage): string {

@@ -13,6 +13,10 @@ describe('normalizeHtmlLineBreaks', () => {
     expect(normalizeHtmlLineBreaks('foo<br />bar')).toBe('foo\nbar');
   });
 
+  it('converts escaped br markup into a line break', () => {
+    expect(normalizeHtmlLineBreaks('foo&lt;br/&gt;bar')).toBe('foo\nbar');
+  });
+
   it('converts consecutive <br> tags into a blank line', () => {
     expect(normalizeHtmlLineBreaks('foo<br><br>bar')).toBe('foo\n\nbar');
   });

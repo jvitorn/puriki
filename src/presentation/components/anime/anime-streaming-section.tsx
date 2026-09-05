@@ -10,8 +10,8 @@ import { cn } from '@/shared/rnr/utils';
 
 const STREAMING_GRID_COLUMNS = 2;
 
-// Rows of at most two services. A single service keeps the original
-// full-width card instead of being squeezed into a half-width column.
+// Rows of at most two services. A single service keeps a full-width card
+// instead of being squeezed into a half-width column.
 function streamingRows(
   services: readonly AnimeStreamingService[],
 ): (readonly AnimeStreamingService[])[] {
@@ -44,7 +44,7 @@ function StreamingServiceCard({
         name: service.name,
       })}
       className={cn(
-        'min-h-16 flex-row items-center gap-3 p-3 py-3',
+        'min-h-16 flex-row items-center gap-2 p-3 py-3',
         columnar && 'flex-1',
       )}
     >
@@ -52,7 +52,7 @@ function StreamingServiceCard({
         <Image
           accessible={false}
           accessibilityIgnoresInvertColors
-          className="size-10 rounded-lg"
+          className="size-8 rounded-lg"
           resizeMode="contain"
           source={{ uri: service.iconUrl }}
           testID={`streaming-service-icon-${index}`}
@@ -60,13 +60,13 @@ function StreamingServiceCard({
       ) : (
         <View
           accessible={false}
-          className="size-10 items-center justify-center rounded-lg bg-muted"
+          className="size-8 items-center justify-center rounded-lg bg-muted"
           testID={`streaming-service-fallback-${index}`}
         >
-          <Icon as={Tv} className="size-5 text-muted-foreground" />
+          <Icon as={Tv} className="size-4 text-muted-foreground" />
         </View>
       )}
-      <Text className="flex-1 font-semibold" numberOfLines={2}>
+      <Text className="flex-1 text-sm font-semibold" numberOfLines={2}>
         {service.name}
       </Text>
     </Card>
@@ -101,7 +101,7 @@ export function AnimeStreamingSection({
                 service={service}
               />
             ))}
-            {columnar && row.length < STREAMING_GRID_COLUMNS ? (
+            {columnar && row.length > 1 && row.length < STREAMING_GRID_COLUMNS ? (
               <View className="flex-1" />
             ) : null}
           </View>

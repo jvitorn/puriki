@@ -197,7 +197,7 @@ async function optimisticallyUpdate(
 
 function trackingContext(anime: AnimeCatalogItem) {
   return {
-    totalEpisodes: anime.totalEpisodes,
+    totalEpisodes: anime.totalEpisodes ?? anime.releasedEpisodes ?? null,
     airingStatus: anime.airingStatus,
   };
 }

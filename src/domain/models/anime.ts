@@ -35,6 +35,7 @@ export interface AnimeCatalogItem {
   genres: string[];
   studios: string[];
   totalEpisodes: number | null;
+  releasedEpisodes?: number | null;
   score: number | null;
   season: string | null;
   year: number | null;

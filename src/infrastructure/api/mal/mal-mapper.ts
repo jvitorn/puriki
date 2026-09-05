@@ -88,6 +88,11 @@ export function mapMalAnime(
     dto.main_picture?.large,
     dto.main_picture?.medium,
   );
+  const totalEpisodes =
+    typeof dto.num_episodes === 'number' && dto.num_episodes > 0
+      ? dto.num_episodes
+      : null;
+  const airingStatus = mapMalAiringStatus(dto.status);
   return {
     id: dto.id,
     title: dto.title.trim(),
@@ -101,10 +106,8 @@ export function mapMalAnime(
       const name = nonEmpty(studio.name);
       return name ? [name] : [];
     }),
-    totalEpisodes:
-      typeof dto.num_episodes === 'number' && dto.num_episodes > 0
-        ? dto.num_episodes
-        : null,
+    totalEpisodes,
+    releasedEpisodes: airingStatus === 'finished' ? totalEpisodes : null,
     score:
       typeof dto.mean === 'number' && Number.isFinite(dto.mean)
         ? dto.mean
@@ -115,7 +118,7 @@ export function mapMalAnime(
       Number.isInteger(dto.start_season.year)
         ? dto.start_season.year
         : null,
-    airingStatus: mapMalAiringStatus(dto.status),
+    airingStatus,
     posterImageUrl: mediumPicture ?? largePicture,
     largePosterImageUrl: largePicture ?? mediumPicture,
     heroImageUrl: largePicture ?? mediumPicture,

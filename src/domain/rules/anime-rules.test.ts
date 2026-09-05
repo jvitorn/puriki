@@ -115,6 +115,31 @@ describe('anime status and score rules', () => {
     });
   });
 
+  it('does not start tracking an anime that has not premiered', () => {
+    const result = transitionStatus(
+      { ...started, status: 'plan_to_watch', watchedEpisodes: 0 },
+      'watching',
+      context(7, 'not_yet_released'),
+    );
+    expect(result).toMatchObject({
+      allowed: false,
+      reason: 'not_yet_released',
+      entry: { status: 'plan_to_watch', watchedEpisodes: 0 },
+    });
+  });
+
+  it('does not start tracking from progress before an anime premieres', () => {
+    const result = applyProgress(
+      { ...started, status: 'plan_to_watch', watchedEpisodes: 0 },
+      1,
+      context(7, 'not_yet_released'),
+    );
+    expect(result).toMatchObject({
+      status: 'plan_to_watch',
+      watchedEpisodes: 0,
+    });
+  });
+
   it.each(['releasing', 'not_yet_released', 'hiatus'] as const)(
     'blocks completed while airing status is %s',
     (airingStatus) => {

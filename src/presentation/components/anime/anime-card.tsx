@@ -21,15 +21,13 @@ export function AnimeCard({ item, onPress, className }: AnimeCardProps) {
   const { t } = useTranslation();
   const { language } = useAppLanguage();
   const { anime, userEntry } = item;
-  const progress = anime.totalEpisodes
-    ? (userEntry?.watchedEpisodes ?? 0) / anime.totalEpisodes
+  const episodeLimit = anime.totalEpisodes ?? anime.releasedEpisodes ?? null;
+  const progress = episodeLimit
+    ? (userEntry?.watchedEpisodes ?? 0) / episodeLimit
     : 0;
-  const yearAndEpisodes = [
-    anime.year ? formatNumber(anime.year, language) : t('common.yearTbd'),
-    anime.totalEpisodes
-      ? t('common.episodesShort', { count: anime.totalEpisodes })
-      : t('common.episodesTbd'),
-  ].join(' • ');
+  const year = anime.year
+    ? formatNumber(anime.year, language, { useGrouping: false })
+    : t('common.yearTbd');
 
   return (
     <Pressable
@@ -47,32 +45,36 @@ export function AnimeCard({ item, onPress, className }: AnimeCardProps) {
         imageUrl={anime.posterImageUrl}
       />
       <View className="gap-1">
-        <Text className="min-h-10 font-bold leading-5" numberOfLines={2}>
+        <Text className="font-bold leading-5" numberOfLines={1}>
           {anime.title}
         </Text>
-        <Text variant="caption" muted numberOfLines={1}>
-          {yearAndEpisodes}
-        </Text>
-        {anime.score !== null ? (
-          <View className="flex-row items-center gap-1">
-            <Icon
-              as={Star}
-              className="size-3.5 text-warning"
-              fill="currentColor"
-            />
-            <Text variant="caption">
-              {formatNumber(anime.score, language, {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
-              })}
-            </Text>
-          </View>
-        ) : null}
+        <View className="flex-row items-center justify-between gap-2">
+          {anime.score !== null ? (
+            <View className="flex-row items-center gap-1">
+              <Icon
+                as={Star}
+                className="size-3.5 text-warning"
+                fill="currentColor"
+              />
+              <Text variant="caption">
+                {formatNumber(anime.score, language, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}
+              </Text>
+            </View>
+          ) : (
+            <View />
+          )}
+          <Text variant="caption" muted numberOfLines={1}>
+            {year}
+          </Text>
+        </View>
         {userEntry ? (
           <View className="mt-1 gap-1">
             <ProgressBar value={progress} />
             <Text variant="caption" muted>
-              {userEntry.watchedEpisodes} / {anime.totalEpisodes ?? '?'}
+              {userEntry.watchedEpisodes} / {episodeLimit ?? '?'}
             </Text>
           </View>
         ) : null}

@@ -56,6 +56,7 @@ export function statusAfterProgress(
     watchedEpisodes > 0 &&
     (currentStatus === 'plan_to_watch' || currentStatus === 'completed')
   ) {
+    if (context.airingStatus === 'not_yet_released') return currentStatus;
     return 'watching';
   }
   return currentStatus;
@@ -66,6 +67,13 @@ export function applyProgress(
   episodes: number,
   context: AnimeTrackingContext,
 ): UserAnimeEntry {
+  if (
+    context.airingStatus === 'not_yet_released' &&
+    entry.status === 'plan_to_watch' &&
+    episodes > entry.watchedEpisodes
+  ) {
+    return { ...entry };
+  }
   const watchedEpisodes = normalizeProgress(episodes, context.totalEpisodes);
   return {
     ...entry,

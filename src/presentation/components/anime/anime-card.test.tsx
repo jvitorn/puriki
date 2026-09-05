@@ -10,6 +10,8 @@ describe('AnimeCard', () => {
       <AnimeCard item={buildWatchingAnime()} onPress={jest.fn()} />,
     );
     expect(screen.getByText('Test Horizon')).toBeVisible();
+    expect(screen.getByText('2026')).toBeVisible();
+    expect(screen.queryByText('12 eps')).not.toBeOnTheScreen();
     expect(screen.getByText('4 / 12')).toBeVisible();
     expect(screen.getByTestId('poster-42')).toBeVisible();
     expect(

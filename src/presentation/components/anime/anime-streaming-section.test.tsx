@@ -34,7 +34,7 @@ describe('AnimeStreamingSection', () => {
     expect(cardFor('Crunchyroll').parent).toBe(cardFor('Hulu').parent);
   });
 
-  it('keeps an odd third service alone in the first column of its own row', async () => {
+  it('makes an odd third service fill its own row', async () => {
     await renderWithProviders(
       <AnimeStreamingSection
         services={[service('Crunchyroll'), service('Hulu'), service('Netflix')]}
@@ -42,7 +42,7 @@ describe('AnimeStreamingSection', () => {
     );
     expect(cardFor('Crunchyroll').parent).toBe(cardFor('Hulu').parent);
     expect(cardFor('Netflix').parent).not.toBe(cardFor('Crunchyroll').parent);
-    expect(cardFor('Netflix').parent?.children).toHaveLength(2);
+    expect(cardFor('Netflix').parent?.children).toHaveLength(1);
   });
 
   it('lays out four services as two full rows of two', async () => {
@@ -63,7 +63,7 @@ describe('AnimeStreamingSection', () => {
     );
   });
 
-  it('keeps a trailing fifth service alone in the first column', async () => {
+  it('makes a trailing fifth service fill its own row', async () => {
     await renderWithProviders(
       <AnimeStreamingSection
         services={[
@@ -77,7 +77,7 @@ describe('AnimeStreamingSection', () => {
     );
     expect(cardFor('Crunchyroll').parent).toBe(cardFor('Hulu').parent);
     expect(cardFor('Adult Swim').parent).toBe(cardFor('iQIYI').parent);
-    expect(cardFor('Netflix').parent?.children).toHaveLength(2);
+    expect(cardFor('Netflix').parent?.children).toHaveLength(1);
     expect(cardFor('Netflix').parent).not.toBe(cardFor('iQIYI').parent);
   });
 });

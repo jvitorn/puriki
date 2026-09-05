@@ -48,7 +48,7 @@ describe('AnimeStatusSelector', () => {
   ];
 
   it.each(ALL_STATUSES)(
-    'keeps the same two-row grouping when "%s" is the active status',
+    'keeps the same three-row grouping when "%s" is the active status',
     async (activeStatus) => {
       await renderWithProviders(
         <AnimeStatusSelector
@@ -62,17 +62,17 @@ describe('AnimeStatusSelector', () => {
       const rowOfRadios = (...names: string[]) =>
         names.map((name) => screen.getByRole('radio', { name }).parent);
 
-      const [watchingRow, completedRow, onHoldRow] = rowOfRadios(
+      const [watchingRow, completedRow] = rowOfRadios(
         'Watching',
         'Completed',
-        'On Hold',
       );
-      const [droppedRow, planRow] = rowOfRadios('Dropped', 'Plan to Watch');
+      const [onHoldRow, droppedRow] = rowOfRadios('On Hold', 'Dropped');
+      const [planRow] = rowOfRadios('Plan to Watch');
 
       expect(watchingRow).toBe(completedRow);
-      expect(watchingRow).toBe(onHoldRow);
-      expect(droppedRow).toBe(planRow);
-      expect(watchingRow).not.toBe(droppedRow);
+      expect(onHoldRow).toBe(droppedRow);
+      expect(watchingRow).not.toBe(onHoldRow);
+      expect(onHoldRow).not.toBe(planRow);
 
       // Every one of the five statuses stays interactive and present,
       // regardless of which one is currently active.

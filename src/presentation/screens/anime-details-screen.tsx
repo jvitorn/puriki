@@ -24,6 +24,8 @@ import {
   formatNumber,
   localizedAiringStatus,
   localizedError,
+  localizedGenre,
+  localizedSeason,
   localizedStatus,
 } from '@/localization/localized-values';
 import { AnimeContinuitySection } from '@/presentation/components/anime/anime-continuity-section';
@@ -150,10 +152,12 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
   }
 
   const { anime, userEntry } = details.data;
+  const episodeLimit = anime.totalEpisodes ?? anime.releasedEpisodes ?? null;
+  const canTrackProgress = anime.airingStatus !== 'not_yet_released';
   const busy = addToList.isPending || removeFromList.isPending;
   const statusTransitions = userEntry
     ? getAllowedStatusTransitions(userEntry, {
-        totalEpisodes: anime.totalEpisodes,
+        totalEpisodes: episodeLimit,
         airingStatus: anime.airingStatus,
       })
     : null;
@@ -219,8 +223,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 {anime.year ?? t('common.yearTbd')}
               </Text>
               <Text variant="caption" muted>
-                {anime.totalEpisodes
-                  ? t('common.episodesShort', { count: anime.totalEpisodes })
+                {episodeLimit
+                  ? t('common.episodesShort', { count: episodeLimit })
                   : t('common.episodesTbd')}
               </Text>
             </View>
@@ -237,10 +241,10 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 <Text variant="heading">{t('details.myList')}</Text>
                 <Text variant="caption" muted>
                   {t('details.entrySummary', {
-                    count: anime.totalEpisodes ?? 2,
+                    count: episodeLimit ?? 2,
                     status: localizedStatus(userEntry.status, t),
                     watched: userEntry.watchedEpisodes,
-                    total: anime.totalEpisodes ?? '?',
+                    total: episodeLimit ?? '?',
                   })}
                 </Text>
               </View>
@@ -258,8 +262,8 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
               </Text>
               <EpisodeProgressControl
                 current={episodeIntent.displayedProgress}
-                total={anime.totalEpisodes}
-                disabled={busy || !canMutateUserList}
+                total={episodeLimit}
+                disabled={busy || !canMutateUserList || !canTrackProgress}
                 saveState={progress.saveState}
                 onIncrease={episodeIntent.increase}
                 onDecrease={episodeIntent.decrease}
@@ -291,7 +295,9 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
                 >
                   {statusBlockedReason === 'already_started'
                     ? t('details.statusBlockedAlreadyStarted')
-                    : t('details.statusBlockedAiringInProgress')}
+                    : statusBlockedReason === 'not_yet_released'
+                      ? t('details.statusBlockedNotYetReleased')
+                      : t('details.statusBlockedAiringInProgress')}
                 </Text>
               ) : null}
             </View>
@@ -450,14 +456,18 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           </Text>
           <InfoRow
             label={t('details.season')}
-            value={anime.season ?? t('common.unknown')}
+            value={
+              anime.season
+                ? localizedSeason(anime.season, t)
+                : t('common.unknown')
+            }
           />
           <Separator />
           <InfoRow
             label={t('details.year')}
             value={
-              anime.year
-                ? formatNumber(anime.year, language)
+              anime.year !== null
+                ? formatNumber(anime.year, language, { useGrouping: false })
                 : t('common.unknown')
             }
           />
@@ -469,14 +479,18 @@ export function AnimeDetailsScreen({ animeId }: { animeId: number }) {
           <Separator />
           <InfoRow
             label={t('details.genres')}
-            value={anime.genres.join(', ') || t('common.unknown')}
+            value={
+              anime.genres.length > 0
+                ? anime.genres.map((genre) => localizedGenre(genre, t)).join(', ')
+                : t('common.unknown')
+            }
           />
           <Separator />
           <InfoRow
             label={t('details.episodes')}
             value={
-              anime.totalEpisodes
-                ? formatNumber(anime.totalEpisodes, language)
+              episodeLimit
+                ? formatNumber(episodeLimit, language)
                 : t('common.unknown')
             }
           />

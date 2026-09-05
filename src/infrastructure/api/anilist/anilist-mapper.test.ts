@@ -134,6 +134,7 @@ describe('AniList mapper', () => {
     expect(mapAniListDetails(details)).toMatchObject({
       alternativeTitles: ['Romaji', 'Native', 'Alias'],
       synopsis: 'A pirate adventure.',
+      releasedEpisodes: 1150,
       studios: ['Toei Animation'],
       continuity: [
         { animeId: 20, title: 'Prequel', kind: 'prequel' },

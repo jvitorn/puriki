@@ -142,13 +142,29 @@ describe('useSynopsisTranslation', () => {
 
   it('uses a valid cache without invoking the native translator', async () => {
     const dependencies = createDependencies({
-      cachedText: 'Tradução em cache.',
+      cachedText: 'Primeira linha.<br>Segunda linha.',
     });
     const { result } = await renderTranslationHook(dependencies);
     await act(async () => result.current.translate());
 
-    expect(result.current.displayedText).toBe('Tradução em cache.');
+    expect(result.current.displayedText).toBe('Primeira linha.\nSegunda linha.');
     expect(dependencies.translator.translate).not.toHaveBeenCalled();
+  });
+
+  it('normalizes line breaks returned by the translator', async () => {
+    const dependencies = createDependencies({
+      translatedText: 'Primeira linha.<br/>Segunda linha.',
+    });
+    const { result } = await renderTranslationHook(dependencies);
+
+    await act(async () => result.current.translate());
+
+    expect(result.current.displayedText).toBe('Primeira linha.\nSegunda linha.');
+    expect(dependencies.cache.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        translatedText: 'Primeira linha.\nSegunda linha.',
+      }),
+    );
   });
 
   it('treats a stale cache miss as a native translation request', async () => {

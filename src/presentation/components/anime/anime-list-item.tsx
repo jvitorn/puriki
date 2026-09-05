@@ -19,8 +19,10 @@ export function AnimeListItem({
 }) {
   const { t } = useTranslation();
   const entry = item.userEntry;
-  const progress = item.anime.totalEpisodes
-    ? (entry?.watchedEpisodes ?? 0) / item.anime.totalEpisodes
+  const episodeLimit =
+    item.anime.totalEpisodes ?? item.anime.releasedEpisodes ?? null;
+  const progress = episodeLimit
+    ? (entry?.watchedEpisodes ?? 0) / episodeLimit
     : 0;
 
   return (
@@ -56,9 +58,9 @@ export function AnimeListItem({
             <View className="flex-row items-center justify-between gap-2">
               <Text variant="caption" muted>
                 {t('common.episodeFraction', {
-                  count: item.anime.totalEpisodes ?? 2,
+                  count: episodeLimit ?? 2,
                   watched: entry.watchedEpisodes,
-                  total: item.anime.totalEpisodes ?? '?',
+                  total: episodeLimit ?? '?',
                 })}
               </Text>
               {entry.userScore ? (

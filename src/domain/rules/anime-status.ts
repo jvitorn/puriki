@@ -7,7 +7,7 @@ import { canMarkAnimeCompleted } from '@/domain/rules/anime-airing-status';
 import { normalizeProgress } from '@/domain/rules/anime-progress';
 
 export type StatusTransitionBlockedReason =
-  'already_started' | 'airing_in_progress';
+  'already_started' | 'airing_in_progress' | 'not_yet_released';
 
 export type StatusTransitionResult =
   | { allowed: true; entry: UserAnimeEntry; reason: null }
@@ -27,6 +27,13 @@ export function transitionStatus(
   }
   if (status === 'plan_to_watch' && entry.watchedEpisodes > 0) {
     return { allowed: false, entry: { ...entry }, reason: 'already_started' };
+  }
+  if (status === 'watching' && context.airingStatus === 'not_yet_released') {
+    return {
+      allowed: false,
+      entry: { ...entry },
+      reason: 'not_yet_released',
+    };
   }
   if (status === 'completed' && !canMarkAnimeCompleted(context.airingStatus)) {
     return {

@@ -112,6 +112,7 @@ export function MyListScreen() {
         accessibilityLabel={t('myList.filters')}
         contentContainerClassName="px-4 py-4 md:px-6"
         showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
       >
         <ToggleGroup
           className="gap-2"

@@ -15,6 +15,7 @@ import {
 } from '@/domain/services/synopsis-translator';
 import type { AppLanguage } from '@/localization/languages';
 import { useSynopsisTranslationDependencies } from '@/presentation/providers/synopsis-translation-provider';
+import { normalizeHtmlLineBreaks } from '@/shared/utils/html-text';
 
 type TranslationState =
   | { status: 'idle'; identity: string }
@@ -113,11 +114,14 @@ export function useSynopsisTranslation({
       if (!mountedRef.current || identityRef.current !== identity) return;
 
       if (cached) {
+        const normalizedCachedText = normalizeHtmlLineBreaks(
+          cached.translatedText,
+        );
         setShowingOriginal(false);
         setState({
           status: 'success',
           identity,
-          translatedText: cached.translatedText,
+          translatedText: normalizedCachedText,
         });
         return;
       }
@@ -135,18 +139,21 @@ export function useSynopsisTranslation({
       }
       if (!mountedRef.current || identityRef.current !== identity) return;
 
+      const normalizedTranslatedText = normalizeHtmlLineBreaks(
+        result.translatedText,
+      );
       setShowingOriginal(false);
       setState({
         status: 'success',
         identity,
-        translatedText: result.translatedText,
+        translatedText: normalizedTranslatedText,
       });
 
       try {
         await cache.set({
           ...lookup,
           version: 1,
-          translatedText: result.translatedText,
+          translatedText: normalizedTranslatedText,
           translatedAt: new Date().toISOString(),
         });
       } catch {
