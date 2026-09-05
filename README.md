@@ -1,236 +1,209 @@
 # Puriki
 
-Puriki is a dark-first React Native anime list manager built with Expo. It combines a resilient public anime catalog with a temporary guest list that exists only for the current application process.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/brand/svg/puriki-horizontal-dark.svg">
+    <img alt="Puriki" src="./assets/brand/svg/puriki-horizontal-light.svg" width="360">
+  </picture>
+</p>
 
-## Product identity
+<p align="center">
+  A free, ad-free Android anime list client for AniList and MyAnimeList.
+</p>
 
-The Expo identity is `Puriki`, with slug and URL scheme `puriki`. The Android application identifier is `com.jvitorn.puriki`; this migration is safe because the project has no EAS binding, store publication, provider callback, or committed native project tied to the former identifier.
+<p align="center">
+  <strong>English</strong> ·
+  <a href="./docs/readme/README.pt-BR.md">Português (Brasil)</a> ·
+  <a href="./docs/readme/README.es.md">Español</a>
+</p>
 
-Native branding uses the normalized assets in `assets/app-icon/` and `assets/splash/`. Original brand masters remain in `assets/brand/source/`, while presentation-ready vectors live in `assets/brand/svg/`. The official dark background is `#090C11`, and the brand red `#970C10` is the semantic primary. A lighter red is reserved for small text, focus rings, and active icons that require stronger contrast; the existing purple secondary remains available.
+Puriki gives anime fans one focused Android experience for discovering titles
+and managing the list they already keep on AniList or MyAnimeList. Connect
+either provider, choose the active list when both are connected, or try the app
+in guest mode.
 
-Legacy technical identifiers such as `purikuki:` AsyncStorage keys and the `modules/purikuki-translation` native bridge remain unchanged to preserve persisted data and avoid an unrelated native-module migration. They do not represent the visible product name.
+[Official website](https://jvitorn.github.io/puriki-site/) ·
+[GitHub Releases](https://github.com/jvitorn/puriki/releases) ·
+[Product roadmap](./PURIKI_PRODUCT_ENGINEERING_ROADMAP.md)
 
-## Production catalog
+## Features
 
-Catalog routing is infrastructure behavior, not a user preference:
+- Discover popular, seasonal, upcoming, and featured anime.
+- Search the catalog and open detailed title pages with synopsis, studios,
+  genres, continuity, and streaming links when provider data is available.
+- Connect an AniList or MyAnimeList account.
+- Read your selected provider list and add or remove titles.
+- Update watched episodes, list status, and score.
+- Keep episode progress within the released-episode limit when that information
+  is available.
+- Use a temporary guest list without connecting an account.
+- Continue browsing through provider-aware fallback and cached catalog data
+  during eligible service failures.
+- Use the interface in English, Brazilian Portuguese, or Spanish.
+- Translate English synopses into Portuguese or Spanish on Android, on demand,
+  using Google ML Kit on the device.
 
-```text
-AniList primary → eligible failure → public MAL fallback → valid cache
-```
+Puriki 1.0 manages one selected provider list at a time. It does **not** copy or
+continuously synchronize lists between AniList and MyAnimeList.
 
-AniList is queried through the public GraphQL endpoint at `https://graphql.anilist.co`. Puriki keeps its current domain identity based on MyAnimeList IDs: AniList media and continuity relations without a valid `idMal` are skipped. This avoids a premature domain-wide identity migration while allowing AniList artwork and metadata to power the product.
+## Supported services
 
-The AniList integration provides:
+| Service | Discovery data | Account connection | User-list management |
+| --- | --- | --- | --- |
+| AniList | Primary catalog source | OAuth | Read, add, remove, progress, status, and score |
+| MyAnimeList | Automatic catalog fallback | OAuth with PKCE | Read, add, remove, progress, status, and score |
+| Guest mode | Uses the available catalog | Not required | Temporary in-process list |
 
-- Popular, Seasonal, Upcoming, Search, Details, and derived Featured content.
-- A lean summary fragment for collections and a rich detail operation for synopsis, studios, synonyms, and continuity.
-- A single aliased GraphQL operation for the initial Popular + Seasonal + Upcoming snapshot. Concurrent cold calls coalesce into one HTTP request, while a GraphQL error in one alias does not discard healthy aliases.
-- Individual operations for family-specific refresh.
-- Native `fetch`, a 12-second timeout, runtime response validation, explicit error classes, and at most two attempts for network, timeout, and supported 5xx failures.
-- Shared request coalescing, bounded concurrency, and provider-wide rate-limit state. HTTP 429 respects `Retry-After` and reset headers and does not open family circuits.
+Provider availability and the completeness of individual titles depend on the
+data exposed by AniList and MyAnimeList.
 
-Search requests 25 safe anime summaries. Seasonal lookup uses the local date with Winter Dec–Feb, Spring Mar–May, Summer Jun–Aug, and Fall Sep–Nov. Details are looked up by MAL ID, and missing AniList media softly falls back to MAL without damaging primary-provider health.
+## Screenshots
 
-Title preference is English, then romaji, then native. `averageScore` is mapped from 0–100 to 0–10. Vertical covers deliberately use AniList cover images, while `heroImageUrl` uses only `bannerImage`; a missing banner remains null so the existing UI fallback can render. Only anime `PREQUEL` and `SEQUEL` relations with a MAL ID enter domain continuity.
+Real-device screenshots are being prepared for this section. Puriki does not
+present mockups or generated imagery as real application captures. The capture
+plan and expected filenames live in
+[docs/readme/screenshots](./docs/readme/screenshots/README.md).
 
-Upstream contracts: [AniList rate limiting](https://docs.anilist.co/guide/rate-limiting), [Media](https://docs.anilist.co/reference/object/media), [Media cover images](https://docs.anilist.co/reference/object/mediacoverimage), and [Page](https://docs.anilist.co/reference/object/page).
+## Download
 
-## Automatic fallback and recovery
-
-MAL fallback is eligible after a primary network failure, timeout, rate limit, temporary service failure, invalid response, unexpectedly empty required discovery collection, or a soft detail miss. Invalid GraphQL operations and arbitrary HTTP authorization/programming failures remain visible instead of being hidden by fallback.
-
-Resilience is isolated into `featured`, `popular`, `seasonal`, `upcoming`, `search`, and `details` operation families. Each family owns a circuit breaker that opens after two consecutive eligible failures for five minutes. A failing Popular family therefore does not stop healthy Seasonal, Search, or Details traffic. After cooldown, a single half-open probe decides whether that family closes or reopens.
-
-A provider-wide primary rate gate is separate from family health. When it is active, new primary work uses MAL without opening otherwise healthy circuits. The valid operation cache is the final fallback when both live providers fail.
-
-The provider-neutral Catalog Item Store is keyed by MAL ID and records both source and completeness:
-
-```text
-Catalog Item Store
-├── summary  → Home, My List, Continue Watching, Search, and rails
-└── details  → explicit Anime Details resolution
-```
-
-Completeness outranks provider preference, preventing a later summary from replacing known details. At equal completeness, preference is `anilist > mal > cache`. Missing IDs in `getManyByIds` are resolved sequentially so rate and circuit state can be checked between items.
-
-Provider caches are in memory, distinguish summaries from details, and coalesce identical in-flight work. Clearing the catalog removes provider data, operation results, and normalized items without resetting circuit health or the shared request budget.
-
-## MyAnimeList public fallback
-
-Configure the application Client ID in a local `.env` file:
-
-```env
-EXPO_PUBLIC_MAL_CLIENT_ID=
-```
-
-Restart Metro after changing `.env`:
-
-```bash
-npx expo start --clear
-```
-
-MAL requests use React Native's global `fetch`, a 12-second timeout, `Accept: application/json`, and `X-MAL-CLIENT-ID`. The Client ID is never rendered or logged. Do not put a MAL Client Secret in a React Native bundle. Puriki does not implement MAL OAuth, user profiles, or list synchronization.
-
-The fallback uses the official API v2 search, anime details, popularity ranking, upcoming ranking, and current-season endpoints. It maps provider DTOs into the same `AnimeCatalogItem` contract and supplies Prequel/Sequel continuity from `related_anime`. See the [official MyAnimeList API v2 reference](https://myanimelist.net/apiconfig/references/api/v2).
-
-## AniList account session
-
-AniList is the first authenticated account provider. Configure its public application Client ID in the local `.env` file:
-
-```env
-EXPO_PUBLIC_ANILIST_CLIENT_ID=
-```
-
-Register this exact redirect URL in the AniList developer settings:
+Puriki 1.0 is distributed directly as an Android APK. The first public APK will
+be available from the official
+[GitHub Releases page](https://github.com/jvitorn/puriki/releases) as:
 
 ```text
-puriki://auth/anilist
+puriki-v1.0.0.apk
 ```
 
-Puriki uses AniList's OAuth Implicit Grant because a native client cannot securely keep a Client Secret. No Client Secret belongs in `.env`, `EXPO_PUBLIC_*`, the application bundle, or repository. AniList returns to a native Puriki Development/Release Build through the registered custom scheme; Expo Go and web intentionally report that account connection is unavailable.
+Puriki is not distributed through Google Play. No public release is claimed
+until the GitHub Release and its signed APK asset are actually published.
 
-The access token is stored only in Expo SecureStore under a versioned provider key. It is never written to AsyncStorage, React Query, diagnostics, or logs. On launch, Puriki checks token expiration and validates the authenticated identity through `Viewer`. Expired or definitively rejected credentials require reconnection; temporary network failures retain the credential and expose a retry that does not reopen OAuth.
+## Install on Android
 
-When an AniList account is connected, its authenticated anime list becomes the active My List. Puriki reads `MediaListCollection` and supports adding, removing, and updating progress, status, and score through `SaveMediaListEntry` and `DeleteMediaListEntry`. Logout switches back to the untouched in-process guest list; no guest entries are imported or merged into AniList.
+1. Download the APK from Puriki's official GitHub Release.
+2. Open the downloaded file on your Android device.
+3. If Android asks, allow installation from the browser or file manager you
+   used.
+4. Confirm the installation.
 
-The domain continues to identify anime by MyAnimeList ID. AniList media IDs and media-list-entry IDs remain private infrastructure metadata in the authenticated repository snapshot. Scores are read in `POINT_10` and written through the fixed 100-point `scoreRaw` input, including zero to clear a score.
+Android may warn that the app came from outside Google Play. Verify the filename
+and release page before installing. Future APKs can be installed over the
+existing app when they use the same signing key and a higher
+`android.versionCode`.
 
-Catalog airing state is normalized across AniList and MAL. Returning to Plan to Watch is blocked once episode progress has started, and Completed is blocked for releasing, not-yet-released, or hiatus titles. Reaching a known episode total follows the same policy, so an in-progress title remains Watching instead of being completed automatically.
+## Privacy and security
 
-Authenticated mutations share the existing bearer-token client, request coordinator, rate-limit state, and unauthorized-session handling. Mutations are serialized per anime and deliberately receive no automatic retry because the provider may have applied a write even when its response is lost. Successful responses update the repository snapshot immediately; ambiguous failures make the next read refresh remote state.
+- Puriki has no separate account service or Puriki-hosted backend containing a
+  copy of your anime list.
+- AniList and MyAnimeList OAuth tokens are stored on the device with Expo
+  SecureStore.
+- The production build is configured with public OAuth client IDs only. Client
+  secrets must not be placed in `EXPO_PUBLIC_*` variables or bundled with the
+  app.
+- Language, onboarding state, selected provider, translation cache, and similar
+  operational data may be stored locally on the device.
+- Guest-list contents exist only for the current application process and may be
+  lost when it restarts.
+- Puriki 1.0 includes no advertising SDK and no first-party analytics backend.
+- On-device synopsis translation may download Google ML Kit language models,
+  but synopsis text is not sent to a Puriki server.
 
-Upstream contracts: [AniList authentication](https://docs.anilist.co/guide/auth/), [Implicit Grant](https://docs.anilist.co/guide/auth/implicit), [authenticated requests](https://docs.anilist.co/guide/auth/authenticated-requests), and [Expo AuthSession](https://docs.expo.dev/versions/latest/sdk/auth-session/).
+AniList, MyAnimeList, Google ML Kit, GitHub, and EAS are third-party services
+with their own terms and privacy practices.
 
-## Settings and diagnostics
+## Technology
 
-Public Settings is organized into Account, Preferences, and About. Language expands inline inside Preferences, while Theme truthfully reports the single supported Dark appearance without presenting a fake navigation action. Developer Tools is hidden by default and is enabled by tapping the About description five times within the three-second inactivity window.
-
-Permanent service diagnostics are intentionally compact:
-
-- **Test AniList API** sequentially checks Details, Search, Popular, Seasonal, and Upcoming and shows HTTP status, latency, and observed remaining rate budget.
-- **Test MyAnimeList API** directly checks one public ranking result with the configured application Client ID.
-
-The two diagnostics share one UI lock. AniList diagnostics share the application request coordinator and may update the known rate window, but they bypass catalog repositories, caches, fallback, React Query, guest-list state, and family circuits.
-
-Developer Tools also shows AniList runtime health, rate-limit expiry, source and circuit state per family, a primary-circuit reset action, and a separate catalog-cache clear action.
-
-## Guest personal list
-
-Before authentication, `GuestUserAnimeListRepository` builds a small temporary list from real Popular, Seasonal, and Upcoming catalog items. My List and Continue Watching reuse the normalized item index rather than hydrating every anime again.
-
-Membership is explicit: adding creates a Plan to Watch entry; progress, status, and score updates require membership; removal does not remove catalog metadata. Guest data is discarded when the process restarts. No authenticated account endpoint is used.
-
-## Pending change synchronization
-
-Progress, status, and score changes update React Query immediately and are persisted in a dedicated AsyncStorage queue before delivery. A small Sync Engine coalesces repeated changes to the same anime field, waits for 400 ms of inactivity, tracks success independently per target, and retains failed work for conservative retry. The queue is separate from catalog caches and is restored when the dependency graph is rebuilt.
-
-The current Sync Engine target still applies changes only to the guest-list repository. Connected AniList updates bypass the persistent queue and write directly through the authenticated repository; AniList has not yet become a multi-provider sync target. Provider-neutral target and operation contracts remain available for that later phase.
-
-## Localization and synopsis translation
-
-The complete interface is available in English, Brazilian Portuguese, and Spanish. Settings offers those choices plus System default. The preference is stored with AsyncStorage and changing it does not clear or refetch catalog data.
-
-On Android Development/Release Builds, Portuguese and Spanish users can explicitly translate an English synopsis with Google ML Kit on device. Puriki preserves the original provider synopsis, caches source-aware translations, and displays Google's official unmodified attribution badge. Expo Go, web, and iOS keep the original synopsis.
-
-ML Kit model downloads may use any available network by default. The native bridge still supports an explicit Wi-Fi-only request for callers that need it, but Puriki's synopsis action does not require Wi-Fi.
+Puriki is built with React Native, Expo, TypeScript, Expo Router,
+React Native Reanimated, NativeWind, TanStack Query, i18next, Jest, and a local
+Expo Module for Android ML Kit translation.
 
 ## Architecture
 
-- `domain` owns provider-neutral models, repository contracts, errors, and rules.
-- `application` owns provider-neutral use cases, runtime/storage ports, session contracts, coordinators, and user-list access resolution.
-- `infrastructure` owns AniList and MAL transports, DTO validation, mapping, caches, request coordination, circuit breaking, and repositories.
-- `infrastructure/composition` constructs the production runtime, repositories, diagnostics, persistence adapters, and Sync Engine.
-- `infrastructure/auth` owns SecureStore credentials, AniList OAuth, authenticated `Viewer`, and concrete auth-provider composition.
-- `infrastructure/sync` owns pending-operation persistence, coalescing, retry, and concrete sync targets.
-- `presentation` owns React Query hooks/cache coordination and receives application runtime services through providers.
-- `AppProviders` is the only presentation composition entrypoint that imports the infrastructure runtime factory; ordinary screens and components do not import infrastructure.
-- `tests` owns deterministic fixtures and in-memory repository doubles.
-- `modules/purikuki-translation` owns the Android Expo Modules bridge to Google ML Kit.
+The application follows four main boundaries:
 
-```text
-src/infrastructure/
-├── api/
-│   ├── anilist/
-│   └── mal/
-├── repositories/
-│   ├── anilist/
-│   ├── mal/
-│   ├── resilient/
-│   ├── catalog/
-│   └── guest/
-└── sync/
-```
+- `domain`: provider-neutral models, repository contracts, and business rules.
+- `application`: use cases, authentication/session coordination, mutations,
+  and runtime ports.
+- `infrastructure`: AniList and MyAnimeList APIs, OAuth, storage, caching,
+  resilience, repositories, and native translation adapters.
+- `presentation`: Expo Router screens, components, providers, localization,
+  and React Query integration.
 
-Normal application screens do not call `fetch`, consume provider DTOs, or construct repositories.
+Detailed feature planning belongs in the
+[product engineering roadmap](./PURIKI_PRODUCT_ENGINEERING_ROADMAP.md), while
+repeatable Android publication steps live in
+[docs/RELEASING.md](./docs/RELEASING.md).
 
-## Getting started
+## Development
 
-Requirements: a current Node.js LTS release, npm, and an Expo-compatible emulator or physical device.
+Requirements:
+
+- A current Node.js LTS release and npm.
+- Android Studio, the Android SDK, and a compatible JDK for native Android work.
+- An emulator or physical Android device.
+
+Install dependencies and create a local environment file:
 
 ```bash
-npm install
-npx expo start --clear
+npm ci
+cp .env.example .env
 ```
 
-Platform commands:
+Configure public application client IDs as needed:
+
+```env
+EXPO_PUBLIC_ANILIST_CLIENT_ID=
+EXPO_PUBLIC_MAL_CLIENT_ID=
+```
+
+Do not add client secrets. The native OAuth redirect URIs are
+`puriki://auth/anilist` and `puriki://auth/mal`.
+
+Start Metro:
+
+```bash
+npm run start
+```
+
+Build and run Android:
 
 ```bash
 npm run android
-npm run ios
-npm run web
 ```
 
-Synopsis translation needs a Puriki Development Build because Expo Go cannot execute the local native module:
+OAuth callbacks and on-device synopsis translation require a native
+development/release build; Expo Go cannot provide the local native module.
+
+## Quality
 
 ```bash
-npm install
-npx expo run:android --device
-npm run start:dev-client
-```
-
-AniList account connection also requires a native Puriki Development Build so the registered `puriki://auth/anilist` callback can return to the app.
-
-The persistent Android application identifier is `com.jvitorn.puriki`. Generated `android/` and `ios/` directories are intentionally not committed.
-
-## Quality commands
-
-Automated tests use injected transports and static fixtures; they do not call live catalog services.
-
-```bash
-npm install
-npx expo install --fix
-npx expo-doctor
 npm run typecheck
 npm run lint
-npm run format
 npm run format:check
 npm run test:ci
+npx expo-doctor
 ```
 
-## Current limitations
+Tests use injected transports and fixtures rather than live provider APIs.
 
-- Guest-list data, catalog caches, and diagnostic results are not persisted.
-- AniList writes are direct and intentionally have no background mutation retry. Rapid progress taps use one in-flight write per anime and retain only the latest pending intent; an ambiguous failure reconciles the remote read and exposes an explicit retry for that final intent.
-- Public catalog availability and artwork depend on AniList or the configured MAL fallback.
-- AniList media without `idMal` cannot enter the current domain model.
-- On-device synopsis translation is Android-only and may require a one-time model download over the available network.
-- MAL OAuth, AniList custom lists/notes/reviews, authenticated multi-provider synchronization, account-list migration, a backend, and E2E tests are out of scope.
-- Puriki is not affiliated with AniList or MyAnimeList.
+## Roadmap
 
-## Troubleshooting
+The current and planned product direction is tracked in
+[PURIKI_PRODUCT_ENGINEERING_ROADMAP.md](./PURIKI_PRODUCT_ENGINEERING_ROADMAP.md).
+List Sync, continuous multi-provider synchronization, and automatic application
+update infrastructure are future considerations, not Puriki 1.0 features.
 
-### AniList is unavailable
+Public README information is maintained in English, Brazilian Portuguese, and
+Spanish. When product or release facts change, keep all three versions
+synchronized.
 
-Enable Developer Tools with five taps on the About description and use **Test AniList API**. Eligible runtime failures automatically use MAL when configured; two consecutive family failures open only that family's circuit. A 429 activates the provider-wide rate gate instead.
+## Disclaimer
 
-### Test MyAnimeList API fails
+Puriki is an independent, unofficial project. It is not affiliated with,
+endorsed by, or operated by AniList or MyAnimeList.
 
-Check its classified message and HTTP status. HTTP 401 or 403 means MAL rejected the application Client ID. Restart Metro after changing `.env`.
+## License
 
-### MyAnimeList Client ID is not configured
-
-Add `EXPO_PUBLIC_MAL_CLIENT_ID` to `.env`, then restart Metro with `npx expo start --clear`. The runtime continues with AniList and its valid cache until the public MAL fallback is configured. Do not add a Client Secret.
-
-### AniList sign-in is not configured
-
-Add `EXPO_PUBLIC_ANILIST_CLIENT_ID` to `.env`, register `puriki://auth/anilist` for the AniList application, and restart Metro with `npx expo start --clear`. Test the flow in a native Development Build, not Expo Go or web. Do not add the AniList Client Secret.
+This repository does not currently declare a project-wide software license.
+Source availability alone does not grant permission to reuse, modify, or
+redistribute the project. A license must be selected explicitly by the
+maintainer before describing Puriki as open source.

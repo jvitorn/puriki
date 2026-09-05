@@ -10,12 +10,13 @@
 > unchecked — that means implementation is ready for maintainer acceptance, not
 > that the milestone has been approved.
 
-Scope of this plan is **APK release engineering only**:
+Scope of this plan is **Android release engineering and public-release
+readiness**:
 
 - no Google Play / AAB;
-- no automated GitHub release/publishing;
-- no tag creation;
-- no landing page changes;
+- no new EAS build during the documentation pass;
+- no GitHub Release or tag creation during the documentation pass;
+- no EAS Update, OTA channel, or automatic application updater;
 - no Feature 2.0 work (List Sync, Multi-provider Sync, etc.).
 
 ---
@@ -46,19 +47,85 @@ Scope of this plan is **APK release engineering only**:
   - [x] Maintainer runs the build in Phase R1's final task and downloads the resulting APK.
   - [x] Confirm the build artifact is an APK (not AAB) and is internal-distribution only.
 
-- [ ] Phase R4 — Real Device Acceptance
-  - [ ] Install the APK on a real Android device via sideload.
-  - [ ] Confirm app launches without Metro/dev-client/dev-menu.
-  - [ ] Confirm AniList/MAL login, list browsing, and translation (native module) work on-device.
+- [x] Phase R4 — Real Device Acceptance
+  - [x] Install the accepted production APK via sideload on a real Android device.
+  - [x] Confirm the application launches as a production app without Metro, development client, development menu, or another development-only runtime dependency.
+  - [x] Validate AniList authentication with the production OAuth configuration.
+  - [x] Validate MyAnimeList authentication with the production OAuth configuration.
+  - [x] Validate catalog and user-list browsing.
+  - [x] Validate add/remove and progress/status/score user-list mutations.
+  - [x] Validate native Android synopsis translation.
+  - [x] Accept launcher icon, adaptive masks, native splash, startup transition, and bottom navigation on device.
+  - [x] Validate finished/releasing/not-yet-released episode tracking where applicable to the test data.
 
-- [ ] Phase R5 — Upgrade Path
-  - [ ] Define how `version` / `android.versionCode` will be bumped for the next release (still no auto-increment automation planned at this stage).
+- [x] Phase R5 — Upgrade Path
+  - [x] Keep the Puriki 1.0 public release at `version = 1.0.0` and `android.versionCode = 1`.
+  - [x] Require every future Android APK for `com.jvitorn.puriki` to increment `android.versionCode`.
+  - [x] Choose the next patch, minor, or major semantic version according to the actual release scope.
+  - [x] Keep version and versionCode changes manual; no automatic increment mechanism is required for Puriki 1.0.
 
-- [ ] Phase R6 — Release Artifact
-  - [ ] Decide how/where the accepted APK is stored or distributed (explicitly **not** GitHub Release yet, per current scope).
+- [x] Phase R6 — Release Artifact
+  - [x] Distribute official Puriki Android binaries through GitHub Releases.
+  - [x] Use the already accepted EAS production APK as the Puriki 1.0 release asset; do not create another build for documentation preparation.
+  - [x] Publish the accepted artifact under the predictable filename `puriki-v1.0.0.apk`.
+  - [x] Point the official landing page to the stable GitHub Release asset rather than hosting or proxying APK files.
+  - [x] Document final-artifact SHA-256 calculation and disclosure in `docs/RELEASING.md`; the accepted APK is not present in this workspace, so no checksum was fabricated.
 
-- [ ] Phase R7 — Puriki 1.0 Acceptance
-  - [ ] Maintainer signs off that the Android release pipeline is reproducible, secure, and ready to be made official (tag, GitHub Release, etc. — out of scope for this document).
+- [x] Phase R7 — Puriki 1.0 Acceptance
+  - [x] Record maintainer acceptance that the production APK was built and passed real-device testing.
+  - [x] Confirm Android signing is configured and the production key must remain continuous across upgrades.
+  - [x] Confirm production AniList and MyAnimeList OAuth configuration works.
+  - [x] Confirm the production APK pipeline is reproducible.
+  - [x] Accept Puriki 1.0 as technically ready for final public-facing preparation.
+
+- [ ] Phase R8 — Public README & Repository Readiness
+  - [x] Rewrite `README.md` as the canonical English front page for Puriki 1.0.
+  - [x] Create the Brazilian Portuguese translation at `docs/readme/README.pt-BR.md`.
+  - [x] Create the Spanish translation at `docs/readme/README.es.md`.
+  - [x] Add working language navigation between EN, PT-BR, and ES.
+  - [x] Keep the three versions equivalent in product information and section structure.
+  - [x] Replace development-history wording with concise product-facing language.
+  - [x] Remove obsolete claims, including the former denial of MyAnimeList OAuth and user-list support.
+  - [x] Verify feature claims against the current implementation.
+  - [x] Present Puriki as one consistent Android experience over AniList, MyAnimeList, and guest mode.
+  - [x] Describe AniList catalog, OAuth, and list management accurately.
+  - [x] Describe MyAnimeList fallback, OAuth PKCE, and list management accurately.
+  - [x] Describe the temporary in-process guest list accurately.
+  - [x] Document add/remove, progress, status, and score management.
+  - [x] Document English, Brazilian Portuguese, and Spanish UI support.
+  - [x] Add a concise supported-services matrix.
+  - [x] Add honest Android download, GitHub Releases, and sideload instructions without claiming the release already exists.
+  - [x] Add concise, code-verified privacy and security information.
+  - [x] Add the current technology stack and a concise four-layer architecture overview.
+  - [x] Add development setup, native requirements, environment variables, and quality commands.
+  - [x] Link `PURIKI_PRODUCT_ENGINEERING_ROADMAP.md` and distinguish shipped 1.0 behavior from future List Sync, Multi-provider Sync, and update infrastructure.
+  - [x] Add the independent-project disclaimer for AniList and MyAnimeList.
+  - [x] Add a synchronized-maintenance note for the three README languages.
+  - [x] Add a screenshots section and a real-device capture plan without fabricating product captures.
+  - [ ] Maintainer supplies and approves real application screenshots.
+  - [x] Verify public links, relative paths, logo assets, headings, tables, and code fences; no potentially stale status badges were introduced.
+  - [x] Disclose that the repository currently has no project-wide license instead of making an unsupported open-source licensing claim.
+  - [ ] Maintainer chooses and adds a project-wide license if open-source redistribution is intended.
+  - [ ] Maintainer performs final desktop/mobile GitHub rendering and content acceptance, then checks Phase R8.
+
+- [ ] Phase R9 — Landing Page Release Readiness
+  - [x] Locate and audit the official landing-page repository in the shared workspace.
+  - [x] Reference the official landing page from the EN, PT-BR, and ES READMEs.
+  - [x] Prepare landing-page source links for the canonical `jvitorn/puriki` repository.
+  - [x] Keep the landing page's repository link pointed back to the application source.
+  - [x] Prepare the Android download CTA to consume the latest stable GitHub Release at build time.
+  - [x] Require the exact public asset filename `puriki-v<version>.apk`.
+  - [x] Ignore draft/prerelease releases for the stable download CTA and avoid linking an RC/development APK.
+  - [x] Present Puriki 1.0, AniList/MyAnimeList capabilities, and EN/PT-BR/ES support accurately in landing-page source.
+  - [x] Explain direct GitHub Release APK distribution without advertising Google Play.
+  - [x] Avoid advertising automatic application updates or released List Sync/Multi-provider Sync.
+  - [x] Verify landing privacy and independent-project disclaimer copy against the application.
+  - [x] Verify the source implementation remains responsive and passes its automated accessibility, test, typecheck, lint, formatting, and production-build gates.
+  - [ ] Merge and deploy the landing-page source changes to the production GitHub Pages branch.
+  - [ ] After the v1.0.0 GitHub Release exists, refresh stable release metadata and verify the real `puriki-v1.0.0.apk` download.
+  - [ ] Maintainer validates the deployed landing page on desktop and mobile.
+  - [ ] Maintainer validates repository → landing page → GitHub Release and landing page → repository navigation in production.
+  - [ ] Maintainer confirms all deployed public claims and checks Phase R9.
 
 ---
 
@@ -70,10 +137,9 @@ issues, all addressed in this hardening pass. `version`/`versionCode` were
 **not** bumped for this — RC1's fixes still ship as `1.0.0` / `1`, since this
 remains an internal RC, not a public release.
 
-Each item below is checked only for what this pass actually implemented and
-validated with automated tests (typecheck/lint/tests). None of this implies
-Phase R4 (Real Device Acceptance) is complete — that still requires an actual
-RC2 sideload by the maintainer.
+Each item below was initially checked only for implementation and automated
+validation. The maintainer subsequently accepted the RC2 APK on a real device;
+that final acceptance is now recorded in Phase R4.
 
 - [x] **EAS `production` environment not applied to `production-apk`.** AniList
       and MyAnimeList both showed "sign-in is not configured for this build" on
@@ -129,10 +195,10 @@ RC2 sideload by the maintainer.
 
 ## RC2 visual/UX hardening
 
-This final pre-RC2 pass is limited to episode-tracking correctness and targeted
-Android/presentation polish. Checked items below were implemented and covered by
-automated validation; they do not complete Phase R4 or replace real-device
-acceptance by the maintainer.
+This final pre-RC2 pass was limited to episode-tracking correctness and targeted
+Android/presentation polish. Checked implementation items were covered by
+automated validation and were subsequently accepted on a real device by the
+maintainer.
 
 - [x] **Separate total episodes from the trackable episode ceiling.**
       `AnimeTrackingContext` now carries both `totalEpisodes` and
@@ -162,10 +228,41 @@ acceptance by the maintainer.
       The top divider, four-tab order, 56 px touch slots, press/long-press
       behavior, selected accessibility state, and bottom safe-area padding are
       preserved and tested.
-- [ ] **Maintainer real-device acceptance for the next APK.** Compare the
-      launcher icon under multiple masks, inspect splash size/transition and
-      Reduce Motion on cold start, verify first-run/returning-user routing, and
-      exercise finished/releasing/not-yet-released tracking plus all four tabs.
+- [x] **Maintainer real-device acceptance for the next APK.** The maintainer
+      compared the launcher icon under multiple masks, inspected splash size,
+      startup transition and Reduce Motion on cold start, verified
+      first-run/returning-user routing, and exercised
+      finished/releasing/not-yet-released tracking plus all four tabs.
+
+## Application update infrastructure decision
+
+Automatic application updating is intentionally not part of Puriki 1.0 and is
+not a release blocker. The standalone signed APK works without:
+
+- `expo-updates` or EAS Update configuration;
+- OTA release channels;
+- `runtimeVersion` configuration introduced only for OTA;
+- automatic GitHub Release version checks inside the app;
+- in-app “new version available” checks;
+- automatic APK downloads;
+- background updater infrastructure.
+
+Puriki 1.0 users update manually from official GitHub Releases. Update
+infrastructure may be evaluated during Puriki 2.x.
+
+## Release-plan lifecycle
+
+This checklist is intentionally temporary. Do not delete it until:
+
+1. the maintainer accepts Phase R8;
+2. the maintainer accepts Phase R9;
+3. all permanent release knowledge has been migrated.
+
+Reusable release engineering knowledge now lives in `docs/RELEASING.md`.
+Immediately before the final v1.0.0 release commit/tag workflow, the maintainer
+should verify that document, delete this temporary plan, and then run the normal
+quality gates. The plan must not be deleted while either R8 or R9 remains
+unchecked.
 
 ## Security notes (Phase R1 audit findings)
 
