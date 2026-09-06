@@ -72,16 +72,30 @@ Una vista de Puriki en funcionamiento en Android.
 
 ## Descarga
 
-Puriki 1.0 se distribuye directamente como APK para Android. El primer APK
-público estará disponible en la página oficial de
-[GitHub Releases](https://github.com/jvitorn/puriki/releases) con el nombre:
+Puriki 1.0 se distribuye directamente como APKs para Android. El primer
+lanzamiento público estará disponible en la página oficial de
+[GitHub Releases](https://github.com/jvitorn/puriki/releases) con los
+nombres:
 
 ```text
-puriki-v1.0.0.apk
+puriki-v1.0.0-arm64-v8a.apk
+puriki-v1.0.0-armeabi-v7a.apk
+puriki-v1.0.0-x86_64.apk
+puriki-v1.0.0-x86.apk
+puriki-v1.0.0-universal.apk
+SHA256SUMS.txt
 ```
 
-Puriki no se distribuye mediante Google Play. La documentación no considera que
-la versión esté publicada hasta que existan el GitHub Release y su APK firmado.
+Para la mayoría de los teléfonos y tablets Android modernos, descarga la
+versión `arm64-v8a`. Si no sabes qué arquitectura usa tu dispositivo, la
+versión `universal` funciona en cualquier dispositivo compatible.
+`armeabi-v7a`, `x86_64` y `x86` son builds adicionales de compatibilidad para
+dispositivos más antiguos o menos comunes. El archivo `SHA256SUMS.txt`
+contiene los checksums SHA-256 de todos los APK publicados.
+
+Puriki no se distribuye mediante Google Play. La documentación no considera
+que la versión esté publicada hasta que existan el GitHub Release y sus APK
+firmados.
 
 ## Instalación en Android
 
