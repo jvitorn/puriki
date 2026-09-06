@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import type { WebBrowserAuthSessionResult } from 'expo-web-browser';
 import { Platform } from 'react-native';
 
+import type { AuthFailureCode } from '@/application/auth/auth-contracts';
 import { AuthOperationError } from '@/application/auth/auth-contracts';
 import {
   MAL_AUTHORIZATION_ENDPOINT,
@@ -14,6 +15,15 @@ import {
   isMalClientIdConfigured,
 } from '@/infrastructure/auth/mal/mal-auth-config';
 import { createCodeVerifier } from '@/infrastructure/auth/mal/pkce';
+import type {
+  OAuthCallbackDiagnostic,
+  SafeCallbackUrlParts,
+} from '@/infrastructure/auth/oauth-diagnostics';
+import {
+  defaultOAuthCallbackDiagnosticLogger,
+  logOAuthCallbackDiagnostic,
+  safeCallbackUrlParts,
+} from '@/infrastructure/auth/oauth-diagnostics';
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const DEFAULT_EXPIRES_IN_SECONDS = 3_600;
@@ -52,6 +62,7 @@ export interface ExpoMalOAuthClientOptions {
   completeAuthSession?: () => unknown;
   isDevelopment?: boolean;
   diagnosticLogger?: (diagnostic: MalAuthorizationDiagnostic) => void;
+  callbackDiagnosticLogger?: (diagnostic: OAuthCallbackDiagnostic) => void;
 }
 
 interface TokenResponsePayload {
@@ -124,6 +135,9 @@ export class ExpoMalOAuthClient implements MalOAuthClientPort {
   private readonly createCodeVerifierImpl: () => string;
   private readonly diagnosticLogger:
     ((diagnostic: MalAuthorizationDiagnostic) => void) | null;
+  private readonly callbackDiagnosticLogger: (
+    diagnostic: OAuthCallbackDiagnostic,
+  ) => void;
 
   constructor(options: ExpoMalOAuthClientOptions = {}) {
     this.clientId = options.clientId ?? MAL_CLIENT_ID;
@@ -145,11 +159,29 @@ export class ExpoMalOAuthClient implements MalOAuthClientPort {
           console.info('[MAL OAuth] Authorization request', diagnostic);
         }))
       : null;
+    this.callbackDiagnosticLogger =
+      options.callbackDiagnosticLogger ?? defaultOAuthCallbackDiagnosticLogger;
     try {
       (options.completeAuthSession ?? WebBrowser.maybeCompleteAuthSession)();
     } catch {
       // Native platforms do not need to complete a web popup.
     }
+  }
+
+  private logCallback(
+    resultType: string | null,
+    callback: SafeCallbackUrlParts | null,
+    stateMatches: boolean | null,
+    failureCategory: AuthFailureCode | null,
+  ): void {
+    logOAuthCallbackDiagnostic(this.callbackDiagnosticLogger, {
+      provider: 'mal',
+      expectedRedirectUri: MAL_EXPECTED_REDIRECT_URI,
+      resultType,
+      callback,
+      stateMatches,
+      failureCategory,
+    });
   }
 
   async authorize(): Promise<MalOAuthCredential> {
@@ -199,31 +231,44 @@ export class ExpoMalOAuthClient implements MalOAuthClientPort {
       }
       result = await this.openAuthSession(authorizationUrl, redirectUri);
     } catch {
+      this.logCallback(null, null, null, 'provider_unavailable');
       throw new AuthOperationError('provider_unavailable', { canRetry: true });
     }
 
+    const callback =
+      result.type === 'success' ? safeCallbackUrlParts(result.url) : null;
+
     if (result.type === 'cancel' || result.type === 'dismiss') {
+      this.logCallback(result.type, callback, null, 'cancelled');
       throw new AuthOperationError('cancelled', { cancelled: true });
     }
     if (result.type !== 'success') {
+      this.logCallback(result.type, callback, null, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
 
     const params = returnParameters(result.url);
+    const stateMatches = params ? params.state === state : null;
     if (!params || params.state !== state) {
+      this.logCallback(result.type, callback, stateMatches, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
     if (params.error === 'access_denied') {
+      this.logCallback(result.type, callback, stateMatches, 'cancelled');
       throw new AuthOperationError('cancelled', { cancelled: true });
     }
     if (params.error) {
+      this.logCallback(result.type, callback, stateMatches, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
 
     const code = params.code;
     if (typeof code !== 'string' || code.trim().length === 0) {
+      this.logCallback(result.type, callback, stateMatches, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
+
+    this.logCallback(result.type, callback, stateMatches, null);
 
     return this.exchangeToken({
       grant_type: 'authorization_code',

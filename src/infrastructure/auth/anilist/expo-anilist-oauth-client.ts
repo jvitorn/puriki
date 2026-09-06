@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import type { WebBrowserAuthSessionResult } from 'expo-web-browser';
 import { Platform } from 'react-native';
 
+import type { AuthFailureCode } from '@/application/auth/auth-contracts';
 import { AuthOperationError } from '@/application/auth/auth-contracts';
 import {
   ANILIST_AUTHORIZATION_ENDPOINT,
@@ -11,6 +12,15 @@ import {
   ANILIST_EXPECTED_REDIRECT_URI,
   isAniListClientIdConfigured,
 } from '@/infrastructure/auth/anilist/anilist-auth-config';
+import type {
+  OAuthCallbackDiagnostic,
+  SafeCallbackUrlParts,
+} from '@/infrastructure/auth/oauth-diagnostics';
+import {
+  defaultOAuthCallbackDiagnosticLogger,
+  logOAuthCallbackDiagnostic,
+  safeCallbackUrlParts,
+} from '@/infrastructure/auth/oauth-diagnostics';
 
 const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
 const ANILIST_RESPONSE_TYPE = 'token' as const;
@@ -41,6 +51,7 @@ export interface ExpoAniListOAuthClientOptions {
   completeAuthSession?: () => unknown;
   isDevelopment?: boolean;
   diagnosticLogger?: (diagnostic: AniListAuthorizationDiagnostic) => void;
+  callbackDiagnosticLogger?: (diagnostic: OAuthCallbackDiagnostic) => void;
 }
 
 function buildAuthorizationUrl(clientId: string, state: string): string {
@@ -100,6 +111,9 @@ export class ExpoAniListOAuthClient implements AniListOAuthClientPort {
   private readonly createState: () => string;
   private readonly diagnosticLogger:
     ((diagnostic: AniListAuthorizationDiagnostic) => void) | null;
+  private readonly callbackDiagnosticLogger: (
+    diagnostic: OAuthCallbackDiagnostic,
+  ) => void;
 
   constructor(options: ExpoAniListOAuthClientOptions = {}) {
     this.clientId = options.clientId ?? ANILIST_CLIENT_ID;
@@ -116,11 +130,29 @@ export class ExpoAniListOAuthClient implements AniListOAuthClientPort {
           console.info('[AniList OAuth] Authorization request', diagnostic);
         }))
       : null;
+    this.callbackDiagnosticLogger =
+      options.callbackDiagnosticLogger ?? defaultOAuthCallbackDiagnosticLogger;
     try {
       (options.completeAuthSession ?? WebBrowser.maybeCompleteAuthSession)();
     } catch {
       // Native platforms do not need to complete a web popup.
     }
+  }
+
+  private logCallback(
+    resultType: string | null,
+    callback: SafeCallbackUrlParts | null,
+    stateMatches: boolean | null,
+    failureCategory: AuthFailureCode | null,
+  ): void {
+    logOAuthCallbackDiagnostic(this.callbackDiagnosticLogger, {
+      provider: 'anilist',
+      expectedRedirectUri: ANILIST_EXPECTED_REDIRECT_URI,
+      resultType,
+      callback,
+      stateMatches,
+      failureCategory,
+    });
   }
 
   async authorize(): Promise<AniListOAuthCredential> {
@@ -160,31 +192,44 @@ export class ExpoAniListOAuthClient implements AniListOAuthClientPort {
       }
       result = await this.openAuthSession(authorizationUrl, redirectUri);
     } catch {
+      this.logCallback(null, null, null, 'provider_unavailable');
       throw new AuthOperationError('provider_unavailable', { canRetry: true });
     }
 
+    const callback =
+      result.type === 'success' ? safeCallbackUrlParts(result.url) : null;
+
     if (result.type === 'cancel' || result.type === 'dismiss') {
+      this.logCallback(result.type, callback, null, 'cancelled');
       throw new AuthOperationError('cancelled', { cancelled: true });
     }
     if (result.type !== 'success') {
+      this.logCallback(result.type, callback, null, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
 
     const params = returnParameters(result.url);
+    const stateMatches = params ? params.state === state : null;
     if (!params || params.state !== state) {
+      this.logCallback(result.type, callback, stateMatches, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
     if (params.error === 'access_denied') {
+      this.logCallback(result.type, callback, stateMatches, 'cancelled');
       throw new AuthOperationError('cancelled', { cancelled: true });
     }
     if (params.error) {
+      this.logCallback(result.type, callback, stateMatches, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
 
     const accessToken = params.access_token;
     if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
+      this.logCallback(result.type, callback, stateMatches, 'invalid_response');
       throw new AuthOperationError('invalid_response');
     }
+
+    this.logCallback(result.type, callback, stateMatches, null);
 
     const issuedAt = this.now() / 1_000;
     const expiresIn = positiveNumber(params.expires_in) ?? ONE_YEAR_SECONDS;

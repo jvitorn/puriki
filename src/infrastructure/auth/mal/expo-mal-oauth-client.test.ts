@@ -33,6 +33,7 @@ function createClient(
   >(async () => authResult as never);
   const completeAuthSession = jest.fn();
   const diagnosticLogger = jest.fn();
+  const callbackDiagnosticLogger = jest.fn();
   const stateFactory = jest.fn(() => 'test-state');
   const codeVerifierFactory = jest.fn(() => 'test-code-verifier');
   const fetchImpl = jest.fn(async () =>
@@ -52,12 +53,14 @@ function createClient(
     codeVerifierFactory,
     completeAuthSession,
     diagnosticLogger,
+    callbackDiagnosticLogger,
     isDevelopment: true,
     fetchImpl,
     ...overrides,
   });
   return {
     client,
+    callbackDiagnosticLogger,
     codeVerifierFactory,
     completeAuthSession,
     diagnosticLogger,
@@ -209,6 +212,37 @@ describe('ExpoMalOAuthClient', () => {
     openAuthSession.mockRejectedValueOnce(new Error('secret browser details'));
     await expect(client.authorize()).rejects.toEqual(
       new AuthOperationError('provider_unavailable', { canRetry: true }),
+    );
+  });
+
+  it('reports a production-safe callback diagnostic without the code or state', async () => {
+    const { client, callbackDiagnosticLogger } = createClient();
+    await client.authorize();
+    expect(callbackDiagnosticLogger).toHaveBeenCalledWith({
+      provider: 'mal',
+      expectedRedirectUri: 'puriki://auth/mal',
+      resultType: 'success',
+      callback: { scheme: 'puriki', host: 'auth', path: '/mal' },
+      stateMatches: true,
+      failureCategory: null,
+    });
+    const loggedDiagnostic = JSON.stringify(
+      callbackDiagnosticLogger.mock.calls[0]![0],
+    );
+    expect(loggedDiagnostic).not.toContain('auth-code');
+    expect(loggedDiagnostic).not.toContain('test-state');
+  });
+
+  it('reports a mismatched-state callback diagnostic', async () => {
+    const { client, callbackDiagnosticLogger } = createClient(
+      successResult({ code: 'auth-code', state: 'wrong-state' }),
+    );
+    await expect(client.authorize()).rejects.toBeDefined();
+    expect(callbackDiagnosticLogger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stateMatches: false,
+        failureCategory: 'invalid_response',
+      }),
     );
   });
 

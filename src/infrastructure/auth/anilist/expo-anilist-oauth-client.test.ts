@@ -30,6 +30,7 @@ function createClient(
   >(async () => result as never);
   const completeAuthSession = jest.fn();
   const diagnosticLogger = jest.fn();
+  const callbackDiagnosticLogger = jest.fn();
   const stateFactory = jest.fn(() => 'test-state');
   const client = new ExpoAniListOAuthClient({
     clientId: '1234',
@@ -40,11 +41,13 @@ function createClient(
     stateFactory,
     completeAuthSession,
     diagnosticLogger,
+    callbackDiagnosticLogger,
     isDevelopment: true,
     ...overrides,
   });
   return {
     client,
+    callbackDiagnosticLogger,
     completeAuthSession,
     diagnosticLogger,
     openAuthSession,
@@ -219,5 +222,39 @@ describe('ExpoAniListOAuthClient', () => {
     await expect(client.authorize()).rejects.toEqual(
       new AuthOperationError('provider_unavailable', { canRetry: true }),
     );
+  });
+
+  it('reports a production-safe callback diagnostic without the token or state', async () => {
+    const { client, callbackDiagnosticLogger } = createClient();
+    await client.authorize();
+    expect(callbackDiagnosticLogger).toHaveBeenCalledWith({
+      provider: 'anilist',
+      expectedRedirectUri: 'puriki://auth/anilist',
+      resultType: 'success',
+      callback: { scheme: 'puriki', host: 'auth', path: '/anilist' },
+      stateMatches: true,
+      failureCategory: null,
+    });
+    const loggedDiagnostic = JSON.stringify(
+      callbackDiagnosticLogger.mock.calls[0]![0],
+    );
+    expect(loggedDiagnostic).not.toContain('oauth-token');
+    expect(loggedDiagnostic).not.toContain('test-state');
+  });
+
+  it('reports a mismatched-redirect callback diagnostic for an unexpected deep link', async () => {
+    const { client, callbackDiagnosticLogger } = createClient({
+      type: 'success',
+      url: 'puriki://wrong#access_token=token&state=test-state',
+    });
+    await expect(client.authorize()).rejects.toBeDefined();
+    expect(callbackDiagnosticLogger).toHaveBeenCalledWith({
+      provider: 'anilist',
+      expectedRedirectUri: 'puriki://auth/anilist',
+      resultType: 'success',
+      callback: { scheme: 'puriki', host: 'wrong', path: '' },
+      stateMatches: null,
+      failureCategory: 'invalid_response',
+    });
   });
 });

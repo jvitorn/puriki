@@ -102,9 +102,18 @@ readiness**:
   - [x] Add the independent-project disclaimer for AniList and MyAnimeList.
   - [x] Add a synchronized-maintenance note for the three README languages.
   - [x] Add a screenshots section and a real-device capture plan without fabricating product captures.
+  - [x] Capture real screenshots (`home`, `search`, `anime-details`, `my-list`,
+        `settings`) from a running native build on an Android emulator, with
+        no personal account data, tokens, notifications, or debug/dev-menu UI
+        visible, and add them to the EN/PT-BR/ES READMEs with localized alt
+        text, sharing the same five image files across all three.
   - [ ] Maintainer supplies and approves real application screenshots.
   - [x] Verify public links, relative paths, logo assets, headings, tables, and code fences; no potentially stale status badges were introduced.
   - [x] Disclose that the repository currently has no project-wide license instead of making an unsupported open-source licensing claim.
+  - [x] Add a root-level MIT `LICENSE` file (copyright João Vitor) and update
+        the License section in all three READMEs accordingly, clarifying that
+        it covers only Puriki's own source code and not AniList/MyAnimeList
+        trademarks, APIs, or content.
   - [ ] Maintainer chooses and adds a project-wide license if open-source redistribution is intended.
   - [ ] Maintainer performs final desktop/mobile GitHub rendering and content acceptance, then checks Phase R8.
 
@@ -233,6 +242,100 @@ maintainer.
       startup transition and Reduce Motion on cold start, verified
       first-run/returning-user routing, and exercised
       finished/releasing/not-yet-released tracking plus all four tabs.
+
+## RC3 — AniList production APK OAuth regression investigation
+
+AniList login, previously working in the native development build, stopped
+completing in the installed production APK; MyAnimeList kept working. This
+section records a systematic investigation, not an assumed cause.
+
+- [x] **Compared the AniList and MyAnimeList native OAuth clients line by
+      line** (`expo-anilist-oauth-client.ts` vs `expo-mal-oauth-client.ts`):
+      redirect URI generation (`makeRedirectUri`), `WebBrowser.openAuthSessionAsync`
+      usage, deep-link callback parsing, and state validation are structurally
+      identical. The only protocol-level differences are inherent to each
+      provider's OAuth design: AniList uses the implicit grant
+      (`response_type=token`, access token returned in the callback's URL
+      **fragment**) with no PKCE and no refresh token; MAL uses the
+      authorization-code grant with PKCE (`plain` challenge) and a server-side
+      token exchange. Both are correct for their respective providers; MAL's
+      PKCE behavior was intentionally **not** copied onto AniList, since
+      AniList's API does not use or require it.
+- [x] **Confirmed the AniList authorization request intentionally omits
+      `redirect_uri`.** This already existed and is asserted by
+      `expo-anilist-oauth-client.test.ts` ("builds only the AniList-supported
+      implicit parameters"). AniList's OAuth API does not accept a
+      `redirect_uri` query parameter at all — it always redirects back to
+      whatever **Redirect URL** is configured for that OAuth application on
+      AniList's own developer settings page. This makes the callback
+      destination for AniList sign-in entirely dependent on provider-side
+      application configuration, in a way MAL's flow is not (MAL's
+      `redirect_uri` is sent explicitly on every request and matched by MAL's
+      server against that request).
+- [x] **Verified Expo/Android build configuration (Phase B1/B2).**
+      `npx expo config --type public` confirms `scheme: "puriki"`,
+      `android.package: "com.jvitorn.puriki"`, the expected EAS `projectId`,
+      and no environment-specific override of the scheme or package. The
+      locally generated native manifest
+      (`android/app/src/main/AndroidManifest.xml`, produced by Expo
+      prebuild/config-plugins from `app.json`) registers `MainActivity` with a
+      `VIEW`/`BROWSABLE` intent-filter for `android:scheme="puriki"` with no
+      host restriction, so it is not scoped to only `/anilist` or only `/mal`.
+      This intent-filter is produced by the same config-plugin path
+      regardless of build profile, so it is not expected to differ between a
+      development build and the `production-apk` EAS profile. Confirmed live
+      on a booted emulator: `adb shell am start -a android.intent.action.VIEW
+-d "puriki://auth/anilist" -c android.intent.category.BROWSABLE
+com.jvitorn.puriki` (and the equivalent `/mal` URI) is accepted and
+      routed to the app with no "no app can handle this" resolution failure.
+- [x] **Root cause assessment: no code-level defect found.** Nothing in the
+      AniList OAuth client, the deep-link/manifest configuration, or the
+      callback/state-validation logic differs from MAL in a way that would
+      explain "works in development, fails only in the production APK" other
+      than the two paths above (implicit-grant fragment parsing, and reliance
+      on AniList's own configured Redirect URL). The leading hypothesis is
+      **provider/environment configuration**, not application code: - the `EXPO_PUBLIC_ANILIST_CLIENT_ID` value actually injected into the
+      EAS `production` environment may differ from the client ID used
+      during local/dev-client testing (pointing at a different AniList
+      OAuth application), and/or - the AniList Developer Settings page for whichever client ID is used
+      in production may have a Redirect URL that no longer matches
+      `puriki://auth/anilist` exactly (stale `exp://` value, trailing
+      slash, wrong path, etc.).
+      Neither of these is verifiable from this workspace: they require the
+      maintainer's own EAS project access (`eas env:list --environment
+production`) and AniList account access
+      (https://anilist.co/settings/developer). Per the fix policy for this
+      investigation, the OAuth code itself was **not** changed to work around
+      an unconfirmed provider-side issue.
+- [x] **Added a production-safe OAuth callback diagnostic** (new
+      `src/infrastructure/auth/oauth-diagnostics.ts`, wired into both
+      `ExpoAniListOAuthClient` and `ExpoMalOAuthClient`) so the next build can
+      be diagnosed conclusively from `adb logcat` without shipping another
+      debug build. Unlike the existing pre-request diagnostic logger (which
+      stays `__DEV__`-gated), this new post-callback log fires unconditionally
+      and only ever contains: provider id, expected redirect URI, the
+      `WebBrowser` result type, the callback URL's scheme/host/path (never its
+      query string or fragment), whether OAuth `state` matched, and a
+      high-level `AuthOperationError` category. It never logs an access token,
+      refresh token, authorization code, or client secret. Covered by new
+      tests in `oauth-diagnostics.test.ts` and both OAuth client test suites,
+      including an explicit assertion that the logged diagnostic never
+      contains the token/state values used in the test fixtures.
+  - [ ] **Maintainer verification (blocks confirming the root cause):**
+        compare the AniList client ID configured in the EAS `production`
+        environment against the one used for local/dev-client testing, and
+        confirm on AniList's developer settings page that the Redirect URL for
+        that exact client ID is `puriki://auth/anilist`.
+  - [ ] **Real-device confirmation (requires a new APK):** build a new
+        `production-apk` with this diagnostic included, reproduce an AniList
+        sign-in attempt, and capture `adb logcat` filtered for
+        `[OAuth] Callback result` to see the actual result type / callback
+        host-path / state-match for both providers side by side.
+- [ ] AniList production-APK OAuth sign-in re-validated end-to-end (browser
+      opens, authorization completes, callback returns to Puriki, state
+      validates, session persists, list loads, logout/relogin works) on a new
+      accepted APK. Not yet performed — **a new EAS build is required** to
+      validate this; none was produced by this investigation.
 
 ## Application update infrastructure decision
 

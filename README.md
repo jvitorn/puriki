@@ -48,21 +48,28 @@ continuously synchronize lists between AniList and MyAnimeList.
 
 ## Supported services
 
-| Service | Discovery data | Account connection | User-list management |
-| --- | --- | --- | --- |
-| AniList | Primary catalog source | OAuth | Read, add, remove, progress, status, and score |
-| MyAnimeList | Automatic catalog fallback | OAuth with PKCE | Read, add, remove, progress, status, and score |
-| Guest mode | Uses the available catalog | Not required | Temporary in-process list |
+| Service     | Discovery data             | Account connection | User-list management                           |
+| ----------- | -------------------------- | ------------------ | ---------------------------------------------- |
+| AniList     | Primary catalog source     | OAuth              | Read, add, remove, progress, status, and score |
+| MyAnimeList | Automatic catalog fallback | OAuth with PKCE    | Read, add, remove, progress, status, and score |
+| Guest mode  | Uses the available catalog | Not required       | Temporary in-process list                      |
 
 Provider availability and the completeness of individual titles depend on the
 data exposed by AniList and MyAnimeList.
 
 ## Screenshots
 
-Real-device screenshots are being prepared for this section. Puriki does not
-present mockups or generated imagery as real application captures. The capture
-plan and expected filenames live in
-[docs/readme/screenshots](./docs/readme/screenshots/README.md).
+Real captures from an accepted Android build. See
+[docs/readme/screenshots](./docs/readme/screenshots/README.md) for how this set
+is maintained.
+
+<p align="center">
+  <a href="./docs/readme/screenshots/home.png"><img src="./docs/readme/screenshots/home.png" alt="Home" width="200"></a>
+  <a href="./docs/readme/screenshots/search.png"><img src="./docs/readme/screenshots/search.png" alt="Search" width="200"></a>
+  <a href="./docs/readme/screenshots/anime-details.png"><img src="./docs/readme/screenshots/anime-details.png" alt="Anime details" width="200"></a>
+  <a href="./docs/readme/screenshots/my-list.png"><img src="./docs/readme/screenshots/my-list.png" alt="My List" width="200"></a>
+  <a href="./docs/readme/screenshots/settings.png"><img src="./docs/readme/screenshots/settings.png" alt="Settings" width="200"></a>
+</p>
 
 ## Download
 
@@ -199,11 +206,14 @@ synchronized.
 ## Disclaimer
 
 Puriki is an independent, unofficial project. It is not affiliated with,
-endorsed by, or operated by AniList or MyAnimeList.
+endorsed by, sponsored by, or operated by AniList or MyAnimeList. Provider
+names and trademarks belong to their respective owners.
 
 ## License
 
-This repository does not currently declare a project-wide software license.
-Source availability alone does not grant permission to reuse, modify, or
-redistribute the project. A license must be selected explicitly by the
-maintainer before describing Puriki as open source.
+Puriki is released under the MIT License. See [LICENSE](./LICENSE) for
+details.
+
+The Puriki source code license does not grant rights over AniList,
+MyAnimeList, their trademarks, APIs, data, artwork, or other third-party
+content. Those remain subject to their respective owners' terms and licenses.

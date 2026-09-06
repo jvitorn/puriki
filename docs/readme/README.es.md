@@ -49,21 +49,28 @@ ni sincroniza continuamente listas entre AniList y MyAnimeList.
 
 ## Servicios compatibles
 
-| Servicio | Datos de descubrimiento | Conexión de cuenta | Administración de la lista |
-| --- | --- | --- | --- |
-| AniList | Fuente principal del catálogo | OAuth | Lectura, adición, eliminación, progreso, estado y puntuación |
-| MyAnimeList | Fallback automático del catálogo | OAuth con PKCE | Lectura, adición, eliminación, progreso, estado y puntuación |
-| Modo invitado | Usa el catálogo disponible | No requerida | Lista temporal durante el proceso de la app |
+| Servicio      | Datos de descubrimiento          | Conexión de cuenta | Administración de la lista                                   |
+| ------------- | -------------------------------- | ------------------ | ------------------------------------------------------------ |
+| AniList       | Fuente principal del catálogo    | OAuth              | Lectura, adición, eliminación, progreso, estado y puntuación |
+| MyAnimeList   | Fallback automático del catálogo | OAuth con PKCE     | Lectura, adición, eliminación, progreso, estado y puntuación |
+| Modo invitado | Usa el catálogo disponible       | No requerida       | Lista temporal durante el proceso de la app                  |
 
 La disponibilidad de los proveedores y la información de cada título dependen
 de los datos expuestos por AniList y MyAnimeList.
 
 ## Capturas de pantalla
 
-Se están preparando capturas reales en dispositivo para esta sección. Puriki no
-presenta mockups ni imágenes generadas como si fueran capturas reales de la
-aplicación. El plan de captura y los nombres esperados están en
-[docs/readme/screenshots](./screenshots/README.md).
+Capturas reales de una build Android aceptada. Consulta
+[docs/readme/screenshots](./screenshots/README.md) para saber cómo se mantiene
+este conjunto.
+
+<p align="center">
+  <a href="./screenshots/home.png"><img src="./screenshots/home.png" alt="Inicio" width="200"></a>
+  <a href="./screenshots/search.png"><img src="./screenshots/search.png" alt="Búsqueda" width="200"></a>
+  <a href="./screenshots/anime-details.png"><img src="./screenshots/anime-details.png" alt="Detalles del anime" width="200"></a>
+  <a href="./screenshots/my-list.png"><img src="./screenshots/my-list.png" alt="Mi Lista" width="200"></a>
+  <a href="./screenshots/settings.png"><img src="./screenshots/settings.png" alt="Configuración" width="200"></a>
+</p>
 
 ## Descarga
 
@@ -202,12 +209,16 @@ sincronizadas las tres versiones.
 
 ## Aviso
 
-Puriki es un proyecto independiente y no oficial. No está afiliado, respaldado
-ni operado por AniList o MyAnimeList.
+Puriki es un proyecto independiente y no oficial. No está afiliado,
+respaldado, patrocinado ni operado por AniList o MyAnimeList. Los nombres y
+marcas de los proveedores pertenecen a sus respectivos titulares.
 
 ## Licencia
 
-Este repositorio todavía no declara una licencia de software para el proyecto
-completo. La disponibilidad del código fuente, por sí sola, no concede permiso
-para reutilizar, modificar o redistribuir el proyecto. El maintainer debe elegir
-una licencia explícitamente antes de describir Puriki como open source.
+Puriki se distribuye bajo la Licencia MIT. Consulta [LICENSE](../../LICENSE)
+para más detalles.
+
+La licencia del código fuente de Puriki no otorga derechos sobre AniList,
+MyAnimeList, sus marcas, API, datos, artes u otro contenido de terceros. Esos
+elementos siguen sujetos a los términos y licencias de sus respectivos
+titulares.

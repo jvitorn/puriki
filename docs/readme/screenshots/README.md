@@ -1,10 +1,10 @@
-# Puriki screenshot plan
+# Puriki screenshots
 
-This directory is reserved for real screenshots captured from an accepted
-Puriki Android build. Do not place generated screens, design mockups, provider
-artwork, or development-only UI here as if they were product captures.
+This directory holds the real screenshots used by all three public READMEs
+(English, pt-BR, Spanish). The image files are shared across the three
+localized READMEs; only the alt text differs per language.
 
-Expected portrait files:
+Current files:
 
 - `home.png`
 - `search.png`
@@ -12,15 +12,24 @@ Expected portrait files:
 - `my-list.png`
 - `settings.png`
 
-Before publishing screenshots:
+These were captured from a native Puriki development build running on an
+Android emulator, in guest mode, with no provider account connected. No
+mockups, design artifacts, or generated imagery are used.
+
+## Refreshing the screenshot set
+
+When the UI changes enough to make these captures stale:
 
 1. Use the same accepted build and device scale for the complete set.
-2. Remove or obscure usernames, avatars, and other personal account data.
-3. Avoid exposing OAuth callbacks, tokens, diagnostic output, or notifications.
+2. Prefer guest mode, or a dedicated test account, so no maintainer username,
+   avatar, or personal watch history appears. If a provider account must be
+   shown, use a safe test account or crop/select a state that does not expose
+   personal data.
+3. Avoid capturing OAuth pages, tokens, diagnostic output, notifications,
+   debug overlays, the Metro/dev-client UI, or development menus.
 4. Prefer representative provider data without implying endorsement.
-5. Optimize files without upscaling or changing the app UI.
-6. Add the final images to all three public README versions in the same order
-   with localized alt text.
-
-No real product screenshot was available in the repository when this plan was
-created.
+5. Optimize files without upscaling or changing the app UI (lossless
+   compression and reasonable downscaling to display resolution are fine).
+6. Replace the files in this directory using the same filenames, then verify
+   all three README versions still render them with correct localized alt
+   text.
