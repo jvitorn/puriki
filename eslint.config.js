@@ -1,5 +1,6 @@
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
+const globals = require('globals');
 
 module.exports = defineConfig([
   { ignores: ['coverage/**', '.expo/**'] },
@@ -66,6 +67,14 @@ module.exports = defineConfig([
           ],
         },
       ],
+    },
+  },
+  {
+    // Local Expo Config Plugins live outside `src` as plain Node/CommonJS
+    // files and are tested with the same Jest runner used for `src`.
+    files: ['plugins/**/*.test.js'],
+    languageOptions: {
+      globals: { ...globals.node, ...globals.jest },
     },
   },
   {

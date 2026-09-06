@@ -59,9 +59,7 @@ data exposed by AniList and MyAnimeList.
 
 ## Screenshots
 
-Real captures from an accepted Android build. See
-[docs/readme/screenshots](./docs/readme/screenshots/README.md) for how this set
-is maintained.
+A look at Puriki running on Android.
 
 <p align="center">
   <a href="./docs/readme/screenshots/home.png"><img src="./docs/readme/screenshots/home.png" alt="Home" width="200"></a>

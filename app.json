@@ -2,7 +2,7 @@
   "expo": {
     "name": "Puriki",
     "slug": "puriki",
-    "description": "Anime list manager with on-demand synopsis translation powered by Google Translate.",
+    "description": "Anime list manager with on-device synopsis translation powered by Google ML Kit.",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -38,7 +38,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      "./plugins/withAndroidAbiSplits.js"
     ],
     "experiments": {
       "typedRoutes": true

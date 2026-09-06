@@ -10,7 +10,9 @@
       "autoIncrement": false,
       "environment": "production",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "applicationArchivePath": "android/app/build/outputs/apk/release/app-universal-release.apk",
+        "buildArtifactPaths": ["android/app/build/outputs/apk/release/*.apk"]
       }
     }
   }

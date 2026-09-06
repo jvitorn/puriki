@@ -172,6 +172,23 @@ describe('MalAuthProvider', () => {
     expect(tokenStore.remove).toHaveBeenCalledWith('mal');
   });
 
+  it('keeps a stored token after a transient restore failure for retry', async () => {
+    const { provider, oauthClient, tokenStore, viewerClient } =
+      createDependencies({
+        ...validRecord,
+        expiresAt: '2027-01-01T00:00:00.000Z',
+      });
+    viewerClient.getViewer.mockRejectedValueOnce(
+      new AuthOperationError('network', { canRetry: true }),
+    );
+    await expect(provider.restoreSession()).rejects.toMatchObject({
+      code: 'network',
+      canRetry: true,
+    });
+    expect(oauthClient.refresh).not.toHaveBeenCalled();
+    expect(tokenStore.remove).not.toHaveBeenCalled();
+  });
+
   it('reports disconnected for a missing token', async () => {
     const { provider } = createDependencies(null);
     await expect(provider.restoreSession()).resolves.toEqual({

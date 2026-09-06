@@ -13,7 +13,6 @@ import { Badge } from '@/presentation/components/ui/badge';
 import { Card } from '@/presentation/components/ui/card';
 import { Icon } from '@/presentation/components/ui/icon';
 import { Text } from '@/presentation/components/ui/text';
-import { cn } from '@/shared/rnr/utils';
 
 export interface AccountProfileCardProps {
   providerName: string;
@@ -21,7 +20,7 @@ export interface AccountProfileCardProps {
   status: string;
   username?: string | null;
   avatarUrl?: string | null;
-  connectionState: AccountConnectionState | 'coming_soon';
+  connectionState: AccountConnectionState;
   children?: React.ReactNode;
 }
 
@@ -41,12 +40,7 @@ export function AccountProfileCard({
     : t('settings.disconnectedAvatar');
 
   return (
-    <Card
-      className={cn(
-        'gap-4 border-0 p-4 py-4',
-        connectionState === 'coming_soon' && 'opacity-55',
-      )}
-    >
+    <Card className="gap-4 border-0 p-4 py-4">
       <View accessible className="flex-row items-center gap-4">
         <Avatar alt={avatarLabel} className="size-14">
           {connected && avatarUrl ? (

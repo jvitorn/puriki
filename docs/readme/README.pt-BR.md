@@ -60,9 +60,7 @@ dados expostos pelo AniList e MyAnimeList.
 
 ## Capturas de tela
 
-Capturas reais de uma build Android aceita. Veja
-[docs/readme/screenshots](./screenshots/README.md) para saber como este
-conjunto é mantido.
+Veja o Puriki em funcionamento no Android.
 
 <p align="center">
   <a href="./screenshots/home.png"><img src="./screenshots/home.png" alt="Início" width="200"></a>

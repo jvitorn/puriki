@@ -135,6 +135,19 @@ describe('AniListAuthProvider', () => {
     expect(revoked.tokenStore.remove).toHaveBeenCalledWith('anilist');
   });
 
+  it('keeps a stored token after a transient restore failure for retry', async () => {
+    const { provider, tokenStore, viewerClient } =
+      createDependencies(validRecord);
+    viewerClient.getViewer.mockRejectedValueOnce(
+      new AuthOperationError('network', { canRetry: true }),
+    );
+    await expect(provider.restoreSession()).rejects.toMatchObject({
+      code: 'network',
+      canRetry: true,
+    });
+    expect(tokenStore.remove).not.toHaveBeenCalled();
+  });
+
   it('maps corrupt and unavailable storage safely', async () => {
     const corrupt = createDependencies();
     corrupt.tokenStore.get.mockRejectedValueOnce(
