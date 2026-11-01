@@ -48,7 +48,9 @@ describe('localized core UI', () => {
     await waitFor(() =>
       expect(screen.getByText('Explora por género')).toBeVisible(),
     );
-    expect(screen.getByLabelText('Ver anime de Aventura')).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByLabelText('Ver anime de Aventura')).toBeVisible(),
+    );
 
     fireEvent.changeText(input, 'Ember');
     await waitFor(() =>

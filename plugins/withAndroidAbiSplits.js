@@ -1,4 +1,7 @@
-const { withAppBuildGradle } = require('@expo/config-plugins');
+const {
+  withAppBuildGradle,
+  withGradleProperties,
+} = require('@expo/config-plugins');
 
 // Puriki 1.0 ships direct APK downloads (GitHub Releases / website), not a
 // single Google Play AAB, so per-ABI APKs are generated from one Gradle
@@ -6,6 +9,15 @@ const { withAppBuildGradle } = require('@expo/config-plugins');
 // fallback. This matches the default `reactNativeArchitectures` already set
 // by the Expo/React Native template (see android/gradle.properties).
 const ABIS = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'];
+
+// Release-only optimizations. Keeping these in the Config Plugin makes them
+// survive Expo prebuilds without treating the generated android project as
+// source-of-truth.
+const RELEASE_OPTIMIZATION_PROPERTIES = {
+  'android.enableMinifyInReleaseBuilds': 'true',
+  'android.enableShrinkResourcesInReleaseBuilds': 'true',
+  'android.r8.optimizedResourceShrinking': 'true',
+};
 
 const BLOCK_START = '    // @generated begin puriki-abi-splits';
 const BLOCK_END = '    // @generated end puriki-abi-splits';
@@ -49,7 +61,42 @@ function applyAbiSplits(contents) {
   );
 }
 
+function applyReleaseOptimizationProperties(properties) {
+  const result = properties.map((property) => ({ ...property }));
+
+  for (const [key, value] of Object.entries(RELEASE_OPTIMIZATION_PROPERTIES)) {
+    const matchingIndexes = [];
+
+    result.forEach((property, index) => {
+      if (property.type === 'property' && property.key === key) {
+        matchingIndexes.push(index);
+      }
+    });
+
+    if (matchingIndexes.length === 0) {
+      result.push({ type: 'property', key, value });
+      continue;
+    }
+
+    result[matchingIndexes[0]] = {
+      ...result[matchingIndexes[0]],
+      value,
+    };
+
+    for (let index = matchingIndexes.length - 1; index > 0; index -= 1) {
+      result.splice(matchingIndexes[index], 1);
+    }
+  }
+
+  return result;
+}
+
 function withAndroidAbiSplits(config) {
+  config = withGradleProperties(config, (config) => {
+    config.modResults = applyReleaseOptimizationProperties(config.modResults);
+    return config;
+  });
+
   return withAppBuildGradle(config, (config) => {
     if (config.modResults.language !== 'groovy') {
       throw new Error(
@@ -65,4 +112,8 @@ function withAndroidAbiSplits(config) {
 
 module.exports = withAndroidAbiSplits;
 module.exports.applyAbiSplits = applyAbiSplits;
+module.exports.applyReleaseOptimizationProperties =
+  applyReleaseOptimizationProperties;
 module.exports.ABIS = ABIS;
+module.exports.RELEASE_OPTIMIZATION_PROPERTIES =
+  RELEASE_OPTIMIZATION_PROPERTIES;

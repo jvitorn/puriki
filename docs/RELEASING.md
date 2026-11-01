@@ -47,12 +47,16 @@ APK.
 
 This is implemented as a small, persistent Expo Config Plugin —
 `plugins/withAndroidAbiSplits.js` — registered in `app.json`'s `plugins`
-array. Because Puriki uses Expo prebuild/CNG and does not commit the
-generated `android/` directory, the plugin re-applies this configuration to
-`android/app/build.gradle` on every prebuild via `withAppBuildGradle`. It is
-idempotent (detects its own marker comment and skips re-insertion) and fails
-loudly instead of silently doing nothing if the expected `android {` anchor
-ever disappears from the Expo/React Native Gradle template.
+array.
+
+The plugin writes both the release optimization Gradle properties and the ABI
+split block idempotently, so repeated prebuilds do not duplicate configuration.
+Because Puriki uses Expo prebuild/CNG and does not commit the generated
+`android/` directory, the plugin re-applies the Gradle properties through
+`withGradleProperties` and the split block through `withAppBuildGradle` on every
+prebuild. It detects its own marker comment, avoids duplicate properties, and
+fails loudly instead of silently doing nothing if the expected `android {`
+anchor ever disappears from the Expo/React Native Gradle template.
 
 The plugin injects:
 
@@ -73,6 +77,13 @@ prebuild) and no native dependency in the project — including the local
 `modules/purikuki-translation` module and its Google ML Kit Translate
 dependency — excludes any of them. `universalApk true` keeps a
 maximum-compatibility fallback APK alongside the per-ABI ones.
+
+Release builds enable R8 code minification, resource shrinking, and AGP's
+optimized resource shrinking. These options reduce Java/Kotlin bytecode and
+unused packaged resources without changing the debug build used during
+development. Keep `expo.useLegacyPackaging=false`: compressing native libraries
+can make the downloaded APK appear smaller while increasing installed size and
+giving up Android's modern direct-from-APK native library loading behavior.
 
 A single `eas build --platform android --profile production-apk` (or a local
 `cd android && ./gradlew assembleRelease`) therefore produces every APK
