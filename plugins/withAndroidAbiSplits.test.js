@@ -1,4 +1,9 @@
-const { applyAbiSplits, ABIS } = require('./withAndroidAbiSplits');
+const {
+  applyAbiSplits,
+  applyReleaseOptimizationProperties,
+  ABIS,
+  RELEASE_OPTIMIZATION_PROPERTIES,
+} = require('./withAndroidAbiSplits');
 
 function fakeBuildGradle() {
   return [
@@ -94,5 +99,61 @@ describe('applyAbiSplits', () => {
     expect(androidIndex).toBeGreaterThan(-1);
     expect(splitsIndex).toBeGreaterThan(androidIndex);
     expect(splitsIndex).toBeLessThan(namespaceIndex);
+  });
+});
+
+describe('applyReleaseOptimizationProperties', () => {
+  it('enables R8 minification and optimized resource shrinking', () => {
+    const result = applyReleaseOptimizationProperties([]);
+
+    for (const [key, value] of Object.entries(
+      RELEASE_OPTIMIZATION_PROPERTIES,
+    )) {
+      expect(result).toContainEqual({ type: 'property', key, value });
+    }
+  });
+
+  it('updates existing properties without duplicates and preserves comments', () => {
+    const input = [
+      { type: 'comment', value: 'Keep this project setting' },
+      {
+        type: 'property',
+        key: 'android.enableMinifyInReleaseBuilds',
+        value: 'false',
+      },
+      {
+        type: 'property',
+        key: 'android.enableMinifyInReleaseBuilds',
+        value: 'false',
+      },
+    ];
+
+    const result = applyReleaseOptimizationProperties(input);
+
+    expect(result).toContainEqual(input[0]);
+    expect(
+      result.filter(
+        (property) =>
+          property.type === 'property' &&
+          property.key === 'android.enableMinifyInReleaseBuilds',
+      ),
+    ).toEqual([
+      {
+        type: 'property',
+        key: 'android.enableMinifyInReleaseBuilds',
+        value: 'true',
+      },
+    ]);
+  });
+
+  it('does not mutate the input and is idempotent', () => {
+    const input = [{ type: 'property', key: 'existing', value: 'value' }];
+    const once = applyReleaseOptimizationProperties(input);
+    const twice = applyReleaseOptimizationProperties(once);
+
+    expect(input).toEqual([
+      { type: 'property', key: 'existing', value: 'value' },
+    ]);
+    expect(twice).toEqual(once);
   });
 });

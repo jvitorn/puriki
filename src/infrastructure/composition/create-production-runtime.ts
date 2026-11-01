@@ -109,6 +109,7 @@ function runtimeStatusFromSnapshot(
           family,
           {
             circuitState: operation.circuitState,
+            forcedOpen: operation.forcedOpen,
             lastSuccessfulSource: operation.lastSuccessfulSource,
             lastFallbackAt:
               operation.lastFallbackAt === null
@@ -254,6 +255,8 @@ export function createProductionRepositoryServices(
     subscribeCatalogRuntimeStatus: (listener) => channel.subscribe(listener),
     clearCatalogCache: () => catalogRepository.clearCache(),
     resetPrimaryCircuits: () => catalogRepository.resetPrimaryCircuits(),
+    setPrimaryCircuitEnabled: (family, enabled) =>
+      catalogRepository.setPrimaryCircuitEnabled(family, enabled),
     runAniListDiagnostic: async () => {
       try {
         return await diagnosticSuite.runAll();

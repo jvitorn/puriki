@@ -7,6 +7,8 @@ import {
 import type { InfiniteData } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
+import { getPersonalizedPopularAnime } from '@/application/use-cases/get-personalized-popular-anime';
+import { getRecommendedFeaturedAnime } from '@/application/use-cases/get-recommended-featured-anime';
 import { unifyAnimeList } from '@/application/use-cases/unify-anime';
 import type {
   AnimeCatalogItem,
@@ -23,6 +25,7 @@ import {
 import { normalizeSearchText } from '@/shared/utils/search';
 
 const CATALOG_STALE_TIME = 30 * 60_000;
+export const GENRE_DISCOVERY_LIMIT = 20;
 
 export function useFeaturedAnime() {
   const { catalogRepository } = useRepositories();
@@ -33,11 +36,33 @@ export function useFeaturedAnime() {
   });
 }
 
+export function useRecommendedFeaturedAnime() {
+  const { catalogRepository, userListRepository, userListScope } =
+    useRepositories();
+  return useQuery({
+    queryKey: queryKeys.recommendedFeatured(userListScope),
+    queryFn: () =>
+      getRecommendedFeaturedAnime({ catalogRepository, userListRepository }),
+    staleTime: CATALOG_STALE_TIME,
+  });
+}
+
 export function usePopularAnime() {
   const { catalogRepository } = useRepositories();
   return useQuery({
     queryKey: queryKeys.popular,
     queryFn: () => catalogRepository.getPopular(),
+    staleTime: CATALOG_STALE_TIME,
+  });
+}
+
+export function usePersonalizedPopularAnime() {
+  const { catalogRepository, userListRepository, userListScope } =
+    useRepositories();
+  return useQuery({
+    queryKey: queryKeys.personalizedPopular(userListScope),
+    queryFn: () =>
+      getPersonalizedPopularAnime({ catalogRepository, userListRepository }),
     staleTime: CATALOG_STALE_TIME,
   });
 }
@@ -73,6 +98,21 @@ export function useAnimeSearch(query: string) {
         ? catalogRepository.search(normalizedQuery)
         : catalogRepository.getPopular(),
     placeholderData: keepPreviousData,
+    staleTime: CATALOG_STALE_TIME,
+  });
+}
+
+export function useGenreDiscovery(genre: string | null) {
+  const { catalogRepository } = useRepositories();
+  const normalizedGenre = genre?.trim() ?? '';
+  return useQuery({
+    queryKey: queryKeys.genreDiscovery(normalizedGenre),
+    queryFn: () =>
+      catalogRepository.getGenreDiscovery(
+        normalizedGenre,
+        GENRE_DISCOVERY_LIMIT,
+      ),
+    enabled: normalizedGenre.length > 0,
     staleTime: CATALOG_STALE_TIME,
   });
 }

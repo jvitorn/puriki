@@ -1,4 +1,8 @@
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeGenreDiscovery,
+  AnimeRecommendationSeed,
+} from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import { AniListCatalogCache } from '@/infrastructure/api/anilist/anilist-cache';
 import {
@@ -11,6 +15,7 @@ import {
   parseAniListNullableDetailsData,
   parseAniListPageAlias,
   parseAniListPageData,
+  parseAniListRecommendationsData,
   type AniListMediaSummary,
 } from '@/infrastructure/api/anilist/anilist-dtos';
 import {
@@ -32,7 +37,9 @@ import {
   ANILIST_COMBINED_HOME_QUERY,
   ANILIST_BY_MAL_IDS_QUERY,
   ANILIST_DETAILS_QUERY,
+  ANILIST_GENRE_DISCOVERY_QUERY,
   ANILIST_POPULAR_QUERY,
+  ANILIST_RECOMMENDATIONS_QUERY,
   ANILIST_SEARCH_QUERY,
   ANILIST_SEASONAL_QUERY,
   ANILIST_UPCOMING_QUERY,
@@ -91,6 +98,10 @@ function shuffled<T>(items: readonly T[], random: RandomGenerator): T[] {
 
 function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
   return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+function normalizedGenreLimit(limit: number): number {
+  return Number.isInteger(limit) ? Math.min(25, Math.max(1, limit)) : 20;
 }
 
 function mapSummaries(
@@ -245,6 +256,164 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
       page: 1,
       perPage: 25,
     });
+  }
+
+  getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim();
+    if (!normalizedGenre) {
+      return Promise.resolve({ popular: [], newReleases: [] });
+    }
+    const normalizedLimit = normalizedGenreLimit(limit);
+    const genreKey = normalizedGenre.toLocaleLowerCase();
+    const popularCacheKey = `collection:genre:${genreKey}:popular:${normalizedLimit}`;
+    const newReleasesCacheKey = `collection:genre:${genreKey}:new:${normalizedLimit}`;
+    const cachedPopular = this.cache.getCollection(popularCacheKey);
+    const cachedNewReleases = this.cache.getCollection(newReleasesCacheKey);
+    if (cachedPopular && cachedNewReleases) {
+      return Promise.resolve({
+        popular: cachedPopular,
+        newReleases: cachedNewReleases,
+      });
+    }
+
+    const generation = this.generation;
+    const requestKey = `genre:${genreKey}:${normalizedLimit}`;
+    return this.cache.getOrCreate(requestKey, async () => {
+      const response = await this.execute(
+        requestKey,
+        ANILIST_GENRE_DISCOVERY_QUERY,
+        { genres: [normalizedGenre], perPage: normalizedLimit },
+      );
+      const executionError = graphQLErrorFor(response);
+      if (executionError) throw executionError;
+      try {
+        const discovery = {
+          popular: mapSummaries(
+            parseAniListPageAlias(response.data, 'popular').media,
+            this.mediaIdentityResolver,
+          ),
+          newReleases: mapSummaries(
+            parseAniListPageAlias(response.data, 'newReleases').media,
+            this.mediaIdentityResolver,
+          ),
+        };
+        if (generation === this.generation) {
+          this.cache.setCollection(popularCacheKey, discovery.popular);
+          this.cache.setCollection(newReleasesCacheKey, discovery.newReleases);
+        }
+        return discovery;
+      } catch (error: unknown) {
+        if (error instanceof AniListGraphQLExecutionError) throw error;
+        throw new AniListResponseFormatError(
+          error instanceof Error ? error.message : undefined,
+          diagnostic(response),
+        );
+      }
+    });
+  }
+
+  async getRecommendations(
+    seeds: readonly AnimeRecommendationSeed[],
+    limit: number,
+  ): Promise<AnimeCatalogItem[]> {
+    const normalizedSeeds = [
+      ...new Map(
+        seeds
+          .filter(
+            (seed) =>
+              Number.isInteger(seed.animeId) &&
+              seed.animeId > 0 &&
+              Number.isFinite(seed.weight) &&
+              seed.weight > 0,
+          )
+          .map((seed) => [seed.animeId, seed]),
+      ).values(),
+    ]
+      .sort(
+        (left, right) =>
+          right.weight - left.weight || left.animeId - right.animeId,
+      )
+      .slice(0, 5);
+    if (normalizedSeeds.length === 0) return [];
+    const normalizedLimit = Number.isInteger(limit)
+      ? Math.min(25, Math.max(1, limit))
+      : 20;
+    const seedKey = normalizedSeeds
+      .map((seed) => `${seed.animeId}:${seed.weight.toFixed(3)}`)
+      .join(',');
+    const cacheKey = `collection:recommendations:${seedKey}:${normalizedLimit}`;
+    const cached = this.cache.getCollection(cacheKey);
+    if (cached) return cached;
+
+    const generation = this.generation;
+    const results = await Promise.allSettled(
+      normalizedSeeds.map(async (seed) => {
+        const response = await this.execute(
+          `recommendations:${seed.animeId}:${normalizedLimit}`,
+          ANILIST_RECOMMENDATIONS_QUERY,
+          { idMal: seed.animeId, perPage: normalizedLimit },
+        );
+        const executionError = graphQLErrorFor(response);
+        if (executionError) throw executionError;
+        try {
+          return {
+            seed,
+            recommendations: parseAniListRecommendationsData(response.data),
+          };
+        } catch (error: unknown) {
+          throw new AniListResponseFormatError(
+            error instanceof Error ? error.message : undefined,
+            diagnostic(response),
+          );
+        }
+      }),
+    );
+    const fulfilled = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
+    if (fulfilled.length === 0) {
+      const rejected = results.find((result) => result.status === 'rejected');
+      throw rejected?.status === 'rejected'
+        ? rejected.reason
+        : new AniListResponseFormatError(
+            'AniList returned no recommendation result.',
+          );
+    }
+
+    const seedIds = new Set(normalizedSeeds.map((seed) => seed.animeId));
+    const ranked = new Map<
+      number,
+      { anime: AnimeCatalogItem; affinity: number }
+    >();
+    fulfilled.forEach(({ seed, recommendations }) => {
+      recommendations.forEach(({ rating, mediaRecommendation }) => {
+        rememberIdentity(this.mediaIdentityResolver, mediaRecommendation);
+        const anime = mapAniListSummary(mediaRecommendation);
+        if (!anime || seedIds.has(anime.id)) return;
+        const previous = ranked.get(anime.id);
+        ranked.set(anime.id, {
+          anime,
+          affinity:
+            (previous?.affinity ?? 0) + (Math.max(0, rating) + 1) * seed.weight,
+        });
+      });
+    });
+    const recommendations = [...ranked.values()]
+      .sort(
+        (left, right) =>
+          right.affinity - left.affinity ||
+          (right.anime.score ?? 0) - (left.anime.score ?? 0) ||
+          left.anime.id - right.anime.id,
+      )
+      .slice(0, normalizedLimit)
+      .map(({ anime }) => anime);
+    if (generation === this.generation) {
+      this.cache.setCollection(cacheKey, recommendations);
+    }
+    return recommendations;
   }
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {

@@ -87,6 +87,49 @@ export const ANILIST_SEARCH_QUERY = /* GraphQL */ `
   ${ANILIST_SUMMARY_FRAGMENT}
 `;
 
+export const ANILIST_GENRE_DISCOVERY_QUERY = /* GraphQL */ `
+  query GenreDiscovery($genres: [String], $perPage: Int!) {
+    popular: Page(page: 1, perPage: $perPage) {
+      media(
+        type: ANIME
+        genre_in: $genres
+        sort: POPULARITY_DESC
+        isAdult: false
+      ) {
+        ...AnimeSummary
+      }
+    }
+    newReleases: Page(page: 1, perPage: $perPage) {
+      media(
+        type: ANIME
+        genre_in: $genres
+        status_not: NOT_YET_RELEASED
+        sort: START_DATE_DESC
+        isAdult: false
+      ) {
+        ...AnimeSummary
+      }
+    }
+  }
+  ${ANILIST_SUMMARY_FRAGMENT}
+`;
+
+export const ANILIST_RECOMMENDATIONS_QUERY = /* GraphQL */ `
+  query AnimeRecommendations($idMal: Int!, $perPage: Int!) {
+    Media(idMal: $idMal, type: ANIME) {
+      recommendations(page: 1, perPage: $perPage, sort: RATING_DESC) {
+        nodes {
+          rating
+          mediaRecommendation {
+            ...AnimeSummary
+          }
+        }
+      }
+    }
+  }
+  ${ANILIST_SUMMARY_FRAGMENT}
+`;
+
 export const ANILIST_POPULAR_SUMMARY_QUERY = /* GraphQL */ `
   query PopularSummary($page: Int!, $perPage: Int!) {
     Page(page: $page, perPage: $perPage) {

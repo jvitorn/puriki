@@ -14,9 +14,11 @@ import { Text } from '@/presentation/components/ui/text';
 
 export function FeaturedAnime({
   anime,
+  personalized = false,
   onOpen,
 }: {
   anime: AnimeCatalogItem;
+  personalized?: boolean;
   onOpen(): void;
 }) {
   const { t } = useTranslation();
@@ -39,7 +41,7 @@ export function FeaturedAnime({
       />
       <View className="absolute inset-x-0 bottom-0 gap-2 p-5 md:p-7">
         <Badge className="self-start">
-          <Text>{t('home.featured')}</Text>
+          <Text>{t(personalized ? 'home.recommended' : 'home.featured')}</Text>
         </Badge>
         <Text variant="display" className="max-w-3xl" numberOfLines={2}>
           {anime.title}

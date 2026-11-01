@@ -1,7 +1,9 @@
 import { DomainError } from '@/domain/errors/domain-error';
 import type {
   AnimeCatalogItem,
+  AnimeGenreDiscovery,
   AnimeListStatus,
+  AnimeRecommendationSeed,
   UserAnimeEntry,
 } from '@/domain/models/anime';
 import { validatePageRequest } from '@/domain/models/pagination';
@@ -12,6 +14,7 @@ import type {
   UserAnimeListRepository,
 } from '@/domain/repositories/user-anime-list-repository';
 import { applyProgress } from '@/domain/rules/anime-progress';
+import { rankLocalRecommendationCandidates } from '@/domain/rules/anime-recommendations';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
 import { createAnimeTrackingContext } from '@/domain/rules/anime-tracking';
@@ -63,6 +66,50 @@ export class InMemoryAnimeCatalogRepository implements AnimeCatalogRepository {
         )
       : this.dataset.catalog.slice(0, 18);
     return items.map(cloneAnime);
+  }
+
+  async getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim().toLocaleLowerCase();
+    const normalizedLimit = Number.isInteger(limit)
+      ? Math.min(25, Math.max(1, limit))
+      : 20;
+    const matches = this.dataset.catalog.filter((anime) =>
+      anime.genres.some(
+        (candidate) => candidate.toLocaleLowerCase() === normalizedGenre,
+      ),
+    );
+    return {
+      popular: [...matches]
+        .sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+        .slice(0, normalizedLimit)
+        .map(cloneAnime),
+      newReleases: [...matches]
+        .sort(
+          (left, right) =>
+            (right.year ?? 0) - (left.year ?? 0) || right.id - left.id,
+        )
+        .slice(0, normalizedLimit)
+        .map(cloneAnime),
+    };
+  }
+
+  async getRecommendations(
+    seeds: readonly AnimeRecommendationSeed[],
+    limit: number,
+  ): Promise<AnimeCatalogItem[]> {
+    const seedById = new Map(seeds.map((seed) => [seed.animeId, seed]));
+    const seedItems = this.dataset.catalog.flatMap((anime) => {
+      const seed = seedById.get(anime.id);
+      return seed ? [{ anime, seed }] : [];
+    });
+    return rankLocalRecommendationCandidates(
+      seedItems,
+      this.dataset.catalog,
+      limit,
+    ).map(cloneAnime);
   }
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {

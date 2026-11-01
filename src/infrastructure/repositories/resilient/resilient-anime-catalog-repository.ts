@@ -1,8 +1,13 @@
 import { Platform } from 'react-native';
 
 import { CatalogUnavailableError } from '@/domain/errors/catalog-error';
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeGenreDiscovery,
+  AnimeRecommendationSeed,
+} from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
+import { rankLocalRecommendationCandidates } from '@/domain/rules/anime-recommendations';
 import { MalResponseFormatError } from '@/infrastructure/api/mal/mal-errors';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
 import { CatalogCircuitBreakerRegistry } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker-registry';
@@ -27,13 +32,14 @@ import {
 import { PrimaryProviderRateLimitGate } from '@/infrastructure/repositories/resilient/primary-provider-rate-limit-gate';
 import { normalizeSearchText } from '@/shared/utils/search';
 
-export type CatalogSuccessfulSource = CatalogItemSource;
+export type CatalogSuccessfulSource = CatalogItemSource | 'local';
 export type { PrimaryCatalogHealth } from '@/infrastructure/repositories/resilient/catalog-operation-family';
 export type PrimaryProviderSkipReason =
   'family_circuit_open' | 'provider_rate_limited';
 
 export interface CatalogOperationRuntimeStatus {
   circuitState: CircuitState;
+  forcedOpen: boolean;
   lastSuccessfulSource: CatalogSuccessfulSource | null;
   lastFallbackAt: number | null;
 }
@@ -65,6 +71,7 @@ interface OperationOptions {
   requireNonEmpty?: boolean;
   completeness?: CatalogItemCompleteness;
   fallbackOnNull?: boolean;
+  fallbackSource?: 'mal' | 'local';
 }
 
 class EmptyCatalogResultError extends PrimaryProviderError {
@@ -141,6 +148,17 @@ function isAnimeCatalogItem(value: unknown): value is AnimeCatalogItem {
     Array.isArray(value.studios) &&
     'continuity' in value &&
     Array.isArray(value.continuity)
+  );
+}
+
+function isAnimeGenreDiscovery(value: unknown): value is AnimeGenreDiscovery {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'popular' in value &&
+    Array.isArray(value.popular) &&
+    'newReleases' in value &&
+    Array.isArray(value.newReleases)
   );
 }
 
@@ -244,6 +262,61 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     );
   }
 
+  getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim();
+    const normalizedLimit = Number.isInteger(limit)
+      ? Math.min(25, Math.max(1, limit))
+      : 20;
+    return this.execute(
+      `genre:${normalizedGenre.toLocaleLowerCase()}:${normalizedLimit}`,
+      'search',
+      () => this.primary.getGenreDiscovery(normalizedGenre, normalizedLimit),
+      () => this.fallback.getGenreDiscovery(normalizedGenre, normalizedLimit),
+      { requireNonEmpty: true },
+    );
+  }
+
+  getRecommendations(
+    seeds: readonly AnimeRecommendationSeed[],
+    limit: number,
+  ): Promise<AnimeCatalogItem[]> {
+    const normalizedSeeds = [
+      ...new Map(
+        seeds
+          .filter(
+            (seed) =>
+              Number.isInteger(seed.animeId) &&
+              seed.animeId > 0 &&
+              Number.isFinite(seed.weight) &&
+              seed.weight > 0,
+          )
+          .map((seed) => [seed.animeId, seed]),
+      ).values(),
+    ]
+      .sort(
+        (left, right) =>
+          right.weight - left.weight || left.animeId - right.animeId,
+      )
+      .slice(0, 5);
+    if (normalizedSeeds.length === 0) return Promise.resolve([]);
+    const normalizedLimit = Number.isInteger(limit)
+      ? Math.min(25, Math.max(1, limit))
+      : 20;
+    const seedKey = normalizedSeeds
+      .map((seed) => `${seed.animeId}:${seed.weight.toFixed(3)}`)
+      .join(',');
+    return this.execute(
+      `recommendations:v1:${seedKey}:${normalizedLimit}`,
+      'recommendations',
+      () => this.primary.getRecommendations(normalizedSeeds, normalizedLimit),
+      () => this.getLocalRecommendations(normalizedSeeds, normalizedLimit),
+      { requireNonEmpty: true, fallbackSource: 'local' },
+    );
+  }
+
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {
     const normalizedIds = normalizeCatalogItemIds(ids);
     const resolved = new Map<number, AnimeCatalogItem>();
@@ -329,6 +402,14 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     this.emitRuntimeStatus();
   }
 
+  setPrimaryCircuitEnabled(
+    family: CatalogOperationFamily,
+    enabled: boolean,
+  ): void {
+    this.circuitRegistry.setForcedOpen(family, !enabled);
+    this.emitRuntimeStatus();
+  }
+
   getCircuitState(family: CatalogOperationFamily): CircuitState {
     return this.circuitRegistry.get(family).getState();
   }
@@ -355,6 +436,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
           family,
           {
             circuitState: circuitSnapshots[family].state,
+            forcedOpen: circuitSnapshots[family].forcedOpen,
             ...this.operationSources[family],
           },
         ]),
@@ -371,6 +453,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   ): Promise<T> {
     const startedAt = this.now();
     const completeness = options.completeness ?? 'summary';
+    const fallbackSource = options.fallbackSource ?? 'mal';
     const primaryAttempt = this.beginPrimaryAttempt(family);
     let primaryError: unknown;
 
@@ -415,13 +498,15 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       }
     }
 
-    if (this.isFallbackAvailable()) {
+    if (fallbackSource === 'local' || this.isFallbackAvailable()) {
       try {
         const value = await fallback();
-        this.ensureUsable(value, options, true);
+        this.ensureUsable(value, options, fallbackSource);
         this.cache.set(operation, value);
-        this.ingestCatalogValue(value, { source: 'mal', completeness });
-        this.sourceUsed(family, 'mal');
+        if (fallbackSource === 'mal') {
+          this.ingestCatalogValue(value, { source: 'mal', completeness });
+        }
+        this.sourceUsed(family, fallbackSource);
         this.log({
           family,
           fallbackUsed: true,
@@ -430,7 +515,7 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
           operation,
           primaryError,
           startedAt,
-          successfulSource: 'mal',
+          successfulSource: fallbackSource,
         });
         return value;
       } catch (fallbackError: unknown) {
@@ -540,6 +625,40 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     );
   }
 
+  private async getLocalRecommendations(
+    seeds: readonly AnimeRecommendationSeed[],
+    limit: number,
+  ): Promise<AnimeCatalogItem[]> {
+    const seedItems = await this.getManyByIds(
+      seeds.map((seed) => seed.animeId),
+    );
+    const collections = await Promise.allSettled([
+      this.getPopular(),
+      this.getSeasonal(),
+      this.getUpcoming(),
+    ]);
+    const candidates = collections.flatMap((result) =>
+      result.status === 'fulfilled' ? result.value : [],
+    );
+    if (candidates.length === 0) {
+      const failure = collections.find(
+        (result) => result.status === 'rejected',
+      );
+      throw failure?.status === 'rejected'
+        ? failure.reason
+        : new Error('No local recommendation candidates are available.');
+    }
+    const seedById = new Map(seeds.map((seed) => [seed.animeId, seed]));
+    return rankLocalRecommendationCandidates(
+      seedItems.flatMap((anime) => {
+        const seed = seedById.get(anime.id);
+        return seed ? [{ anime, seed }] : [];
+      }),
+      candidates,
+      limit,
+    );
+  }
+
   private beginPrimaryAttempt(family: CatalogOperationFamily): {
     allowed: boolean;
     attempted: boolean;
@@ -584,12 +703,22 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   private ensureUsable<T>(
     value: T,
     options: OperationOptions,
-    fallback = false,
+    fallbackSource?: 'mal' | 'local',
   ): void {
-    if (options.requireNonEmpty && Array.isArray(value) && value.length === 0) {
-      if (fallback) {
+    const isEmptyRequiredValue =
+      (Array.isArray(value) && value.length === 0) ||
+      (isAnimeGenreDiscovery(value) &&
+        value.popular.length === 0 &&
+        value.newReleases.length === 0);
+    if (options.requireNonEmpty && isEmptyRequiredValue) {
+      if (fallbackSource === 'mal') {
         throw new MalResponseFormatError(
           'MyAnimeList returned an unexpectedly empty required collection.',
+        );
+      }
+      if (fallbackSource === 'local') {
+        throw new Error(
+          'The local recommendation fallback returned no candidates.',
         );
       }
       throw new EmptyCatalogResultError();
@@ -610,7 +739,9 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   ): void {
     const operation = this.operationSources[family];
     operation.lastSuccessfulSource = source;
-    if (source === 'mal') operation.lastFallbackAt = this.now();
+    if (source === 'mal' || source === 'local') {
+      operation.lastFallbackAt = this.now();
+    }
     this.emitRuntimeStatus();
   }
 
@@ -624,6 +755,13 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   ): void {
     if (Array.isArray(value)) {
       this.itemStore.upsertMany(value.filter(isAnimeCatalogItem), metadata);
+      return;
+    }
+    if (isAnimeGenreDiscovery(value)) {
+      this.itemStore.upsertMany(
+        [...value.popular, ...value.newReleases].filter(isAnimeCatalogItem),
+        metadata,
+      );
       return;
     }
     if (isAnimeCatalogItem(value)) this.itemStore.upsert(value, metadata);

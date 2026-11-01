@@ -408,6 +408,7 @@ describe('SettingsScreen', () => {
         ...dependencies.getCatalogRuntimeStatus().operations,
         popular: {
           circuitState: 'open',
+          forcedOpen: false,
           lastSuccessfulSource: 'mal',
           lastFallbackAt: '2026-08-06T12:00:00.000Z',
         },

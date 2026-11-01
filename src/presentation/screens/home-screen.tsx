@@ -13,8 +13,8 @@ import { Skeleton } from '@/presentation/components/ui/skeleton';
 import { Text } from '@/presentation/components/ui/text';
 import {
   useContinueWatching,
-  useFeaturedAnime,
-  usePopularAnime,
+  usePersonalizedPopularAnime,
+  useRecommendedFeaturedAnime,
   useSeasonalAnime,
   useUpcomingAnime,
 } from '@/presentation/queries/anime-queries';
@@ -58,15 +58,15 @@ function HomeSkeleton() {
 export function HomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const featured = useFeaturedAnime();
+  const featured = useRecommendedFeaturedAnime();
   const watching = useContinueWatching();
-  const popular = usePopularAnime();
+  const popular = usePersonalizedPopularAnime();
   const seasonal = useSeasonalAnime();
   const upcoming = useUpcomingAnime();
   const queries = [featured, watching, popular, seasonal, upcoming];
   const displayedFeatured =
-    featured.data ??
-    popular.data?.[0] ??
+    featured.data?.anime ??
+    popular.data?.[0]?.anime ??
     seasonal.data?.[0] ??
     upcoming.data?.[0] ??
     watching.data?.[0]?.anime;
@@ -100,6 +100,10 @@ export function HomeScreen() {
       <HomeBrand />
       <FeaturedAnime
         anime={displayedFeatured}
+        personalized={
+          featured.data?.anime.id === displayedFeatured.id &&
+          featured.data.personalized
+        }
         onOpen={() => open(displayedFeatured.id)}
       />
       <HomeAnimeRail
@@ -114,7 +118,7 @@ export function HomeScreen() {
       />
       <HomeAnimeRail
         title={t('home.popular')}
-        items={asUnified(popular.data)}
+        items={popular.data}
         isLoading={popular.isLoading}
         isError={popular.isError}
         error={popular.error}

@@ -50,6 +50,16 @@ export interface AnimeCatalogItem {
   bannerSeed: number;
 }
 
+export interface AnimeGenreDiscovery {
+  popular: AnimeCatalogItem[];
+  newReleases: AnimeCatalogItem[];
+}
+
+export interface AnimeRecommendationSeed {
+  animeId: number;
+  weight: number;
+}
+
 export interface UserAnimeEntry {
   animeId: number;
   status: AnimeListStatus;

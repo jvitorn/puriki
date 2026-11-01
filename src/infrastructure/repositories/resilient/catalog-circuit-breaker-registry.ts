@@ -45,4 +45,8 @@ export class CatalogCircuitBreakerRegistry {
       this.breakers[current].reset(),
     );
   }
+
+  setForcedOpen(family: CatalogOperationFamily, forcedOpen: boolean): void {
+    this.breakers[family].setForcedOpen(forcedOpen);
+  }
 }

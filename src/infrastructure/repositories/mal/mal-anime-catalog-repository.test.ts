@@ -90,6 +90,25 @@ describe('MAL anime catalog repository', () => {
     );
   });
 
+  it('filters larger ranking and season pools for genre discovery', async () => {
+    const { getRanking, getSeason, repository } = createRepository();
+
+    await expect(repository.getGenreDiscovery('Action', 20)).resolves.toEqual({
+      popular: [expect.objectContaining({ id: 1 })],
+      newReleases: [expect.objectContaining({ id: 1 })],
+    });
+    expect(getRanking).toHaveBeenCalledWith({
+      ranking_type: 'bypopularity',
+      limit: 100,
+      fields: MAL_ANIME_FIELDS,
+    });
+    expect(getSeason).toHaveBeenCalledWith(2026, 'summer', {
+      limit: 100,
+      sort: 'anime_num_list_users',
+      fields: MAL_ANIME_FIELDS,
+    });
+  });
+
   it('fetches and caches public anime details', async () => {
     const { getDetails, repository } = createRepository();
     await expect(repository.getDetailsById(42)).resolves.toMatchObject({

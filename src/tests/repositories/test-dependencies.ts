@@ -27,6 +27,7 @@ function defaultRuntimeStatus(): CatalogRuntimeStatus {
         family,
         {
           circuitState: 'closed' as const,
+          forcedOpen: false,
           lastSuccessfulSource: null,
           lastFallbackAt: null,
         },
@@ -59,7 +60,25 @@ export function createTestDependencies(
       listeners.forEach((listener) => listener(status));
     },
     clearCatalogCache: () => catalogRepository.clearCache(),
-    resetPrimaryCircuits: () => undefined,
+    resetPrimaryCircuits: () => {
+      runtimeStatus = defaultRuntimeStatus();
+      listeners.forEach((listener) => listener(runtimeStatus));
+    },
+    setPrimaryCircuitEnabled: (family, enabled) => {
+      runtimeStatus = {
+        ...runtimeStatus,
+        primaryHealth: enabled ? 'healthy' : 'degraded',
+        operations: {
+          ...runtimeStatus.operations,
+          [family]: {
+            ...runtimeStatus.operations[family],
+            circuitState: enabled ? 'closed' : 'open',
+            forcedOpen: !enabled,
+          },
+        },
+      };
+      listeners.forEach((listener) => listener(runtimeStatus));
+    },
     runAniListDiagnostic: async () => ({
       results: [],
       summary: {

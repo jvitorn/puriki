@@ -8,6 +8,8 @@ export const queryKeys = {
   seasonal: ['anime', 'seasonal'] as const,
   upcoming: ['anime', 'upcoming'] as const,
   search: (query: string) => ['anime', 'search', query] as const,
+  genreDiscovery: (genre: string) =>
+    ['anime', 'genre-discovery', genre] as const,
   details: (scope: string, id: number) =>
     ['anime', 'details', scope, id] as const,
   userListRoot: ['user-list'] as const,
@@ -16,4 +18,8 @@ export const queryKeys = {
     ['user-list', scope, 'infinite', status ?? 'all'] as const,
   continueWatching: (scope: string) =>
     ['user-list', scope, 'continue-watching'] as const,
+  personalizedPopular: (scope: string) =>
+    ['user-list', scope, 'personalized-popular'] as const,
+  recommendedFeatured: (scope: string) =>
+    ['user-list', scope, 'recommended-featured'] as const,
 };

@@ -35,4 +35,19 @@ describe('catalog circuit breaker registry', () => {
     registry.reset();
     expect(registry.get('details').getState()).toBe('closed');
   });
+
+  it('forces only the selected family open and clears the override on reset', () => {
+    const registry = new CatalogCircuitBreakerRegistry();
+    registry.setForcedOpen('recommendations', true);
+    expect(registry.getSnapshot()).toMatchObject({
+      recommendations: { state: 'open', forcedOpen: true },
+      popular: { state: 'closed', forcedOpen: false },
+    });
+
+    registry.reset();
+    expect(registry.getSnapshot().recommendations).toMatchObject({
+      state: 'closed',
+      forcedOpen: false,
+    });
+  });
 });

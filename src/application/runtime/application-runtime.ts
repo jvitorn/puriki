@@ -8,6 +8,7 @@ import type { SynopsisTranslator } from '@/domain/services/synopsis-translator';
 
 export const CATALOG_OPERATION_FAMILIES = [
   'featured',
+  'recommendations',
   'popular',
   'seasonal',
   'upcoming',
@@ -23,10 +24,11 @@ export type CatalogCircuitState = 'closed' | 'open' | 'half_open';
 export type PrimaryCatalogHealth =
   'healthy' | 'degraded' | 'unavailable' | 'rate_limited';
 
-export type CatalogSuccessfulSource = 'anilist' | 'mal' | 'cache';
+export type CatalogSuccessfulSource = 'anilist' | 'mal' | 'local' | 'cache';
 
 export interface CatalogOperationRuntimeStatus {
   circuitState: CatalogCircuitState;
+  forcedOpen: boolean;
   lastSuccessfulSource: CatalogSuccessfulSource | null;
   lastFallbackAt: string | null;
 }
@@ -138,6 +140,10 @@ export interface RepositoryServices {
   ): () => void;
   clearCatalogCache(): void;
   resetPrimaryCircuits(): void;
+  setPrimaryCircuitEnabled(
+    family: CatalogOperationFamily,
+    enabled: boolean,
+  ): void;
   runAniListDiagnostic(): Promise<AniListDiagnosticReport>;
   runMalDiagnostic(): Promise<MalConnectivityReport>;
 }

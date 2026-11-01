@@ -24,7 +24,9 @@ import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import {
   useAnimeSearch,
   useContinueWatching,
+  useGenreDiscovery,
   useInfiniteUnifiedUserList,
+  usePersonalizedPopularAnime,
   usePopularAnime,
 } from '@/presentation/queries/anime-queries';
 import { queryKeys } from '@/presentation/queries/query-keys';
@@ -43,6 +45,11 @@ function createCatalogMock(
     getSeasonal: jest.fn(async () => catalog),
     getUpcoming: jest.fn(async () => catalog),
     search: jest.fn(async (_query: string) => catalog),
+    getGenreDiscovery: jest.fn(async (_genre: string, _limit: number) => ({
+      popular: catalog,
+      newReleases: catalog,
+    })),
+    getRecommendations: jest.fn(async (_seeds, _limit) => catalog),
     getManyByIds: jest.fn(async (_ids: number[]) => catalog),
     getDetailsById: jest.fn(
       async (id) => catalog.find((item) => item.id === id) ?? null,
@@ -124,6 +131,20 @@ describe('React Query integration', () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(search).toHaveBeenCalledWith('neon ronin');
+  });
+
+  it('requests up to 20 anime for each genre discovery group', async () => {
+    const dependencies = createTestDependencies();
+    const getGenreDiscovery = jest.spyOn(
+      dependencies.catalogRepository,
+      'getGenreDiscovery',
+    );
+    const { result } = await renderHook(() => useGenreDiscovery('Action'), {
+      wrapper: createTestWrapper(dependencies),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getGenreDiscovery).toHaveBeenCalledWith('Action', 20);
   });
 
   it('loads and hydrates only the first page of a 250-entry list', async () => {
@@ -729,6 +750,52 @@ describe('React Query integration', () => {
         .some((item) => item.anime.id === animeId),
     ).toBe(false);
     expect(cached?.pages[0]?.totalCount).toBe(29);
+  });
+
+  it('removes a newly completed title from personalized popular cache', async () => {
+    const featured = buildWatchingAnime({
+      id: 901,
+      title: 'Featured title',
+    }).anime;
+    const popular = buildWatchingAnime({
+      id: 902,
+      title: 'Popular candidate',
+      airingStatus: 'finished',
+    }).anime;
+    const dependencies = createTestDependencies({
+      catalog: [featured, popular],
+      userEntries: [
+        {
+          animeId: popular.id,
+          status: 'watching',
+          watchedEpisodes: 4,
+          userScore: null,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    const queryClient = createAppQueryClient();
+    const { result } = await renderHook(
+      () => ({
+        popular: usePersonalizedPopularAnime(),
+        updateStatus: useUpdateStatus(),
+      }),
+      { wrapper: createTestWrapper(dependencies, queryClient) },
+    );
+    await waitFor(() => expect(result.current.popular.isSuccess).toBe(true));
+    expect(result.current.popular.data?.[0]?.anime.id).toBe(popular.id);
+
+    await act(async () =>
+      result.current.updateStatus.mutate({
+        animeId: popular.id,
+        status: 'completed',
+      }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.updateStatus.isSuccess).toBe(true),
+    );
+    expect(result.current.popular.data).toEqual([]);
   });
 
   it('rebuilds only the first active infinite page after a direct status write', async () => {

@@ -5,6 +5,7 @@ import {
   parseAniListMediaDetails,
   parseAniListMediaSummary,
   parseAniListPageData,
+  parseAniListRecommendationsData,
 } from '@/infrastructure/api/anilist/anilist-dtos';
 import {
   anilistDetailsPayload,
@@ -107,6 +108,28 @@ describe('AniList DTO validation', () => {
       seasonal: [{ id: 2 }],
       upcoming: [{ id: 3 }],
     });
+  });
+
+  it('validates recommendation ratings and media summaries', () => {
+    expect(
+      parseAniListRecommendationsData({
+        Media: {
+          recommendations: {
+            nodes: [
+              {
+                rating: 42,
+                mediaRecommendation: anilistSummary({ idMal: 21 }),
+              },
+            ],
+          },
+        },
+      }),
+    ).toMatchObject([{ rating: 42, mediaRecommendation: { idMal: 21 } }]);
+    expect(() =>
+      parseAniListRecommendationsData({
+        Media: { recommendations: { nodes: [{ rating: 'bad' }] } },
+      }),
+    ).toThrow('invalid recommendation');
   });
 
   it.each([

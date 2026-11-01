@@ -1,5 +1,6 @@
 export const CATALOG_OPERATION_FAMILIES = [
   'featured',
+  'recommendations',
   'popular',
   'seasonal',
   'upcoming',
