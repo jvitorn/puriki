@@ -31,6 +31,7 @@ function createCatalog(): {
       popular: catalog.slice(0, 20),
       newReleases: catalog.slice(10, 30),
     })),
+    getRecommendations: jest.fn(async (_seeds, _limit) => catalog.slice(0, 20)),
     getManyByIds: jest.fn(async (ids) => {
       const wanted = new Set(ids);
       return catalog.filter((anime) => wanted.has(anime.id));

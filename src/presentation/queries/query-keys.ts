@@ -18,4 +18,8 @@ export const queryKeys = {
     ['user-list', scope, 'infinite', status ?? 'all'] as const,
   continueWatching: (scope: string) =>
     ['user-list', scope, 'continue-watching'] as const,
+  personalizedPopular: (scope: string) =>
+    ['user-list', scope, 'personalized-popular'] as const,
+  recommendedFeatured: (scope: string) =>
+    ['user-list', scope, 'recommended-featured'] as const,
 };

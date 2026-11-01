@@ -126,6 +126,7 @@ export const ptBR = {
   'feedback.unableToLoad': 'Não foi possível carregar',
   'home.tagline': 'Seu anime, no seu ritmo.',
   'home.featured': 'Destaque',
+  'home.recommended': 'Recomendado para você',
   'home.viewDetails': 'Ver detalhes',
   'home.continueWatching': 'Continuar assistindo',
   'home.continueEmpty': 'Comece um anime para vê-lo aqui.',
@@ -327,6 +328,7 @@ export const ptBR = {
   'settings.healthRateLimited': 'Limite de solicitações atingido',
   'settings.rateLimitedUntil': 'Limite ativo até {{date}}',
   'settings.operation.featured': 'Destaque',
+  'settings.operation.recommendations': 'Recomendações',
   'settings.operation.popular': 'Populares',
   'settings.operation.seasonal': 'Temporada atual',
   'settings.operation.upcoming': 'Em breve',
@@ -336,10 +338,16 @@ export const ptBR = {
   'settings.resetPrimaryCircuits': 'Redefinir circuitos do AniList',
   'settings.clearCatalogCache': 'Limpar cache do catálogo',
   'settings.sourceCache': 'Cache válido anterior',
+  'settings.sourceLocal': 'Recomendação local',
   'settings.sourceNone': 'Nenhuma solicitação bem-sucedida ainda',
+  'settings.recommendationsPrimary': 'Recomendações do AniList',
+  'settings.recommendationsPrimaryDescription':
+    'Desative para simular o circuito de recomendações aberto.',
   'settings.lastFallback': 'Último fallback: {{date}}',
   'settings.usingMalFallback':
     'O AniList falhou; os dados do MyAnimeList estão sendo usados.',
+  'settings.usingLocalRecommendations':
+    'O circuito do AniList está aberto; o Puriki está usando recomendações locais.',
   'settings.usingCache':
     'Os dois provedores do catálogo estão indisponíveis. Os dados carregados anteriormente continuam disponíveis.',
   'settings.testMal': 'Testar API do MyAnimeList',

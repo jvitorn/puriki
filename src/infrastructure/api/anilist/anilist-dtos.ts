@@ -68,6 +68,11 @@ export interface AniListCombinedHomeResult {
   upcoming: AniListMediaSummary[];
 }
 
+export interface AniListRecommendation {
+  rating: number;
+  mediaRecommendation: AniListMediaSummary;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -318,6 +323,35 @@ export function parseAniListCombinedHomeData(
     seasonal: parseAlias('seasonal'),
     upcoming: parseAlias('upcoming'),
   };
+}
+
+export function parseAniListRecommendationsData(
+  value: unknown,
+): AniListRecommendation[] {
+  if (!isRecord(value) || !('Media' in value)) {
+    throw new Error('AniList returned invalid recommendation data.');
+  }
+  if (value.Media === null) return [];
+  if (
+    !isRecord(value.Media) ||
+    !isRecord(value.Media.recommendations) ||
+    !Array.isArray(value.Media.recommendations.nodes)
+  ) {
+    throw new Error('AniList returned invalid recommendation data.');
+  }
+  return value.Media.recommendations.nodes.map((node) => {
+    if (
+      !isRecord(node) ||
+      typeof node.rating !== 'number' ||
+      !Number.isFinite(node.rating)
+    ) {
+      throw new Error('AniList returned an invalid recommendation.');
+    }
+    return {
+      rating: node.rating,
+      mediaRecommendation: parseAniListMediaSummary(node.mediaRecommendation),
+    };
+  });
 }
 
 export function aniListDisplayTitle(media: AniListMediaSummary): string {

@@ -5,7 +5,11 @@ import {
   AniListServiceUnavailableError,
 } from '@/infrastructure/api/anilist/anilist-errors';
 import { HomeScreen } from '@/presentation/screens/home-screen';
-import { buildWatchingAnime } from '@/tests/builders/anime-builder';
+import {
+  buildWatchingAnime,
+  makeAnime,
+  makeUserAnimeEntry,
+} from '@/tests/builders/anime-builder';
 import { buildUserListDataset } from '@/tests/fixtures/anime-dataset';
 import { renderWithProviders } from '@/tests/render/test-render';
 import { createTestDependencies } from '@/tests/repositories/test-dependencies';
@@ -22,12 +26,58 @@ describe('HomeScreen partial failures', () => {
     );
     expect(screen.getByLabelText('Puriki')).toBeVisible();
     expect(screen.queryByText('PURIKI')).not.toBeOnTheScreen();
-    expect(getPage).toHaveBeenCalledTimes(1);
-    expect(getPage).toHaveBeenCalledWith({
-      page: 1,
-      pageSize: 10,
-      status: 'watching',
+    expect(
+      getPage.mock.calls.filter(([request]) => request.status === 'watching'),
+    ).toEqual([[{ page: 1, pageSize: 10, status: 'watching' }]]);
+  });
+
+  it('replaces completed popular titles with the next candidates', async () => {
+    const featured = makeAnime({ id: 501, title: 'Featured title' });
+    const completed = makeAnime({ id: 502, title: 'Completed popular' });
+    const replacement = makeAnime({ id: 503, title: 'Replacement popular' });
+    const dependencies = createTestDependencies({
+      catalog: [featured, completed, replacement],
+      userEntries: [
+        makeUserAnimeEntry({
+          animeId: completed.id,
+          status: 'completed',
+          watchedEpisodes: 12,
+        }),
+      ],
     });
+
+    await renderWithProviders(<HomeScreen />, { dependencies });
+
+    await waitFor(() =>
+      expect(screen.getByText('Replacement popular')).toBeVisible(),
+    );
+    expect(screen.queryByText('Completed popular')).not.toBeOnTheScreen();
+  });
+
+  it('labels a personalized recommendation separately from generic Featured', async () => {
+    const seed = makeAnime({ id: 601, title: 'Favorite seed' });
+    const recommendation = makeAnime({
+      id: 602,
+      title: 'Personalized recommendation',
+    });
+    const dependencies = createTestDependencies({
+      catalog: [recommendation, seed],
+      userEntries: [
+        makeUserAnimeEntry({
+          animeId: seed.id,
+          status: 'completed',
+          watchedEpisodes: 12,
+          userScore: 9,
+        }),
+      ],
+    });
+
+    await renderWithProviders(<HomeScreen />, { dependencies });
+
+    await waitFor(() =>
+      expect(screen.getByText('Recommended for you')).toBeVisible(),
+    );
+    expect(screen.queryByText('Featured')).not.toBeOnTheScreen();
   });
 
   it('keeps successful rails visible when an optional rail fails', async () => {

@@ -2,6 +2,7 @@ export type CircuitState = 'closed' | 'open' | 'half_open';
 
 export interface CircuitSnapshot {
   state: CircuitState;
+  forcedOpen: boolean;
   consecutiveFailures: number;
   openUntil: number | null;
   lastFailureAt: number | null;
@@ -21,6 +22,7 @@ export class CatalogCircuitBreaker {
   private lastFailureAt: number | null = null;
   private lastSuccessAt: number | null = null;
   private halfOpenProbeInFlight = false;
+  private forcedOpen = false;
   private readonly failureThreshold: number;
   private readonly openDurationMs: number;
   private readonly now: () => number;
@@ -32,6 +34,7 @@ export class CatalogCircuitBreaker {
   }
 
   getState(): CircuitState {
+    if (this.forcedOpen) return 'open';
     if (
       this.state === 'open' &&
       this.openUntil !== null &&
@@ -45,6 +48,7 @@ export class CatalogCircuitBreaker {
   }
 
   allowRequest(): boolean {
+    if (this.forcedOpen) return false;
     const state = this.getState();
     if (state === 'closed') return true;
     if (state === 'open' || this.halfOpenProbeInFlight) return false;
@@ -72,6 +76,7 @@ export class CatalogCircuitBreaker {
   }
 
   reset(): void {
+    this.forcedOpen = false;
     this.close();
     this.lastFailureAt = null;
     this.lastSuccessAt = null;
@@ -80,11 +85,17 @@ export class CatalogCircuitBreaker {
   getSnapshot(): CircuitSnapshot {
     return {
       state: this.getState(),
+      forcedOpen: this.forcedOpen,
       consecutiveFailures: this.consecutiveFailures,
       openUntil: this.openUntil,
       lastFailureAt: this.lastFailureAt,
       lastSuccessAt: this.lastSuccessAt,
     };
+  }
+
+  setForcedOpen(forcedOpen: boolean): void {
+    this.forcedOpen = forcedOpen;
+    this.close();
   }
 
   private open(): void {

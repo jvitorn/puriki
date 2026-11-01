@@ -51,6 +51,7 @@ function createCatalogMock(item: AnimeCatalogItem): CatalogMock {
       popular: [item],
       newReleases: [item],
     })),
+    getRecommendations: jest.fn(async (_seeds, _limit) => [item]),
     getManyByIds: jest.fn(async (_ids: number[]) => [item]),
     getDetailsById: jest.fn(async (_id: number) => item),
     getKnownById: jest.fn((_id: number) => null),
@@ -175,6 +176,105 @@ describe('ResilientAnimeCatalogRepository', () => {
 
     repository.resetPrimaryCircuits();
     expect(repository.getCircuitState('popular')).toBe('closed');
+  });
+
+  it('uses the primary recommendation circuit when enabled', async () => {
+    const recommended = {
+      ...primaryAnime,
+      id: 22,
+      title: 'AniList recommendation',
+    };
+    const primary = createCatalogMock(primaryAnime);
+    const fallback = createCatalogMock(fallbackAnime);
+    primary.getRecommendations.mockResolvedValue([recommended]);
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+
+    await expect(
+      repository.getRecommendations([{ animeId: 21, weight: 1 }], 20),
+    ).resolves.toEqual([recommended]);
+    expect(primary.getRecommendations).toHaveBeenCalledWith(
+      [{ animeId: 21, weight: 1 }],
+      20,
+    );
+    expect(fallback.getRecommendations).not.toHaveBeenCalled();
+    expect(
+      repository.getRuntimeSnapshot().operations.recommendations,
+    ).toMatchObject({
+      circuitState: 'closed',
+      forcedOpen: false,
+      lastSuccessfulSource: 'anilist',
+    });
+  });
+
+  it('simulates an open recommendation circuit and uses local ranking', async () => {
+    const localCandidate = {
+      ...primaryAnime,
+      id: 23,
+      title: 'Local recommendation',
+    };
+    const primary = createCatalogMock(primaryAnime);
+    const fallback = createCatalogMock(fallbackAnime);
+    primary.getManyByIds.mockResolvedValue([primaryAnime]);
+    primary.getPopular.mockResolvedValue([localCandidate]);
+    primary.getSeasonal.mockResolvedValue([localCandidate]);
+    primary.getUpcoming.mockResolvedValue([localCandidate]);
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+    repository.setPrimaryCircuitEnabled('recommendations', false);
+
+    await expect(
+      repository.getRecommendations([{ animeId: 21, weight: 1 }], 20),
+    ).resolves.toEqual([localCandidate]);
+    expect(primary.getRecommendations).not.toHaveBeenCalled();
+    expect(fallback.getRecommendations).not.toHaveBeenCalled();
+    expect(repository.getCircuitState('popular')).toBe('closed');
+    expect(
+      repository.getRuntimeSnapshot().operations.recommendations,
+    ).toMatchObject({
+      circuitState: 'open',
+      forcedOpen: true,
+      lastSuccessfulSource: 'local',
+      lastFallbackAt: expect.any(Number),
+    });
+
+    repository.setPrimaryCircuitEnabled('recommendations', true);
+    expect(
+      repository.getRuntimeSnapshot().operations.recommendations,
+    ).toMatchObject({ circuitState: 'closed', forcedOpen: false });
+  });
+
+  it('opens recommendation failures without opening discovery families', async () => {
+    const localCandidate = {
+      ...primaryAnime,
+      id: 24,
+      title: 'Fallback candidate',
+    };
+    const primary = createCatalogMock(primaryAnime);
+    const fallback = createCatalogMock(fallbackAnime);
+    primary.getRecommendations.mockRejectedValue(new AniListNetworkError());
+    primary.getManyByIds.mockResolvedValue([primaryAnime]);
+    primary.getPopular.mockResolvedValue([localCandidate]);
+    primary.getSeasonal.mockResolvedValue([localCandidate]);
+    primary.getUpcoming.mockResolvedValue([localCandidate]);
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+      circuitRegistry: new CatalogCircuitBreakerRegistry({
+        failureThreshold: 2,
+      }),
+    });
+
+    await repository.getRecommendations([{ animeId: 21, weight: 1 }], 20);
+    await repository.getRecommendations([{ animeId: 21, weight: 1 }], 20);
+
+    expect(repository.getCircuitState('recommendations')).toBe('open');
+    expect(repository.getCircuitState('popular')).toBe('closed');
+    expect(repository.getCircuitState('search')).toBe('closed');
   });
 
   it('uses one provider-wide rate gate without opening a family circuit', async () => {

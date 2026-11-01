@@ -142,6 +142,7 @@ export const en = {
   'feedback.unableToLoad': 'Unable to load',
   'home.tagline': 'Your anime, your pace.',
   'home.featured': 'Featured',
+  'home.recommended': 'Recommended for you',
   'home.viewDetails': 'View details',
   'home.continueWatching': 'Continue Watching',
   'home.continueEmpty': 'Start an anime to see it here.',
@@ -315,6 +316,7 @@ export const en = {
   'settings.healthRateLimited': 'Rate limited',
   'settings.rateLimitedUntil': 'Rate limited until {{date}}',
   'settings.operation.featured': 'Featured',
+  'settings.operation.recommendations': 'Recommendations',
   'settings.operation.popular': 'Popular',
   'settings.operation.seasonal': 'Seasonal',
   'settings.operation.upcoming': 'Upcoming',
@@ -324,13 +326,19 @@ export const en = {
   'settings.resetPrimaryCircuits': 'Reset AniList circuit states',
   'settings.clearCatalogCache': 'Clear catalog cache',
   'settings.sourceCache': 'Previous valid cache',
+  'settings.sourceLocal': 'Local recommendation',
   'settings.sourceNone': 'No successful request yet',
+  'settings.recommendationsPrimary': 'AniList recommendations',
+  'settings.recommendationsPrimaryDescription':
+    'Turn off to simulate an open recommendation circuit.',
   'settings.circuitClosed': 'closed',
   'settings.circuitOpen': 'open',
   'settings.circuitHalfOpen': 'half open',
   'settings.lastFallback': 'Last fallback: {{date}}',
   'settings.usingMalFallback':
     'AniList failed, so MyAnimeList data is being used.',
+  'settings.usingLocalRecommendations':
+    'The AniList circuit is open, so Puriki is using local recommendations.',
   'settings.usingCache':
     'Both catalog providers are currently unavailable. Previously loaded data is still available.',
   'settings.testMal': 'Test MyAnimeList API',

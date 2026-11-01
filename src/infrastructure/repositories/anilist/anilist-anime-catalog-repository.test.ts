@@ -9,6 +9,7 @@ import {
   ANILIST_DETAILS_QUERY,
   ANILIST_GENRE_DISCOVERY_QUERY,
   ANILIST_POPULAR_QUERY,
+  ANILIST_RECOMMENDATIONS_QUERY,
   ANILIST_SEARCH_QUERY,
 } from '@/infrastructure/api/anilist/anilist-queries';
 import {
@@ -169,6 +170,54 @@ describe('AniListAnimeCatalogRepository', () => {
     expect(execute.mock.calls[0]?.[0]).toMatchObject({
       query: ANILIST_GENRE_DISCOVERY_QUERY,
       variables: { genres: ['Action'], perPage: 20 },
+    });
+  });
+
+  it('aggregates weighted AniList recommendations and caches the result', async () => {
+    const execute = jest.fn(
+      async (request: { variables?: Record<string, unknown> }) => {
+        const seedId = request.variables?.idMal as number;
+        return response({
+          Media: {
+            recommendations: {
+              nodes: [
+                {
+                  rating: seedId === 21 ? 20 : 10,
+                  mediaRecommendation: anilistSummary({
+                    id: 500,
+                    idMal: 500,
+                  }),
+                },
+                {
+                  rating: 100,
+                  mediaRecommendation: anilistSummary({
+                    id: seedId,
+                    idMal: seedId,
+                  }),
+                },
+              ],
+            },
+          },
+        });
+      },
+    );
+    const repository = new AniListAnimeCatalogRepository({
+      client: createClient(execute),
+    });
+    const seeds = [
+      { animeId: 21, weight: 1 },
+      { animeId: 20, weight: 0.5 },
+    ];
+
+    await expect(repository.getRecommendations(seeds, 20)).resolves.toEqual([
+      expect.objectContaining({ id: 500 }),
+    ]);
+    await repository.getRecommendations(seeds, 20);
+
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[0]?.[0]).toMatchObject({
+      query: ANILIST_RECOMMENDATIONS_QUERY,
+      variables: { idMal: 21, perPage: 20 },
     });
   });
 

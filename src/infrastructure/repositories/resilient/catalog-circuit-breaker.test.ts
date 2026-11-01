@@ -27,6 +27,7 @@ describe('catalog circuit breaker', () => {
     expect(breaker.allowRequest()).toBe(false);
     expect(breaker.getSnapshot()).toEqual({
       state: 'open',
+      forcedOpen: false,
       consecutiveFailures: 2,
       openUntil: 301_000,
       lastFailureAt: 1_000,
@@ -93,6 +94,7 @@ describe('catalog circuit breaker', () => {
     breaker.reset();
     expect(breaker.getSnapshot()).toEqual({
       state: 'closed',
+      forcedOpen: false,
       consecutiveFailures: 0,
       openUntil: null,
       lastFailureAt: null,
@@ -100,5 +102,22 @@ describe('catalog circuit breaker', () => {
     });
     breaker.recordFailure();
     expect(breaker.getState()).toBe('closed');
+  });
+
+  it('can be forced open for diagnostics and reset to normal behavior', () => {
+    const { breaker } = createBreaker();
+    breaker.setForcedOpen(true);
+    expect(breaker.getSnapshot()).toMatchObject({
+      state: 'open',
+      forcedOpen: true,
+    });
+    expect(breaker.allowRequest()).toBe(false);
+
+    breaker.setForcedOpen(false);
+    expect(breaker.getSnapshot()).toMatchObject({
+      state: 'closed',
+      forcedOpen: false,
+    });
+    expect(breaker.allowRequest()).toBe(true);
   });
 });

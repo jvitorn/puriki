@@ -55,6 +55,11 @@ export interface AnimeGenreDiscovery {
   newReleases: AnimeCatalogItem[];
 }
 
+export interface AnimeRecommendationSeed {
+  animeId: number;
+  weight: number;
+}
+
 export interface UserAnimeEntry {
   animeId: number;
   status: AnimeListStatus;

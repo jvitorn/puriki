@@ -60,6 +60,30 @@ export function RepositoryProvider({
       clearCatalogCache: () => {
         dependencies.clearCatalogCache();
         queryClient.removeQueries({ queryKey: queryKeys.catalogRoot });
+        queryClient.removeQueries({
+          queryKey: queryKeys.recommendedFeatured(userListAccess.scope),
+          exact: true,
+        });
+        queryClient.removeQueries({
+          queryKey: queryKeys.personalizedPopular(userListAccess.scope),
+          exact: true,
+        });
+      },
+      resetPrimaryCircuits: () => {
+        dependencies.resetPrimaryCircuits();
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.recommendedFeatured(userListAccess.scope),
+          exact: true,
+        });
+      },
+      setPrimaryCircuitEnabled: (family, enabled) => {
+        dependencies.setPrimaryCircuitEnabled(family, enabled);
+        if (family === 'recommendations') {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.recommendedFeatured(userListAccess.scope),
+            exact: true,
+          });
+        }
       },
     }),
     [

@@ -1,8 +1,10 @@
 import type {
   AnimeCatalogItem,
   AnimeGenreDiscovery,
+  AnimeRecommendationSeed,
 } from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
+import { rankLocalRecommendationCandidates } from '@/domain/rules/anime-recommendations';
 import { MalCatalogCache } from '@/infrastructure/api/mal/mal-cache';
 import {
   createMalClient,
@@ -196,6 +198,37 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
         .filter((anime) => hasGenre(anime, normalizedGenre))
         .slice(0, normalizedLimit),
     };
+  }
+
+  async getRecommendations(
+    seeds: readonly AnimeRecommendationSeed[],
+    limit: number,
+  ): Promise<AnimeCatalogItem[]> {
+    const normalizedSeeds = seeds.filter(
+      (seed) =>
+        Number.isInteger(seed.animeId) &&
+        seed.animeId > 0 &&
+        Number.isFinite(seed.weight) &&
+        seed.weight > 0,
+    );
+    if (normalizedSeeds.length === 0) return [];
+    const [seedItems, ...collections] = await Promise.all([
+      this.getManyByIds(normalizedSeeds.map((seed) => seed.animeId)),
+      this.getPopular(),
+      this.getSeasonal(),
+      this.getUpcoming(),
+    ]);
+    const seedById = new Map(
+      normalizedSeeds.map((seed) => [seed.animeId, seed]),
+    );
+    return rankLocalRecommendationCandidates(
+      seedItems.flatMap((anime) => {
+        const seed = seedById.get(anime.id);
+        return seed ? [{ anime, seed }] : [];
+      }),
+      collections.flat(),
+      limit,
+    );
   }
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {

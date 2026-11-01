@@ -53,4 +53,34 @@ describe('DeveloperToolsPanel', () => {
       expect(screen.getByLabelText('Test MyAnimeList API')).toBeEnabled(),
     );
   });
+
+  it('forces the recommendation circuit open and exposes its checked state', async () => {
+    const dependencies = createTestDependencies();
+    dependencies.setPrimaryCircuitEnabled = jest.fn(
+      dependencies.setPrimaryCircuitEnabled,
+    );
+    await renderWithProviders(
+      <DeveloperToolsPanel appVersion="1.0.0" onDisable={jest.fn()} />,
+      { dependencies },
+    );
+
+    const control = screen.getByRole('switch', {
+      name: 'AniList recommendations',
+    });
+    expect(control.props.accessibilityState).toEqual({ checked: true });
+
+    fireEvent.press(control);
+
+    expect(dependencies.setPrimaryCircuitEnabled).toHaveBeenCalledWith(
+      'recommendations',
+      false,
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('switch', { name: 'AniList recommendations' }).props
+          .accessibilityState,
+      ).toEqual({ checked: false }),
+    );
+    expect(screen.getByText('Circuit: open')).toBeVisible();
+  });
 });

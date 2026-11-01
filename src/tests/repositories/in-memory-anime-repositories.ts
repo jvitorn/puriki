@@ -3,6 +3,7 @@ import type {
   AnimeCatalogItem,
   AnimeGenreDiscovery,
   AnimeListStatus,
+  AnimeRecommendationSeed,
   UserAnimeEntry,
 } from '@/domain/models/anime';
 import { validatePageRequest } from '@/domain/models/pagination';
@@ -13,6 +14,7 @@ import type {
   UserAnimeListRepository,
 } from '@/domain/repositories/user-anime-list-repository';
 import { applyProgress } from '@/domain/rules/anime-progress';
+import { rankLocalRecommendationCandidates } from '@/domain/rules/anime-recommendations';
 import { validateUserScore } from '@/domain/rules/anime-score';
 import { transitionStatus } from '@/domain/rules/anime-status';
 import { createAnimeTrackingContext } from '@/domain/rules/anime-tracking';
@@ -92,6 +94,22 @@ export class InMemoryAnimeCatalogRepository implements AnimeCatalogRepository {
         .slice(0, normalizedLimit)
         .map(cloneAnime),
     };
+  }
+
+  async getRecommendations(
+    seeds: readonly AnimeRecommendationSeed[],
+    limit: number,
+  ): Promise<AnimeCatalogItem[]> {
+    const seedById = new Map(seeds.map((seed) => [seed.animeId, seed]));
+    const seedItems = this.dataset.catalog.flatMap((anime) => {
+      const seed = seedById.get(anime.id);
+      return seed ? [{ anime, seed }] : [];
+    });
+    return rankLocalRecommendationCandidates(
+      seedItems,
+      this.dataset.catalog,
+      limit,
+    ).map(cloneAnime);
   }
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {

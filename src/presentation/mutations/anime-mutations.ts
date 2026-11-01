@@ -27,7 +27,7 @@ interface CacheSnapshot {
 }
 
 type InfiniteUnifiedList = InfiniteData<PageResult<UnifiedAnime>, number>;
-type ListFilter = AnimeListStatus | 'all';
+type ListFilter = AnimeListStatus | 'all' | 'personalized-popular';
 
 function isInfiniteUnifiedList(value: unknown): value is InfiniteUnifiedList {
   if (!value || typeof value !== 'object') return false;
@@ -37,6 +37,7 @@ function isInfiniteUnifiedList(value: unknown): value is InfiniteUnifiedList {
 function getListFilter(queryKey: QueryKey): ListFilter | null {
   if (queryKey[0] !== queryKeys.userListRoot[0]) return null;
   if (queryKey[2] === 'continue-watching') return 'watching';
+  if (queryKey[2] === 'personalized-popular') return 'personalized-popular';
   if (queryKey[2] !== 'infinite') return null;
   const filter = queryKey[3];
   return filter === 'all' ? 'all' : (filter as AnimeListStatus);
@@ -63,6 +64,16 @@ function replaceEntryInItems(
   nextEntry: UserAnimeEntry,
   filter: ListFilter,
 ): UnifiedAnime[] {
+  if (filter === 'personalized-popular') {
+    if (nextEntry.status === 'completed') {
+      return items.filter((item) => item.anime.id !== nextEntry.animeId);
+    }
+    return items.map((item) =>
+      item.anime.id === nextEntry.animeId
+        ? { ...item, userEntry: nextEntry }
+        : item,
+    );
+  }
   if (filter !== 'all' && filter !== nextEntry.status) {
     return items.filter((item) => item.anime.id !== nextEntry.animeId);
   }

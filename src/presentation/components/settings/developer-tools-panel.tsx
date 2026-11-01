@@ -14,7 +14,9 @@ import { formatDateTime, formatNumber } from '@/localization/localized-values';
 import { Button } from '@/presentation/components/ui/button';
 import { Card } from '@/presentation/components/ui/card';
 import { Icon } from '@/presentation/components/ui/icon';
+import { MotionPressable } from '@/presentation/components/ui/motion-pressable';
 import { Separator } from '@/presentation/components/ui/separator';
+import { Switch } from '@/presentation/components/ui/switch';
 import { Text } from '@/presentation/components/ui/text';
 import {
   useCatalogRuntimeStatus,
@@ -22,6 +24,7 @@ import {
 } from '@/presentation/providers/repository-provider';
 
 const RUNTIME_OPERATION_FAMILIES = [
+  'recommendations',
   'popular',
   'seasonal',
   'upcoming',
@@ -35,6 +38,7 @@ function readableSource(
 ): string {
   if (source === 'anilist') return 'AniList';
   if (source === 'mal') return 'MyAnimeList';
+  if (source === 'local') return t('settings.sourceLocal');
   if (source === 'cache') return t('settings.sourceCache');
   return t('settings.sourceNone');
 }
@@ -71,6 +75,7 @@ export function DeveloperToolsPanel({
   const {
     clearCatalogCache,
     resetPrimaryCircuits,
+    setPrimaryCircuitEnabled,
     runAniListDiagnostic,
     runMalDiagnostic,
   } = useRepositories();
@@ -84,6 +89,8 @@ export function DeveloperToolsPanel({
   const [malDiagnostic, setMalDiagnostic] =
     useState<MalConnectivityReport | null>(null);
   const diagnosticPending = pendingDiagnostic !== null;
+  const recommendationsPrimaryEnabled =
+    !runtimeStatus.operations.recommendations.forcedOpen;
 
   const runExclusive = async <T,>(
     source: 'mal' | 'anilist',
@@ -231,6 +238,33 @@ export function DeveloperToolsPanel({
 
         <View className="gap-3">
           <Text className="font-bold">{t('settings.catalogDiagnostics')}</Text>
+          <MotionPressable
+            accessibilityLabel={t('settings.recommendationsPrimary')}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: recommendationsPrimaryEnabled }}
+            className="min-h-12 flex-row items-center justify-between gap-4 rounded-xl bg-background/50 px-3 py-2"
+            onPress={() =>
+              setPrimaryCircuitEnabled(
+                'recommendations',
+                !recommendationsPrimaryEnabled,
+              )
+            }
+          >
+            <View className="min-w-0 flex-1 gap-0.5">
+              <Text className="font-bold">
+                {t('settings.recommendationsPrimary')}
+              </Text>
+              <Text variant="caption" muted>
+                {t('settings.recommendationsPrimaryDescription')}
+              </Text>
+            </View>
+            <Switch
+              accessible={false}
+              checked={recommendationsPrimaryEnabled}
+              onCheckedChange={() => undefined}
+              pointerEvents="none"
+            />
+          </MotionPressable>
           <View className="gap-2 rounded-xl bg-background/50 p-3">
             <Text>
               {t('settings.anilistHealth', {
@@ -285,6 +319,11 @@ export function DeveloperToolsPanel({
                   {operation.lastSuccessfulSource === 'cache' ? (
                     <Text variant="caption" className="text-warning">
                       {t('settings.usingCache')}
+                    </Text>
+                  ) : null}
+                  {operation.lastSuccessfulSource === 'local' ? (
+                    <Text variant="caption" className="text-warning">
+                      {t('settings.usingLocalRecommendations')}
                     </Text>
                   ) : null}
                 </View>
