@@ -23,6 +23,7 @@ import {
 import { normalizeSearchText } from '@/shared/utils/search';
 
 const CATALOG_STALE_TIME = 30 * 60_000;
+export const GENRE_DISCOVERY_LIMIT = 20;
 
 export function useFeaturedAnime() {
   const { catalogRepository } = useRepositories();
@@ -73,6 +74,21 @@ export function useAnimeSearch(query: string) {
         ? catalogRepository.search(normalizedQuery)
         : catalogRepository.getPopular(),
     placeholderData: keepPreviousData,
+    staleTime: CATALOG_STALE_TIME,
+  });
+}
+
+export function useGenreDiscovery(genre: string | null) {
+  const { catalogRepository } = useRepositories();
+  const normalizedGenre = genre?.trim() ?? '';
+  return useQuery({
+    queryKey: queryKeys.genreDiscovery(normalizedGenre),
+    queryFn: () =>
+      catalogRepository.getGenreDiscovery(
+        normalizedGenre,
+        GENRE_DISCOVERY_LIMIT,
+      ),
+    enabled: normalizedGenre.length > 0,
     staleTime: CATALOG_STALE_TIME,
   });
 }

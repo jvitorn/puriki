@@ -1,4 +1,7 @@
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeGenreDiscovery,
+} from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import { MalCatalogCache } from '@/infrastructure/api/mal/mal-cache';
 import {
@@ -43,6 +46,17 @@ function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
     if (!byId.has(item.id)) byId.set(item.id, item);
   });
   return [...byId.values()];
+}
+
+function normalizedGenreLimit(limit: number): number {
+  return Number.isInteger(limit) ? Math.min(25, Math.max(1, limit)) : 20;
+}
+
+function hasGenre(anime: AnimeCatalogItem, genre: string): boolean {
+  const normalizedGenre = genre.toLocaleLowerCase();
+  return anime.genres.some(
+    (candidate) => candidate.toLocaleLowerCase() === normalizedGenre,
+  );
 }
 
 function shuffled<T>(items: readonly T[], random: MalRandomGenerator): T[] {
@@ -148,6 +162,40 @@ export class MalAnimeCatalogRepository implements AnimeCatalogRepository {
         fields: MAL_ANIME_FIELDS,
       }),
     );
+  }
+
+  async getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim();
+    if (!normalizedGenre) return { popular: [], newReleases: [] };
+    const normalizedLimit = normalizedGenreLimit(limit);
+    const { year, season } = currentMalSeason(this.now());
+    const [popularPool, newReleasesPool] = await Promise.all([
+      this.fetchCollection('genre-source:popular', () =>
+        this.client.anime.getRanking({
+          ranking_type: 'bypopularity',
+          limit: 100,
+          fields: MAL_ANIME_FIELDS,
+        }),
+      ),
+      this.fetchCollection(`genre-source:new:${year}:${season}`, () =>
+        this.client.anime.getSeason(year, season, {
+          limit: 100,
+          sort: 'anime_num_list_users',
+          fields: MAL_ANIME_FIELDS,
+        }),
+      ),
+    ]);
+    return {
+      popular: popularPool
+        .filter((anime) => hasGenre(anime, normalizedGenre))
+        .slice(0, normalizedLimit),
+      newReleases: newReleasesPool
+        .filter((anime) => hasGenre(anime, normalizedGenre))
+        .slice(0, normalizedLimit),
+    };
   }
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {

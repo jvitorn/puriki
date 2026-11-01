@@ -3,7 +3,7 @@
     "name": "Puriki",
     "slug": "puriki",
     "description": "Anime list manager with on-device synopsis translation powered by Google ML Kit.",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "puriki",

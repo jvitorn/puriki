@@ -9,9 +9,13 @@ import { Input } from '@/presentation/components/ui/input';
 export function SearchInput({
   value,
   onChangeText,
+  onClose,
+  autoFocus = false,
 }: {
   value: string;
   onChangeText(value: string): void;
+  onClose?: () => void;
+  autoFocus?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -27,6 +31,7 @@ export function SearchInput({
         accessibilityLabel={t('search.accessibilityLabel')}
         autoCapitalize="none"
         autoCorrect={false}
+        autoFocus={autoFocus}
         className="h-12 rounded-xl pl-11 pr-12 text-base"
         clearButtonMode="never"
         enterKeyHint="search"
@@ -35,13 +40,13 @@ export function SearchInput({
         value={value}
         onChangeText={onChangeText}
       />
-      {value.length > 0 ? (
+      {onClose || value.length > 0 ? (
         <View className="absolute right-0 z-10">
           <IconButton
-            className="border-transparent bg-transparent shadow-none"
+            className="h-12 w-12 border-transparent bg-transparent shadow-none"
             icon={X}
-            label={t('search.clear')}
-            onPress={() => onChangeText('')}
+            label={onClose ? t('search.close') : t('search.clear')}
+            onPress={onClose ?? (() => onChangeText(''))}
           />
         </View>
       ) : null}

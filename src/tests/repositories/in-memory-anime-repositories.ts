@@ -1,6 +1,7 @@
 import { DomainError } from '@/domain/errors/domain-error';
 import type {
   AnimeCatalogItem,
+  AnimeGenreDiscovery,
   AnimeListStatus,
   UserAnimeEntry,
 } from '@/domain/models/anime';
@@ -63,6 +64,34 @@ export class InMemoryAnimeCatalogRepository implements AnimeCatalogRepository {
         )
       : this.dataset.catalog.slice(0, 18);
     return items.map(cloneAnime);
+  }
+
+  async getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim().toLocaleLowerCase();
+    const normalizedLimit = Number.isInteger(limit)
+      ? Math.min(25, Math.max(1, limit))
+      : 20;
+    const matches = this.dataset.catalog.filter((anime) =>
+      anime.genres.some(
+        (candidate) => candidate.toLocaleLowerCase() === normalizedGenre,
+      ),
+    );
+    return {
+      popular: [...matches]
+        .sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+        .slice(0, normalizedLimit)
+        .map(cloneAnime),
+      newReleases: [...matches]
+        .sort(
+          (left, right) =>
+            (right.year ?? 0) - (left.year ?? 0) || right.id - left.id,
+        )
+        .slice(0, normalizedLimit)
+        .map(cloneAnime),
+    };
   }
 
   async getManyByIds(ids: number[]): Promise<AnimeCatalogItem[]> {

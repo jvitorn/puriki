@@ -8,6 +8,8 @@ export const queryKeys = {
   seasonal: ['anime', 'seasonal'] as const,
   upcoming: ['anime', 'upcoming'] as const,
   search: (query: string) => ['anime', 'search', query] as const,
+  genreDiscovery: (genre: string) =>
+    ['anime', 'genre-discovery', genre] as const,
   details: (scope: string, id: number) =>
     ['anime', 'details', scope, id] as const,
   userListRoot: ['user-list'] as const,

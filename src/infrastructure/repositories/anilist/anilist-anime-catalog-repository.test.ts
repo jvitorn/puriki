@@ -7,6 +7,7 @@ import {
   ANILIST_COMBINED_HOME_QUERY,
   ANILIST_BY_MAL_IDS_QUERY,
   ANILIST_DETAILS_QUERY,
+  ANILIST_GENRE_DISCOVERY_QUERY,
   ANILIST_POPULAR_QUERY,
   ANILIST_SEARCH_QUERY,
 } from '@/infrastructure/api/anilist/anilist-queries';
@@ -133,6 +134,41 @@ describe('AniListAnimeCatalogRepository', () => {
     expect(execute.mock.calls[0]?.[0]).toMatchObject({
       query: ANILIST_SEARCH_QUERY,
       variables: { search: 'one piece', page: 1, perPage: 25 },
+    });
+  });
+
+  it('loads and caches 20 popular and new anime for a genre', async () => {
+    const popular = Array.from({ length: 20 }, (_, index) =>
+      anilistSummary({ id: 100 + index, idMal: 1_000 + index }),
+    );
+    const newReleases = Array.from({ length: 20 }, (_, index) =>
+      anilistSummary({ id: 200 + index, idMal: 2_000 + index }),
+    );
+    const execute = jest.fn(async (_request: unknown) =>
+      response({
+        popular: { media: popular },
+        newReleases: { media: newReleases },
+      }),
+    );
+    const repository = new AniListAnimeCatalogRepository({
+      client: createClient(execute),
+    });
+
+    const discovery = await repository.getGenreDiscovery('Action', 20);
+    expect(discovery.popular).toHaveLength(20);
+    expect(discovery.newReleases).toHaveLength(20);
+    expect(discovery).toEqual({
+      popular: expect.arrayContaining([expect.objectContaining({ id: 1_000 })]),
+      newReleases: expect.arrayContaining([
+        expect.objectContaining({ id: 2_000 }),
+      ]),
+    });
+    await repository.getGenreDiscovery('Action', 20);
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0]?.[0]).toMatchObject({
+      query: ANILIST_GENRE_DISCOVERY_QUERY,
+      variables: { genres: ['Action'], perPage: 20 },
     });
   });
 

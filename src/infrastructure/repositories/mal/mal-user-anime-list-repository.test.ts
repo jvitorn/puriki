@@ -25,6 +25,7 @@ function createCatalogRepository(
     getSeasonal: notUsed,
     getUpcoming: notUsed,
     search: notUsed,
+    getGenreDiscovery: notUsed,
     getDetailsById: notUsed,
     clearCache: () => {},
     getKnownById: (id) => known(id),

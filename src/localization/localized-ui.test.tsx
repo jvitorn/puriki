@@ -43,7 +43,14 @@ describe('localized core UI', () => {
       languagePreference: 'es',
     });
     expect(screen.getByText('Buscar')).toBeVisible();
-    expect(screen.getByLabelText('Buscar anime')).toBeVisible();
+    const input = screen.getByLabelText('Buscar anime');
+    expect(input).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByText('Explora por género')).toBeVisible(),
+    );
+    expect(screen.getByLabelText('Ver anime de Aventura')).toBeVisible();
+
+    fireEvent.changeText(input, 'Ember');
     await waitFor(() =>
       expect(screen.getByText('Ember Archive')).toBeVisible(),
     );

@@ -62,7 +62,115 @@ describe('SearchScreen', () => {
     expect(input).toHaveProp('value', '');
   });
 
-  it('uses grid-shaped skeletons while discovery content is loading', async () => {
+  it('shows genre topics instead of initial anime suggestions', async () => {
+    await renderWithProviders(<SearchScreen />);
+
+    expect(screen.getByText('Browse by genre')).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByTestId('search-topics')).toBeVisible(),
+    );
+    expect(screen.getByLabelText('Browse Adventure anime')).toBeVisible();
+    expect(screen.getByLabelText('Browse Fantasy anime')).toBeVisible();
+    expect(screen.queryByTestId('search-results')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Ember Archive')).not.toBeOnTheScreen();
+  });
+
+  it('uses unique genre backgrounds and opens popular and new groups', async () => {
+    const dependencies = createTestDependencies();
+    const actionLead = makeAnime({
+      id: 701,
+      title: 'Action Lead',
+      genres: ['Action', 'Fantasy'],
+      heroImageUrl: 'https://example.com/action-lead.jpg',
+    });
+    const actionBackup = makeAnime({
+      id: 702,
+      title: 'Action Backup',
+      genres: ['Action'],
+      heroImageUrl: 'https://example.com/action-backup.jpg',
+    });
+    const comedyLead = makeAnime({
+      id: 703,
+      title: 'Comedy Lead',
+      genres: ['Comedy'],
+      heroImageUrl: 'https://example.com/comedy-lead.jpg',
+    });
+    dependencies.catalogRepository.getPopular = jest
+      .fn()
+      .mockResolvedValue([actionLead, actionBackup, comedyLead]);
+    const popular = Array.from({ length: 20 }, (_, index) =>
+      makeAnime({
+        id: 800 + index,
+        title: `Action Popular ${index + 1}`,
+        genres: ['Action'],
+      }),
+    );
+    const newReleases = Array.from({ length: 20 }, (_, index) =>
+      makeAnime({
+        id: 900 + index,
+        title: `Action New ${index + 1}`,
+        genres: ['Action'],
+      }),
+    );
+    dependencies.catalogRepository.getGenreDiscovery = jest
+      .fn()
+      .mockResolvedValue({ popular, newReleases });
+    await renderWithProviders(<SearchScreen />, { dependencies });
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Browse Action anime')).toBeVisible(),
+    );
+    expect(screen.getByTestId('genre-topic-Action-image')).toHaveProp(
+      'source',
+      {
+        uri: 'https://example.com/action-backup.jpg',
+      },
+    );
+    expect(screen.getByTestId('genre-topic-Fantasy-image')).toHaveProp(
+      'source',
+      { uri: 'https://example.com/action-lead.jpg' },
+    );
+    await fireEvent.press(screen.getByLabelText('Browse Action anime'));
+    await waitFor(() =>
+      expect(screen.getByText('Action Popular 1')).toBeVisible(),
+    );
+    expect(screen.getByText('Action')).toBeVisible();
+    expect(screen.getByLabelText('Browse all genres')).toBeVisible();
+    expect(screen.getByLabelText('Open anime search')).toBeVisible();
+    expect(screen.queryByLabelText('Search anime')).not.toBeOnTheScreen();
+    expect(screen.getByText('New')).toBeVisible();
+    expect(screen.getByText('Popular')).toBeVisible();
+    expect(
+      screen
+        .getAllByText(/^(New|Popular)$/)
+        .map((sectionTitle) => sectionTitle.props.children),
+    ).toEqual(['New', 'Popular']);
+    expect(screen.getByText('Action New 1')).toBeVisible();
+    expect(
+      dependencies.catalogRepository.getGenreDiscovery,
+    ).toHaveBeenCalledWith('Action', 20);
+
+    await fireEvent.press(screen.getByLabelText('Browse all genres'));
+    expect(screen.getByTestId('search-topics')).toBeVisible();
+
+    await fireEvent.press(screen.getByLabelText('Browse Action anime'));
+    await waitFor(() => expect(screen.getByText('Action')).toBeVisible());
+    await fireEvent.press(screen.getByLabelText('Open anime search'));
+    expect(screen.getByLabelText('Search anime')).toHaveProp('autoFocus', true);
+    expect(screen.getByLabelText('Close search')).toBeVisible();
+    expect(screen.queryByText('Action')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('Browse all genres')).not.toBeOnTheScreen();
+
+    await fireEvent.changeText(screen.getByLabelText('Search anime'), 'Naruto');
+    await fireEvent.press(screen.getByLabelText('Close search'));
+    expect(screen.getByText('Action')).toBeVisible();
+    expect(screen.queryByLabelText('Search anime')).not.toBeOnTheScreen();
+
+    await fireEvent.press(screen.getByLabelText('Open anime search'));
+    expect(screen.getByLabelText('Search anime')).toHaveProp('value', '');
+  });
+
+  it('uses topic-shaped skeletons while discovery content is loading', async () => {
     const dependencies = createTestDependencies();
     dependencies.catalogRepository.getPopular = jest.fn(
       () => new Promise(() => undefined),

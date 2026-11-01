@@ -1,4 +1,7 @@
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeGenreDiscovery,
+} from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import { AniListCatalogCache } from '@/infrastructure/api/anilist/anilist-cache';
 import {
@@ -32,6 +35,7 @@ import {
   ANILIST_COMBINED_HOME_QUERY,
   ANILIST_BY_MAL_IDS_QUERY,
   ANILIST_DETAILS_QUERY,
+  ANILIST_GENRE_DISCOVERY_QUERY,
   ANILIST_POPULAR_QUERY,
   ANILIST_SEARCH_QUERY,
   ANILIST_SEASONAL_QUERY,
@@ -91,6 +95,10 @@ function shuffled<T>(items: readonly T[], random: RandomGenerator): T[] {
 
 function deduplicate(items: readonly AnimeCatalogItem[]): AnimeCatalogItem[] {
   return [...new Map(items.map((item) => [item.id, item])).values()];
+}
+
+function normalizedGenreLimit(limit: number): number {
+  return Number.isInteger(limit) ? Math.min(25, Math.max(1, limit)) : 20;
 }
 
 function mapSummaries(
@@ -244,6 +252,63 @@ export class AniListAnimeCatalogRepository implements AnimeCatalogRepository {
       search: normalized,
       page: 1,
       perPage: 25,
+    });
+  }
+
+  getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim();
+    if (!normalizedGenre) {
+      return Promise.resolve({ popular: [], newReleases: [] });
+    }
+    const normalizedLimit = normalizedGenreLimit(limit);
+    const genreKey = normalizedGenre.toLocaleLowerCase();
+    const popularCacheKey = `collection:genre:${genreKey}:popular:${normalizedLimit}`;
+    const newReleasesCacheKey = `collection:genre:${genreKey}:new:${normalizedLimit}`;
+    const cachedPopular = this.cache.getCollection(popularCacheKey);
+    const cachedNewReleases = this.cache.getCollection(newReleasesCacheKey);
+    if (cachedPopular && cachedNewReleases) {
+      return Promise.resolve({
+        popular: cachedPopular,
+        newReleases: cachedNewReleases,
+      });
+    }
+
+    const generation = this.generation;
+    const requestKey = `genre:${genreKey}:${normalizedLimit}`;
+    return this.cache.getOrCreate(requestKey, async () => {
+      const response = await this.execute(
+        requestKey,
+        ANILIST_GENRE_DISCOVERY_QUERY,
+        { genres: [normalizedGenre], perPage: normalizedLimit },
+      );
+      const executionError = graphQLErrorFor(response);
+      if (executionError) throw executionError;
+      try {
+        const discovery = {
+          popular: mapSummaries(
+            parseAniListPageAlias(response.data, 'popular').media,
+            this.mediaIdentityResolver,
+          ),
+          newReleases: mapSummaries(
+            parseAniListPageAlias(response.data, 'newReleases').media,
+            this.mediaIdentityResolver,
+          ),
+        };
+        if (generation === this.generation) {
+          this.cache.setCollection(popularCacheKey, discovery.popular);
+          this.cache.setCollection(newReleasesCacheKey, discovery.newReleases);
+        }
+        return discovery;
+      } catch (error: unknown) {
+        if (error instanceof AniListGraphQLExecutionError) throw error;
+        throw new AniListResponseFormatError(
+          error instanceof Error ? error.message : undefined,
+          diagnostic(response),
+        );
+      }
     });
   }
 

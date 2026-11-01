@@ -1,7 +1,10 @@
 import { Platform } from 'react-native';
 
 import { CatalogUnavailableError } from '@/domain/errors/catalog-error';
-import type { AnimeCatalogItem } from '@/domain/models/anime';
+import type {
+  AnimeCatalogItem,
+  AnimeGenreDiscovery,
+} from '@/domain/models/anime';
 import type { AnimeCatalogRepository } from '@/domain/repositories/anime-catalog-repository';
 import { MalResponseFormatError } from '@/infrastructure/api/mal/mal-errors';
 import type { CircuitState } from '@/infrastructure/repositories/resilient/catalog-circuit-breaker';
@@ -144,6 +147,17 @@ function isAnimeCatalogItem(value: unknown): value is AnimeCatalogItem {
   );
 }
 
+function isAnimeGenreDiscovery(value: unknown): value is AnimeGenreDiscovery {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'popular' in value &&
+    Array.isArray(value.popular) &&
+    'newReleases' in value &&
+    Array.isArray(value.newReleases)
+  );
+}
+
 function emptyOperationSources(): Record<
   CatalogOperationFamily,
   {
@@ -241,6 +255,23 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
       'search',
       () => this.primary.search(normalized),
       () => this.fallback.search(normalized),
+    );
+  }
+
+  getGenreDiscovery(
+    genre: string,
+    limit: number,
+  ): Promise<AnimeGenreDiscovery> {
+    const normalizedGenre = genre.trim();
+    const normalizedLimit = Number.isInteger(limit)
+      ? Math.min(25, Math.max(1, limit))
+      : 20;
+    return this.execute(
+      `genre:${normalizedGenre.toLocaleLowerCase()}:${normalizedLimit}`,
+      'search',
+      () => this.primary.getGenreDiscovery(normalizedGenre, normalizedLimit),
+      () => this.fallback.getGenreDiscovery(normalizedGenre, normalizedLimit),
+      { requireNonEmpty: true },
     );
   }
 
@@ -586,7 +617,12 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
     options: OperationOptions,
     fallback = false,
   ): void {
-    if (options.requireNonEmpty && Array.isArray(value) && value.length === 0) {
+    const isEmptyRequiredValue =
+      (Array.isArray(value) && value.length === 0) ||
+      (isAnimeGenreDiscovery(value) &&
+        value.popular.length === 0 &&
+        value.newReleases.length === 0);
+    if (options.requireNonEmpty && isEmptyRequiredValue) {
       if (fallback) {
         throw new MalResponseFormatError(
           'MyAnimeList returned an unexpectedly empty required collection.',
@@ -624,6 +660,13 @@ export class ResilientAnimeCatalogRepository implements AnimeCatalogRepository {
   ): void {
     if (Array.isArray(value)) {
       this.itemStore.upsertMany(value.filter(isAnimeCatalogItem), metadata);
+      return;
+    }
+    if (isAnimeGenreDiscovery(value)) {
+      this.itemStore.upsertMany(
+        [...value.popular, ...value.newReleases].filter(isAnimeCatalogItem),
+        metadata,
+      );
       return;
     }
     if (isAnimeCatalogItem(value)) this.itemStore.upsert(value, metadata);

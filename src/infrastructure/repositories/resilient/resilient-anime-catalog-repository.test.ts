@@ -47,6 +47,10 @@ function createCatalogMock(item: AnimeCatalogItem): CatalogMock {
     getSeasonal: jest.fn(async () => [item]),
     getUpcoming: jest.fn(async () => [item]),
     search: jest.fn(async (_query: string) => [item]),
+    getGenreDiscovery: jest.fn(async (_genre: string, _limit: number) => ({
+      popular: [item],
+      newReleases: [item],
+    })),
     getManyByIds: jest.fn(async (_ids: number[]) => [item]),
     getDetailsById: jest.fn(async (_id: number) => item),
     getKnownById: jest.fn((_id: number) => null),
@@ -95,6 +99,28 @@ describe('ResilientAnimeCatalogRepository', () => {
     expect(repository.getRuntimeSnapshot().operations.popular).toMatchObject({
       lastSuccessfulSource: 'mal',
       lastFallbackAt: expect.any(Number),
+    });
+  });
+
+  it('uses the search resilience family for normalized genre discovery', async () => {
+    const primary = createCatalogMock(primaryAnime);
+    const fallback = createCatalogMock(fallbackAnime);
+    primary.getGenreDiscovery.mockRejectedValueOnce(new AniListNetworkError());
+    const repository = new ResilientAnimeCatalogRepository({
+      primary,
+      fallback,
+    });
+
+    await expect(repository.getGenreDiscovery(' Action ', 20)).resolves.toEqual(
+      {
+        popular: [fallbackAnime],
+        newReleases: [fallbackAnime],
+      },
+    );
+    expect(primary.getGenreDiscovery).toHaveBeenCalledWith('Action', 20);
+    expect(fallback.getGenreDiscovery).toHaveBeenCalledWith('Action', 20);
+    expect(repository.getRuntimeSnapshot().operations.search).toMatchObject({
+      lastSuccessfulSource: 'mal',
     });
   });
 

@@ -24,6 +24,7 @@ import { createAppQueryClient } from '@/presentation/providers/app-providers';
 import {
   useAnimeSearch,
   useContinueWatching,
+  useGenreDiscovery,
   useInfiniteUnifiedUserList,
   usePopularAnime,
 } from '@/presentation/queries/anime-queries';
@@ -43,6 +44,10 @@ function createCatalogMock(
     getSeasonal: jest.fn(async () => catalog),
     getUpcoming: jest.fn(async () => catalog),
     search: jest.fn(async (_query: string) => catalog),
+    getGenreDiscovery: jest.fn(async (_genre: string, _limit: number) => ({
+      popular: catalog,
+      newReleases: catalog,
+    })),
     getManyByIds: jest.fn(async (_ids: number[]) => catalog),
     getDetailsById: jest.fn(
       async (id) => catalog.find((item) => item.id === id) ?? null,
@@ -124,6 +129,20 @@ describe('React Query integration', () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(search).toHaveBeenCalledWith('neon ronin');
+  });
+
+  it('requests up to 20 anime for each genre discovery group', async () => {
+    const dependencies = createTestDependencies();
+    const getGenreDiscovery = jest.spyOn(
+      dependencies.catalogRepository,
+      'getGenreDiscovery',
+    );
+    const { result } = await renderHook(() => useGenreDiscovery('Action'), {
+      wrapper: createTestWrapper(dependencies),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getGenreDiscovery).toHaveBeenCalledWith('Action', 20);
   });
 
   it('loads and hydrates only the first page of a 250-entry list', async () => {
